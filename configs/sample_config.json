@@ -1,0 +1,15 @@
+{
+    "name": "sample",
+    "data": {
+        "training_set_path": "data/prepare_font_data/training.json",
+        "validation_set_path": "data/prepare_font_data/validation.json",
+        "image_root_directory": "data/prepare_font_data/output",
+        "character_set_path": "data/prepare_font_data/char_set.json"
+    },
+    "network": {
+        "input_height": 60,
+        "cnn_out_size": 1024,
+        "learning_rate": 1e-4
+    },
+    "warp": false
+}

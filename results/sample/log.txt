@@ -1,0 +1,22 @@
+Using config file configs/sample_config.json
+{
+  "data": {
+    "character_set_path": "data/prepare_font_data/char_set.json", 
+    "training_set_path": "data/prepare_online_data/train_augmentation.json", 
+    "validation_set_path": "data/prepare_font_data/validation.json", 
+    "image_root_directory": "data/prepare_online_data/cropped_images"
+  }, 
+  "name": "sample", 
+  "warp": false, 
+  "network": {
+    "cnn_out_size": 1024, 
+    "learning_rate": 0.0001, 
+    "input_height": 60
+  }
+}
+
+Number of training instances: 3388
+Number of test instances: 1000 
+
+Using GPU
+Epoch  1
