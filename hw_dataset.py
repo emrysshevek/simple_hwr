@@ -57,18 +57,13 @@ def collate(batch):
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_path, char_to_idx, img_height=32, data_root=".", warp=False, augment_path=None, augment_root=""):
-        with open(data_path) as f:
-            data = json.load(f)
-        if augment_path is not None:
-            with open(augment_path, 'r') as fp:
-                augmentation = json.load(fp)
-                for instance in augmentation:
-                    instance['augmentation'] = True
-                data.extend(augmentation)
+    def __init__(self, data_paths, char_to_idx, img_height=32, root=".", warp=False):
+        data = []
+        for data_path in data_paths:
+            with open(os.path.join(root, data_path)) as fp:
+                data.extend(json.load(fp))
 
-        self.data_root = data_root
-        self.augment_root = augment_root
+        self.root = root
         self.img_height = img_height
         self.char_to_idx = char_to_idx
         self.data = data
@@ -80,10 +75,7 @@ class HwDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
 
-        # root = self.augment_root if item.get('augmentation', False) else self.data_root
-        # root = self.data_root
-        root = 'data'
-        img = cv2.imread(os.path.join(root, item['image_path']))
+        img = cv2.imread(os.path.join(self.root, item['image_path']))
 
         if img is None:
             print("Warning: image is None:", os.path.join(root, item['image_path']))

@@ -20,27 +20,31 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+VALIDATION_PATH = 'prepare_online_data/test_augmentation.json'
+
 
 def main():
     config_path = sys.argv[1]
-    model_path = sys.argv[2]
-    print(config_path, model_path)
 
     with open(config_path) as f:
         config = json.load(f)
 
-    data_config = config['data']
-    augment_config = config.get('augmentation')
-    network_config = config['network']
+    results_dir = os.path.join('results', config['name'])
+    if len(results_dir) > 0 and not os.path.exists(results_dir):
+        os.makedirs(results_dir)
 
-    idx_to_char, char_to_idx = character_set.load_char_set(data_config['character_set_path'])
-    if augment_config is not None:
-        online_idx_to_char, online_char_to_idx = character_set.load_char_set(augment_config['character_set_path'])
-        idx_to_char.update(online_idx_to_char)
-        char_to_idx.update(online_char_to_idx)
+    train_config = config['train_data']
+    test_config = config['test_data']
 
-    train_dataloader, test_dataloader = make_dataloaders(data_config, augment_config, network_config, char_to_idx,
-                                                         config['warp'])
+    char_to_idx, idx_to_char, char_freq = character_set.make_char_set(train_config['paths'], root=train_config['root'])
+
+    train_dataloader, test_dataloader = make_dataloaders(
+        train_config['paths'], train_config['root'], [VALIDATION_PATH], train_config['root'], char_to_idx,
+        config['network']['input_height'], config['warp']
+    )
+
+    n_train_instances = len(train_dataloader.dataset)
+
     hw = crnn.create_model({
         'cnn_out_size': config['network']['cnn_out_size'],
         'num_of_channels': 3,
@@ -50,10 +54,10 @@ def main():
     if torch.cuda.is_available():
         hw.cuda()
         dtype = torch.cuda.FloatTensor
-        print("Using GPU")
     else:
         dtype = torch.FloatTensor
-        print("No GPU detected")
+
+    model_path = os.path.join('results', config['name'], config['name']+"_model.pt")
 
     hw.load_state_dict(torch.load(model_path))
 

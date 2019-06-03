@@ -95,23 +95,13 @@ def run_epoch(model, dataloader, criterion, optimizer, idx_to_char, dtype):
     return training_cer
 
 
-def make_dataloaders(data_config, augment_config, network_config, char_to_idx, warp):
+def make_dataloaders(train_paths, train_root, test_paths, test_root, char_to_idx, img_height, warp):
 
-    train_dataset = HwDataset(data_config['training_set_path'], char_to_idx,
-                              img_height=network_config['input_height'],
-                              data_root=data_config['image_root_directory'],
-                              warp=warp,
-                              augment_path=augment_config['training_set_path'] if augment_config else None,
-                              augment_root=augment_config['image_root_directory'] if augment_config else None)
-    train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=False, num_workers=0,
-                                  collate_fn=hw_dataset.collate)
+    train_dataset = HwDataset(train_paths, char_to_idx, img_height=img_height, root=train_root, warp=warp)
+    train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=False, num_workers=0, collate_fn=hw_dataset.collate)
 
-    test_dataset = HwDataset(data_config['validation_set_path'], char_to_idx, img_height=network_config['input_height'],
-                             data_root=data_config['image_root_directory'],
-                             augment_path=augment_config['validation_set_path'] if augment_config else None,
-                             augment_root=augment_config['image_root_directory'] if augment_config else None)
-    test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=0,
-                                 collate_fn=hw_dataset.collate)
+    test_dataset = HwDataset(test_paths, char_to_idx, img_height=img_height, root=test_root)
+    test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=0, collate_fn=hw_dataset.collate)
 
     return train_dataloader, test_dataloader
 
@@ -133,33 +123,15 @@ def main():
     log_print(json.dumps(config, indent=2))
     log_print()
 
-    data_config = config['data']
-    augment_config = config.get('augmentation')
-    network_config = config['network']
+    train_config = config['train_data']
+    test_config = config['test_data']
 
-    idx_to_char, char_to_idx = character_set.load_char_set(data_config['character_set_path'])
-    if augment_config is not None:
-        online_idx_to_char, online_char_to_idx = character_set.load_char_set(augment_config['character_set_path'])
-        idx_to_char.update(online_idx_to_char)
-        char_to_idx.update(online_char_to_idx)
+    char_to_idx, idx_to_char, char_freq = character_set.make_char_set(train_config['paths'], root=train_config['root'])
 
-    # train_dataset = HwDataset(data_config['training_set_path'], char_to_idx,
-    #                           img_height=network_config['input_height'],
-    #                           data_root=data_config['image_root_directory'],
-    #                           warp=config['warp'],
-    #                           augment_path=augment_config['training_set_path'] if augment_config else None,
-    #                           augment_root=augment_config['image_root_directory'] if augment_config else None)
-    # train_dataloader = DataLoader(train_dataset, batch_size=8, shuffle=False, num_workers=0,
-    #                               collate_fn=hw_dataset.collate)
-    #
-    # test_dataset = HwDataset(data_config['validation_set_path'], char_to_idx, img_height=network_config['input_height'],
-    #                          data_root=data_config['image_root_directory'],
-    #                          augment_path=augment_config['validation_set_path'] if augment_config else None,
-    #                          augment_root=augment_config['image_root_directory'] if augment_config else None)
-    # test_dataloader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=0,
-    #                              collate_fn=hw_dataset.collate)
-
-    train_dataloader, test_dataloader = make_dataloaders(data_config, augment_config, network_config, char_to_idx, config['warp'])
+    train_dataloader, test_dataloader = make_dataloaders(
+        train_config['paths'], train_config['root'], test_config['paths'], test_config['root'], char_to_idx,
+        config['network']['input_height'], config['warp']
+    )
 
     n_train_instances = len(train_dataloader.dataset)
     log_print("Number of training instances:", n_train_instances)
@@ -186,65 +158,11 @@ def main():
     test_losses = []
     for epoch in range(1, 1001):
         log_print("Epoch ", epoch)
-        # sum_loss = 0.0
-        # steps = 0.0
-        # hw.train()
-        # for i, x in enumerate(train_dataloader):
-        #     line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
-        #     labels = Variable(x['labels'], requires_grad=False)
-        #     label_lengths = Variable(x['label_lengths'], requires_grad=False)
-        #
-        #     preds = hw(line_imgs).cpu()
-        #     preds_size = Variable(torch.IntTensor([preds.size(0)] * preds.size(1)))
-        #
-        #     output_batch = preds.permute(1, 0, 2)
-        #     out = output_batch.data.cpu().numpy()
-        #
-        #     loss = criterion(preds, labels, preds_size, label_lengths)
-        #
-        #     optimizer.zero_grad()
-        #     loss.backward()
-        #     optimizer.step()
-        #     #if i == 0:
-        #     #    for i in xrange(out.shape[0]):
-        #     #        pred, pred_raw = string_utils.naive_decode(out[i,...])
-        #     #        pred_str = string_utils.label2str(pred_raw, idx_to_char, True)
-        #     #        print(pred_str)
-        #
-        #     for j in range(out.shape[0]):
-        #         logits = out[j,...]
-        #         pred, raw_pred = string_utils.naive_decode(logits)
-        #         pred_str = string_utils.label2str(pred, idx_to_char, False)
-        #         gt_str = x['gt'][j]
-        #         cer = error_rates.cer(gt_str, pred_str)
-        #         sum_loss += cer
-        #         steps += 1
-        # training_cer = sum_loss / steps
+
         training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, idx_to_char, dtype)
         log_print("Training CER", training_cer)
         train_losses.append(training_cer)
 
-        # sum_loss = 0.0
-        # steps = 0.0
-        # hw.eval()
-        # for x in test_dataloader:
-        #     line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False, volatile=True)
-        #     labels =  Variable(x['labels'], requires_grad=False, volatile=True)
-        #     label_lengths = Variable(x['label_lengths'], requires_grad=False, volatile=True)
-        #
-        #     preds = hw(line_imgs).cpu()
-        #
-        #     output_batch = preds.permute(1,0,2)
-        #     out = output_batch.data.cpu().numpy()
-        #
-        #     for i, gt_line in enumerate(x['gt']):
-        #         logits = out[i,...]
-        #         pred, raw_pred = string_utils.naive_decode(logits)
-        #         pred_str = string_utils.label2str(pred, idx_to_char, False)
-        #         cer = error_rates.cer(gt_line, pred_str)
-        #         sum_loss += cer
-        #         steps += 1
-        # test_cer = sum_loss / steps
         test_cer = test(hw, test_dataloader, idx_to_char, dtype)
         log_print("Test CER", test_cer)
         test_losses.append(test_cer)

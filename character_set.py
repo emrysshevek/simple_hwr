@@ -13,17 +13,16 @@ def load_char_set(char_set_path):
 
     return idx_to_char, char_set['char_to_idx']
 
-if __name__ == "__main__":
-    character_set_path = sys.argv[-1]
+
+def make_char_set(paths, root=""):
     out_char_to_idx = {}
     out_idx_to_char = {}
     char_freq = defaultdict(int)
-    for i in range(1, len(sys.argv)-1):
-        data_file = sys.argv[i]
-        with open(data_file) as f:
+    for data_file in paths:
+        with open(os.path.join(root, data_file)) as f:
             data = json.load(f)
 
-        cnt = 1 # this is important that this starts at 1 not 0
+        cnt = 1  # this is important that this starts at 1 not 0
         for data_item in data:
             for c in data_item.get('gt', ""):
                 if c not in out_char_to_idx:
@@ -36,12 +35,21 @@ if __name__ == "__main__":
     out_idx_to_char2 = {}
 
     for i, c in enumerate(sorted(out_char_to_idx.keys())):
-        out_char_to_idx2[c] = i+1
-        out_idx_to_char2[i+1] = c
+        out_char_to_idx2[c] = i + 1
+        out_idx_to_char2[i + 1] = c
+
+    return out_char_to_idx2, out_idx_to_char2, char_freq
+
+
+if __name__ == "__main__":
+    character_set_path = sys.argv[-1]
+    paths = [sys.argv[i] for i in range(1, len(sys.argv)-1)]
+
+    char_to_idx, idx_to_char, char_freq = make_char_set(*paths)
 
     output_data = {
-        "char_to_idx": out_char_to_idx2,
-        "idx_to_char": out_idx_to_char2
+        "char_to_idx": char_to_idx,
+        "idx_to_char": idx_to_char
     }
 
     for k,v in sorted(char_freq.iteritems(), key=lambda x: x[1]):

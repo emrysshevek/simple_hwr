@@ -1,0 +1,223 @@
+Using config file warp_config_iam.json
+{
+  "training_set_path": "prepare_IAM_Lines/raw_gts/lines/txt/training.json", 
+  "network": {
+    "cnn_out_size": 1024, 
+    "learning_rate": 0.0001, 
+    "input_height": 60
+  }, 
+  "warp_augmentation": true, 
+  "name": "warp_iam", 
+  "character_set_path": "prepare_IAM_Lines/char_set.json", 
+  "online_augmentation": false, 
+  "image_root_directory": "prepare_IAM_Lines/lines", 
+  "validation_set_path": "prepare_IAM_Lines/raw_gts/lines/txt/test.json"
+}
+
+Number of instances in train: 6161 
+
+Using GPU
+Epoch  1
+Training CER 1.00656375656
+Test CER 1.0
+Saving Best
+Epoch  2
+Training CER 0.972620288332
+Test CER 0.802573717861
+Saving Best
+Epoch  3
+Training CER 0.441878677444
+Test CER 0.334703597779
+Saving Best
+Epoch  4
+Training CER 0.221247027765
+Test CER 0.303851733226
+Saving Best
+Epoch  5
+Training CER 0.166206514513
+Test CER 0.227579591962
+Saving Best
+Epoch  6
+Training CER 0.13728214216
+Test CER 0.201902874219
+Saving Best
+Epoch  7
+Training CER 0.117295521764
+Test CER 0.176174729852
+Saving Best
+Epoch  8
+Training CER 0.102791773038
+Test CER 0.157001267497
+Saving Best
+Epoch  9
+Training CER 0.0912594645116
+Test CER 0.14795077412
+Saving Best
+Epoch  10
+Training CER 0.0819431966194
+Test CER 0.134252584591
+Saving Best
+Epoch  11
+Training CER 0.0746404011796
+Test CER 0.135534556607
+Epoch  12
+Training CER 0.0677825825049
+Test CER 0.130481088546
+Saving Best
+Epoch  13
+Training CER 0.0621369435923
+Test CER 0.13582310636
+Epoch  14
+Training CER 0.0563434022385
+Test CER 0.1214519028
+Saving Best
+Epoch  15
+Training CER 0.0523833660269
+Test CER 0.114347884592
+Saving Best
+Epoch  16
+Training CER 0.0479899002928
+Test CER 0.11460407246
+Epoch  17
+Training CER 0.0443365509014
+Test CER 0.119782551999
+Epoch  18
+Training CER 0.0410779719775
+Test CER 0.111618569207
+Saving Best
+Epoch  19
+Training CER 0.0385582144009
+Test CER 0.114439469806
+Epoch  20
+Training CER 0.0356566371288
+Test CER 0.0984264214004
+Saving Best
+Epoch  21
+Training CER 0.034040044338
+Test CER 0.114214174487
+Epoch  22
+Training CER 0.0316782003597
+Test CER 0.105315317619
+Epoch  23
+Training CER 0.0295520039576
+Test CER 0.0995163730245
+Epoch  24
+Training CER 0.0278621048574
+Test CER 0.0978318017426
+Saving Best
+Epoch  25
+Training CER 0.026213010726
+Test CER 0.104094740907
+Epoch  26
+Training CER 0.0241277806697
+Test CER 0.0937887380195
+Saving Best
+Epoch  27
+Training CER 0.0235262469353
+Test CER 0.100614618349
+Epoch  28
+Training CER 0.0219235142192
+Test CER 0.0985705691333
+Epoch  29
+Training CER 0.0210746751852
+Test CER 0.0913195827352
+Saving Best
+Epoch  30
+Training CER 0.0200409000839
+Test CER 0.0935706199167
+Epoch  31
+Training CER 0.0195291595109
+Test CER 0.0936941969482
+Epoch  32
+Training CER 0.0181765302678
+Test CER 0.102474463857
+Epoch  33
+Training CER 0.016606114408
+Test CER 0.0978801947484
+Epoch  34
+Training CER 0.016395266896
+Test CER 0.0885331117908
+Saving Best
+Epoch  35
+Training CER 0.0163895366768
+Test CER 0.0970273362774
+Epoch  36
+Training CER 0.0145405275899
+Test CER 0.101251316652
+Epoch  37
+Training CER 0.0147060542968
+Test CER 0.102454041619
+Epoch  38
+Training CER 0.0145714013118
+Test CER 0.0909494576053
+Epoch  39
+Training CER 0.0135479750834
+Test CER 0.0958698684105
+Epoch  40
+Training CER 0.012951673256
+Test CER 0.0995033057236
+Epoch  41
+Training CER 0.0121889940689
+Test CER 0.0960726330529
+Epoch  42
+Training CER 0.0126514697082
+Test CER 0.103128177165
+Epoch  43
+Training CER 0.0122281288637
+Test CER 0.0892200955501
+Epoch  44
+Training CER 0.0114678283786
+Test CER 0.0887520165225
+Epoch  45
+Training CER 0.0107609175357
+Test CER 0.0841274140751
+Saving Best
+Epoch  46
+Training CER 0.0101588301588
+Test CER 0.0990145840674
+Epoch  47
+Training CER 0.0100897665154
+Test CER 0.0951264528192
+Epoch  48
+Training CER 0.00999316572352
+Test CER 0.084464123591
+Epoch  49
+Training CER 0.00938193287794
+Test CER 0.0954671169502
+Epoch  50
+Training CER 0.0097433877699
+Test CER 0.0861625304765
+Epoch  51
+Training CER 0.00947479203734
+Test CER 0.0883343312534
+Epoch  52
+Training CER 0.00929457688138
+Test CER 0.0942905035395
+Epoch  53
+Training CER 0.00822599108525
+Test CER 0.0886089888603
+Epoch  54
+Training CER 0.00873550169664
+Test CER 0.101508291038
+Epoch  55
+Training CER 0.00874868000858
+Test CER 0.0864022220466
+Epoch  56
+Training CER 0.00834517885809
+Test CER 0.0876411821914
+Epoch  57
+Training CER 0.00814261887082
+Test CER 0.0880080717907
+Epoch  58
+Training CER 0.00747388043887
+Test CER 0.091420931586
+Epoch  59
+Training CER 0.00702744811127
+Test CER 0.100968277256
+Epoch  60
+Training CER 0.00767827915055
+Test CER 0.0892929928957
+Epoch  61
+Training CER 0.00740900467456
+Test CER 0.0877457848759
+Epoch  62

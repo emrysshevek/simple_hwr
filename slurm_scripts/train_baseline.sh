@@ -19,5 +19,5 @@ export PATH="/fslhome/masonfp/fsl_groups/fslg_hwr/compute/env/hwr_env/bin:$PATH"
 which python
 
 cd "/fslhome/masonfp/fsl_groups/fslg_hwr/compute/simple_hwr"
-python train.py configs/baseline_config.json
+python -u train.py configs/baseline.json
 
