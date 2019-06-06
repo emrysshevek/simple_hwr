@@ -48,12 +48,14 @@ def collate(batch):
     line_imgs = torch.from_numpy(line_imgs)
     labels = torch.from_numpy(all_labels.astype(np.int32))
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32))
+    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch]))
 
     return {
         "line_imgs": line_imgs,
         "labels": labels,
         "label_lengths": label_lengths,
-        "gt": [b['gt'] for b in batch]
+        "gt": [b['gt'] for b in batch],
+        "online": online
     }
 
 class HwDataset(Dataset):
@@ -92,9 +94,11 @@ class HwDataset(Dataset):
 
         gt = item['gt']
         gt_label = string_utils.str2label(gt, self.char_to_idx)
+        online = item.get('online', False)
 
         return {
             "line_img": img,
             "gt_label": gt_label,
-            "gt": gt
+            "gt": gt,
+            "online": online
         }

@@ -59,16 +59,19 @@ class CRNN(nn.Module):
         convRelu(6, True)  # 512x1x16
 
         self.cnn = cnn
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
+        self.rnn = BidirectionalLSTM(cnnOutSize+1, nh, nclass)
         self.softmax = nn.LogSoftmax()
 
-    def forward(self, input):
+    def forward(self, input, online):
         conv = self.cnn(input)
         b, c, h, w = conv.size()
         conv = conv.view(b, -1, w)
         conv = conv.permute(2, 0, 1)  # [w, b, c]
+        rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
+
         # rnn features
-        output = self.rnn(conv)
+        # rnn_input =
+        output = self.rnn(rnn_input)
 
 
 
