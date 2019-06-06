@@ -1,6 +1,7 @@
 from __future__ import print_function
 from builtins import range
 
+from utils import is_iterable
 import json
 import character_set
 import sys
@@ -11,9 +12,13 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
+from torch.nn import CrossEntropyLoss
 
 import matplotlib
 matplotlib.use('Agg')
@@ -57,7 +62,7 @@ def test(model, dataloader, idx_to_char, dtype):
     return test_cer
 
 
-def run_epoch(model, dataloader, criterion, optimizer, idx_to_char, dtype):
+def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, secondary_criterion=None):
     sum_loss = 0.0
     steps = 0.0
     model.train()
@@ -66,16 +71,31 @@ def run_epoch(model, dataloader, criterion, optimizer, idx_to_char, dtype):
         labels = Variable(x['labels'], requires_grad=False)
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
 
-        preds = model(line_imgs).cpu()
-        preds_size = Variable(torch.IntTensor([preds.size(0)] * preds.size(1)))
+        if type(model).__name__ == "CRNNClassifier" or not secondary_criterion is None:
+            labels_author = Variable(x['writer_id'], requires_grad=False)
 
-        output_batch = preds.permute(1, 0, 2)
-        out = output_batch.data.cpu().numpy()
+            pred_text, pred_author = model(line_imgs).cpu()
+            preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
 
-        loss = criterion(preds, labels, preds_size, label_lengths)
+            output_batch = pred_text.permute(1, 0, 2)
+            out = output_batch.data.cpu().numpy()
+
+            loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
+            loss_author = secondary_criterion(pred_author, labels_author)
+
+            total_loss = loss_author + loss_recognizer
+        else:
+            preds = model(line_imgs).cpu()
+            preds_size = Variable(torch.IntTensor([preds.size(0)] * preds.size(1)))
+
+            output_batch = preds.permute(1, 0, 2)
+            out = output_batch.data.cpu().numpy()
+            total_loss = ctc_criterion(preds, labels, preds_size, label_lengths)
+
+
 
         optimizer.zero_grad()
-        loss.backward()
+        total_loss.backward()
         optimizer.step()
         # if i == 0:
         #    for i in xrange(out.shape[0]):
@@ -137,7 +157,7 @@ def main():
     log_print("Number of training instances:", n_train_instances)
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
 
-    hw = crnn.create_model({
+    hw = crnn.create_CRNNClassifier({
         'cnn_out_size': config['network']['cnn_out_size'],
         'num_of_channels': 3,
         'num_of_outputs': len(idx_to_char)+1
@@ -153,13 +173,15 @@ def main():
 
     optimizer = torch.optim.Adam(hw.parameters(), lr=config['network']['learning_rate'])
     criterion = CTCLoss()
+    secondary_criterion = CrossEntropyLoss()
+
     lowest_loss = float('inf')
     train_losses = []
     test_losses = []
     for epoch in range(1, 1001):
         log_print("Epoch ", epoch)
 
-        training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, idx_to_char, dtype)
+        training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, idx_to_char, dtype, secondary_criterion=secondary_criterion)
         log_print("Training CER", training_cer)
         train_losses.append(training_cer)
 

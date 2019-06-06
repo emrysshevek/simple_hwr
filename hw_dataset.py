@@ -1,3 +1,4 @@
+import re
 import json
 
 import torch
@@ -13,7 +14,7 @@ import random
 import string_utils
 
 import grid_distortion
-
+from utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -33,7 +34,7 @@ def collate(batch):
     label_lengths = []
 
     input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
-    for i in xrange(len(batch)):
+    for i in range(len(batch)):
         b_img = batch[i]['line_img']
         input_batch[i,:,:b_img.shape[1],:] = b_img
 
@@ -53,21 +54,36 @@ def collate(batch):
         "line_imgs": line_imgs,
         "labels": labels,
         "label_lengths": label_lengths,
-        "gt": [b['gt'] for b in batch]
+        "gt": [b['gt'] for b in batch],
+        "writer_id": torch.FloatTensor([b['writer_id'] for b in batch])
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, root=".", warp=False):
+    def __init__(self, data_paths, char_to_idx, img_height=32, root=".", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
                 data.extend(json.load(fp))
 
+        data = self.add_writer_ids(data, writer_ids_pickle)
         self.root = root
         self.img_height = img_height
         self.char_to_idx = char_to_idx
         self.data = data
         self.warp = warp
+
+    def add_writer_ids(self, data, writer_id_path):
+        d = unpickle_it(writer_id_path)
+        inverted_dict = dict([[v, k] for k, vs in d.items() for v in vs ])
+
+        for i,item in enumerate(data):
+            p,child = os.path.split(item["image_path"])
+            #print(child)
+            child = re.search("([a-z0-9]+-[a-z0-9]+)", child).group(1)
+            #print(child, inverted_dict.keys())
+            item["writer_id"] = inverted_dict[child]
+            data[i] = item
+        return data
 
     def __len__(self):
         return len(self.data)
@@ -78,7 +94,7 @@ class HwDataset(Dataset):
         img = cv2.imread(os.path.join(self.root, item['image_path']))
 
         if img is None:
-            print("Warning: image is None:", os.path.join(root, item['image_path']))
+            print("Warning: image is None:", os.path.join(self.root, item['image_path']))
             return None
 
         percent = float(self.img_height) / img.shape[0]
@@ -90,11 +106,12 @@ class HwDataset(Dataset):
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
 
-        gt = item['gt']
-        gt_label = string_utils.str2label(gt, self.char_to_idx)
-
+        gt = item['gt'] # actual text
+        gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
+        print(item)
         return {
             "line_img": img,
             "gt_label": gt_label,
-            "gt": gt
+            "gt": gt,
+            "writer_id": int(item['writer_id'])
         }

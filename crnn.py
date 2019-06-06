@@ -19,10 +19,16 @@ class BidirectionalLSTM(nn.Module):
 
         return output
 
-class CRNN(nn.Module):
+class CNN(nn.Module):
+    def __init__(self, cnnOutSize, nc, leakyRelu=False):
+        """
+        Args:
+            cnnOutSize:
+            nc:
+            leakyRelu:
+        """
 
-    def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
-        super(CRNN, self).__init__()
+        super(CNN, self).__init__()
 
         ks = [3, 3, 3, 3, 3, 3, 2]
         ps = [1, 1, 1, 1, 1, 1, 0]
@@ -58,22 +64,82 @@ class CRNN(nn.Module):
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
         convRelu(6, True)  # 512x1x16
 
+        """
+        50 (timesteps) by 200 (batch size) by 1 (features).
+        """
+
         self.cnn = cnn
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
-        self.softmax = nn.LogSoftmax()
 
     def forward(self, input):
         conv = self.cnn(input)
         b, c, h, w = conv.size()
         conv = conv.view(b, -1, w)
-        conv = conv.permute(2, 0, 1)  # [w, b, c]
-        # rnn features
-        output = self.rnn(conv)
-
-
-
+        output = conv.permute(2, 0, 1)  # [w, b, c]
         return output
 
-def create_model(config):
+class CRNN(nn.Module):
+
+    def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
+        super(CRNN, self).__init__()
+
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
+        self.softmax = nn.LogSoftmax()
+
+    def forward(self, input):
+        conv = self.cnn(input)
+        # rnn features
+        output = self.rnn(conv)
+        return output
+
+class MLP(nn.Module):
+    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.8):
+
+        super(MLP, self).__init__()
+        classifier = nn.Sequential()
+
+        def addLayer(i, input, output, dropout=False):
+            classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
+            classifier.add_module('relu{}'.format(i), nn.ReLU(True))
+            classifier.add_module('drop{}'.format(i), nn.Dropout(dropout))
+
+        next_in = input_size
+        for i, h in enumerate(hidden_layers):
+            addLayer(i, next_in, h)
+            next_in = h
+        addLayer(i, next_in, classifier_output_dimension)
+        self.classifier = classifier
+
+    def forward(self, input):
+        #print(input)
+        print(input.shape)
+
+        output = self.classifier(input)
+        return output
+
+class CRNNClassifier(nn.Module):
+    def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, classifier_output_dimension=512, leakyRelu=False, hidden_layers=(1024,512)):
+        super(CRNNClassifier, self).__init__()
+
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
+        self.classifier = MLP(cnnOutSize, classifier_output_dimension, hidden_layers)
+        self.softmax = nn.LogSoftmax()
+
+    def forward(self, input):
+        conv = self.cnn(input)
+
+        # rnn features
+        recognizer_output = self.rnn(conv)
+
+        # hwr classifier
+        classifier_output = self.classifier(conv)
+        return recognizer_output, classifier_output
+
+def create_CRNN(config):
     crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['num_of_outputs'], 512)
+    return crnn
+
+def create_CRNNClassifier(config):
+    crnn = CRNNClassifier(config['cnn_out_size'], config['num_of_channels'], config['num_of_outputs'], 512)
     return crnn

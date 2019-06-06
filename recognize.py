@@ -24,7 +24,7 @@ def main():
 
     idx_to_char, char_to_idx = character_set.load_char_set(config['character_set_path'])
 
-    hw = crnn.create_model({
+    hw = crnn.create_CRNN({
         'cnn_out_size': config['network']['cnn_out_size'],
         'num_of_channels': 3,
         'num_of_outputs': len(idx_to_char)+1

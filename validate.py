@@ -45,7 +45,7 @@ def main():
 
     n_train_instances = len(train_dataloader.dataset)
 
-    hw = crnn.create_model({
+    hw = crnn.create_CRNN({
         'cnn_out_size': config['network']['cnn_out_size'],
         'num_of_channels': 3,
         'num_of_outputs': len(idx_to_char) + 1
