@@ -60,7 +60,7 @@ class CRNN(nn.Module):
         convRelu(6, True)  # 512x1x16
 
         self.cnn = cnn
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
+        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass) # nh - LSTM dimension (512); nclass - number of letters in alphabet (80)
         self.softmax = nn.LogSoftmax()
 
     def forward(self, input):
@@ -69,6 +69,8 @@ class CRNN(nn.Module):
         conv = conv.view(b, -1, w)
         conv = conv.permute(2, 0, 1)  # [w, b, c]
         # rnn features
+        print(conv.shape)
+        Stop
         output = self.rnn(conv)
 
 
