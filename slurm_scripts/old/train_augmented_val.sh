@@ -2,7 +2,7 @@
 
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
-#SBATCH --output="./results/augmented_train_warp/log.slurm"
+#SBATCH --output="./results/augmented_val/log.slurm"
 #SBATCH --time 72:00:00
 #SBATCH -C 'rhel7'
 #SBATCH --mail-user=masonfp@byu.edu   # email address
@@ -19,5 +19,4 @@ export PATH="/fslhome/masonfp/fsl_groups/fslg_hwr/compute/env/hwr_env/bin:$PATH"
 which python
 
 cd "/fslhome/masonfp/fsl_groups/fslg_hwr/compute/simple_hwr"
-python -u train.py configs/augmented_train_warp.json
-
+python -u train.py configs/augmented_val.json
