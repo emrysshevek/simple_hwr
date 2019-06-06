@@ -24,3 +24,5 @@ Using config file ./configs/baseline.json
 Number of training instances: 6161
 Number of test instances: 1861 
 
+Using GPU
+Epoch  1
