@@ -20,6 +20,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 
+import socket
+if socket.gethostname() == "Galois":
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
 LOG_PATH = ""
 log = True
 
