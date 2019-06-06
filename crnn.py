@@ -24,10 +24,10 @@ class CRNN(nn.Module):
     def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
         super(CRNN, self).__init__()
 
-        ks = [3, 3, 3, 3, 3, 3, 2]
-        ps = [1, 1, 1, 1, 1, 1, 0]
-        ss = [1, 1, 1, 1, 1, 1, 1]
-        nm = [64, 128, 256, 256, 512, 512, 512]
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size
+        ps = [1, 1, 1, 1, 1, 1, 0] # padding
+        ss = [1, 1, 1, 1, 1, 1, 1] # stride
+        nm = [64, 128, 256, 256, 512, 512, 512] # channels
 
         cnn = nn.Sequential()
 
