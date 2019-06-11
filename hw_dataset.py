@@ -33,7 +33,7 @@ def collate(batch):
     label_lengths = []
 
     input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
-    for i in xrange(len(batch)):
+    for i in range(len(batch)):
         b_img = batch[i]['line_img']
         input_batch[i,:,:b_img.shape[1],:] = b_img
 

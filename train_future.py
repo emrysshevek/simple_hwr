@@ -23,6 +23,7 @@ import matplotlib.pyplot as plt
 LOG_PATH = ""
 log = True
 
+
 def log_print(*args, **kwargs):
     new_start = kwargs.pop('new_start', False)
     print(*args, **kwargs)

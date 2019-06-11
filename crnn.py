@@ -10,6 +10,7 @@ class BidirectionalLSTM(nn.Module):
         self.embedding = nn.Linear(nHidden * 2, nOut)
 
     def forward(self, input):
+        # input [time size, batch size, output dimension], e.g. 404, 8, 1024
         recurrent, _ = self.rnn(input)
         T, b, h = recurrent.size()
         t_rec = recurrent.view(T * b, h)
@@ -24,10 +25,10 @@ class CRNN(nn.Module):
     def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
         super(CRNN, self).__init__()
 
-        ks = [3, 3, 3, 3, 3, 3, 2]
-        ps = [1, 1, 1, 1, 1, 1, 0]
-        ss = [1, 1, 1, 1, 1, 1, 1]
-        nm = [64, 128, 256, 256, 512, 512, 512]
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size
+        ps = [1, 1, 1, 1, 1, 1, 0] # padding
+        ss = [1, 1, 1, 1, 1, 1, 1] # stride
+        nm = [64, 128, 256, 256, 512, 512, 512] # channels
 
         cnn = nn.Sequential()
 
@@ -59,7 +60,7 @@ class CRNN(nn.Module):
         convRelu(6, True)  # 512x1x16
 
         self.cnn = cnn
-        self.rnn = BidirectionalLSTM(cnnOutSize+1, nh, nclass)
+        self.rnn = BidirectionalLSTM(cnnOutSize+1, nh, nclass) # nh - LSTM dimension (512); nclass - number of letters in alphabet (80)
         self.softmax = nn.LogSoftmax()
 
     def forward(self, input, online):
@@ -69,11 +70,8 @@ class CRNN(nn.Module):
         conv = conv.permute(2, 0, 1)  # [w, b, c]
         rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
 
-        # rnn features
-        # rnn_input =
-        output = self.rnn(rnn_input)
-
-
+        # rnn featuresgit
+        output = self.rnn(conv)
 
         return output
 
