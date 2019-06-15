@@ -40,7 +40,7 @@ def main():
 
     train_dataloader, test_dataloader = make_dataloaders(
         train_config['paths'], train_config['root'], [VALIDATION_PATH], train_config['root'], char_to_idx,
-        config['network']['input_height'], config['warp']
+        config['network']['input_height'], config['warp'], shuffle_train=train_config['shuffle'], shuffle_test=test_config['shuffle']
     )
 
     n_train_instances = len(train_dataloader.dataset)

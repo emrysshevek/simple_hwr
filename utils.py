@@ -15,3 +15,6 @@ def unpickle_it(path):
 def pickle_it(obj, path):
     with open(path, 'wb') as f:
         dict = pickle.dump(obj, f)  # , encoding = 'latin-1'
+
+def print_tensor(tensor):
+    print(tensor, tensor.shape)

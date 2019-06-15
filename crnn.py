@@ -1,6 +1,11 @@
 import torch
 from torch import nn
 
+# Use ResNet?
+# Shuffle data-loaders?
+
+
+
 class BidirectionalLSTM(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut):
@@ -21,7 +26,7 @@ class BidirectionalLSTM(nn.Module):
 
 class CNN(nn.Module):
     def __init__(self, cnnOutSize, nc, leakyRelu=False):
-        """
+        """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
         Args:
             cnnOutSize:
             nc:
@@ -64,21 +69,22 @@ class CNN(nn.Module):
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
         convRelu(6, True)  # 512x1x16
 
-        """
-        50 (timesteps) by 200 (batch size) by 1 (features).
-        """
-
         self.cnn = cnn
 
     def forward(self, input):
+        # INPUT: BATCH, CHANNELS (3), Height, Width
         conv = self.cnn(input)
         b, c, h, w = conv.size()
-        conv = conv.view(b, -1, w)
-        output = conv.permute(2, 0, 1)  # [w, b, c]
+        conv = conv.view(b, -1, w) # batch, Height * Channels, Width
+
+        # Width effectively becomes the "time" seq2seq variable
+        output = conv.permute(2, 0, 1)  # [w, b, c], first time: [404, 8, 1024] ; second time: 213, 8, 1024
+
         return output
 
 class CRNN(nn.Module):
-
+    """ Original CRNN
+    """
     def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
         super(CRNN, self).__init__()
 
@@ -92,54 +98,76 @@ class CRNN(nn.Module):
         output = self.rnn(conv)
         return output
 
+class CRNN2(nn.Module):
+    """ CRNN with writer classifier
+    """
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, class_size=512, leakyRelu=False, embedding_input_size=64):
+        super(CRNN2, self).__init__()
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.rnn = BidirectionalLSTM(cnnOutSize+embedding_input_size, nh, alphabet_size)
+        self.writer_classifier = BidirectionalLSTM(cnnOutSize, nh, class_size)
+        self.softmax = nn.LogSoftmax()
+
+        ## Create a MLP on the end to create an embedding
+        self.embedding_input_size = embedding_input_size
+        self.mlp = MLP(class_size, class_size, [256,embedding_input_size,256], dropout=.5) # dropout = 0 means no dropout
+        #rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
+
+    def forward(self, input):
+        conv = self.cnn(input)
+
+        # hwr classifier
+        classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # 671 dimensional vector
+        classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding")
+
+        # get embedding
+        rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2) # duplicate embedding across
+
+        # rnn features
+        recognizer_output = self.rnn(rnn_input)
+
+        ## Append 16-bit embedding
+
+        return recognizer_output, classifier_output
+
+def create_CRNN(config):
+    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512)
+    return crnn
+
+def create_CRNNClassifier(config):
+    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512, class_size=config["num_of_classes"])
+    return crnn
+
+
 class MLP(nn.Module):
-    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.8):
+    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.9):
 
         super(MLP, self).__init__()
         classifier = nn.Sequential()
 
-        def addLayer(i, input, output, dropout=False):
-            classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
-            classifier.add_module('relu{}'.format(i), nn.ReLU(True))
+        def addLayer(i, input, output, dropout=False, use_nonlinearity=True):
             classifier.add_module('drop{}'.format(i), nn.Dropout(dropout))
+            classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
+            if use_nonlinearity:
+                classifier.add_module('relu{}'.format(i), nn.ReLU(True))
 
         next_in = input_size
         for i, h in enumerate(hidden_layers):
             addLayer(i, next_in, h)
             next_in = h
-        addLayer(i, next_in, classifier_output_dimension)
+        addLayer(i+1, next_in, classifier_output_dimension, use_nonlinearity=False)
         self.classifier = classifier
 
-    def forward(self, input):
-        #print(input)
-        print(input.shape)
+    def forward(self, input, layer="output"):
+        input = input.view(input.shape[0], -1)
 
-        output = self.classifier(input)
-        return output
-
-class CRNNClassifier(nn.Module):
-    def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, classifier_output_dimension=512, leakyRelu=False, hidden_layers=(1024,512)):
-        super(CRNNClassifier, self).__init__()
-
-        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
-        self.classifier = MLP(cnnOutSize, classifier_output_dimension, hidden_layers)
-        self.softmax = nn.LogSoftmax()
-
-    def forward(self, input):
-        conv = self.cnn(input)
-
-        # rnn features
-        recognizer_output = self.rnn(conv)
-
-        # hwr classifier
-        classifier_output = self.classifier(conv)
-        return recognizer_output, classifier_output
-
-def create_CRNN(config):
-    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['num_of_outputs'], 512)
-    return crnn
-
-def create_CRNNClassifier(config):
-    crnn = CRNNClassifier(config['cnn_out_size'], config['num_of_channels'], config['num_of_outputs'], 512)
-    return crnn
+        if layer == "output":
+            output = self.classifier(input) # batch size, everything else
+            return output
+        elif layer == "output+embedding":
+            embedding = self.classifier[0:6](input)
+            output = self.classifier[6:](embedding)  # batch size, everything else
+            return output, embedding
+        elif layer == "embedding":
+            embedding = self.classifier[0:6](input)
+            return embedding
