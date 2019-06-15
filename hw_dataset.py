@@ -65,7 +65,7 @@ class HwDataset(Dataset):
             with open(os.path.join(root, data_path)) as fp:
                 data.extend(json.load(fp))
 
-        data = self.add_writer_ids(data, writer_ids_pickle)
+        data, self.classes_count = self.add_writer_ids(data, writer_ids_pickle)
         self.root = root
         self.img_height = img_height
         self.char_to_idx = char_to_idx
@@ -73,6 +73,14 @@ class HwDataset(Dataset):
         self.warp = warp
 
     def add_writer_ids(self, data, writer_id_path):
+        """
+        Args:
+            data (json type thing): hw-dataset_
+            writer_id_path (str): Path to pickle dictionary of form {ID: [file1,file2...] ... }
+
+        Returns:
+            tuple: updated data with ID, number of classes
+        """
         d = unpickle_it(writer_id_path)
         inverted_dict = dict([[v, k] for k, vs in d.items() for v in vs ])
 
@@ -83,7 +91,7 @@ class HwDataset(Dataset):
             #print(child, inverted_dict.keys())
             item["writer_id"] = inverted_dict[child]
             data[i] = item
-        return data
+        return data, int(max(d.keys()))
 
     def __len__(self):
         return len(self.data)
@@ -108,7 +116,6 @@ class HwDataset(Dataset):
 
         gt = item['gt'] # actual text
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
-        print(item)
         return {
             "line_img": img,
             "gt_label": gt_label,
