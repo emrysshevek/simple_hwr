@@ -14,7 +14,7 @@ def load_char_set(char_set_path):
     return idx_to_char, char_set['char_to_idx']
 
 
-def make_char_set(paths, root=""):
+def make_char_set(paths, root="./data"):
     out_char_to_idx = {}
     out_idx_to_char = {}
     char_freq = defaultdict(int)

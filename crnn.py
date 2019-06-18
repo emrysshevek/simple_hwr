@@ -100,17 +100,18 @@ class CRNN(nn.Module):
 
 class CRNN2(nn.Module):
     """ CRNN with writer classifier
+        nh: LSTM dimension
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, class_size=512, leakyRelu=False, embedding_input_size=64):
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, class_size=512, leakyRelu=False, embedding_input_size=64, dropout=.5, writer_rnn_output_size=128):
         super(CRNN2, self).__init__()
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
         self.rnn = BidirectionalLSTM(cnnOutSize+embedding_input_size, nh, alphabet_size)
-        self.writer_classifier = BidirectionalLSTM(cnnOutSize, nh, class_size)
+        self.writer_classifier = BidirectionalLSTM(cnnOutSize, 128, class_size)
         self.softmax = nn.LogSoftmax()
 
         ## Create a MLP on the end to create an embedding
         self.embedding_input_size = embedding_input_size
-        self.mlp = MLP(class_size, class_size, [256,embedding_input_size,256], dropout=.5) # dropout = 0 means no dropout
+        self.mlp = MLP(class_size, class_size, [64,embedding_input_size,128], dropout=dropout) # dropout = 0 means no dropout
         #rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
 
     def forward(self, input):
@@ -135,9 +136,9 @@ def create_CRNN(config):
     return crnn
 
 def create_CRNNClassifier(config):
-    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512, class_size=config["num_of_classes"])
+    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=512, 
+                 class_size=config["num_of_writers"], embedding_input_size=config["embedding_size"], dropout=config["dropout"], writer_rnn_output_size=config["writer_rnn_output_size"])
     return crnn
-
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.9):

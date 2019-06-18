@@ -17,7 +17,10 @@
     "network": {
         "input_height": 60,
         "cnn_out_size": 1024,
-        "learning_rate": 1e-4
+        "learning_rate": 1e-4,
+        "dropout":0.5,
+        "embedding_size":32,
+		"writer_rnn_output_size":256
     },
     "warp": false
 }

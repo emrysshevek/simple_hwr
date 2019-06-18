@@ -59,7 +59,7 @@ def collate(batch):
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, root=".", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
+    def __init__(self, data_paths, char_to_idx, img_height=32, root="./data", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
@@ -85,10 +85,9 @@ class HwDataset(Dataset):
         inverted_dict = dict([[v, k] for k, vs in d.items() for v in vs ])
 
         for i,item in enumerate(data):
+            # Get writer ID from file
             p,child = os.path.split(item["image_path"])
-            #print(child)
             child = re.search("([a-z0-9]+-[a-z0-9]+)", child).group(1)
-            #print(child, inverted_dict.keys())
             item["writer_id"] = inverted_dict[child]
             data[i] = item
         return data, int(max(d.keys()))
