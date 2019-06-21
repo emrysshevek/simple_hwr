@@ -12,7 +12,7 @@ class BidirectionalLSTM(nn.Module):
         super(BidirectionalLSTM, self).__init__()
 
         self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=2)
-        self.embedding = nn.Linear(nHidden * 2, nOut)
+        self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
     def forward(self, input):
         recurrent, _ = self.rnn(input)
@@ -28,7 +28,7 @@ class CNN(nn.Module):
     def __init__(self, cnnOutSize, nc, leakyRelu=False):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
         Args:
-            cnnOutSize:
+            cnnOutSize: DOES NOT DO ANYTHING! Determined by architecture
             nc:
             leakyRelu:
         """
@@ -82,17 +82,18 @@ class CNN(nn.Module):
 
 class CRNN(nn.Module):
     """ Original CRNN
+
+    Modified to add some parameters to put it on even ground with the writer-classifier
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, leakyRelu=False, recognizer_dropout=.5):
         super(CRNN, self).__init__()
 
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, alphabet_size)
+        self.rnn = BidirectionalLSTM(cnnOutSize, nh, alphabet_size, dropout=recognizer_dropout)
         self.softmax = nn.LogSoftmax()
 
     def forward(self, input):
         conv = self.cnn(input)
-        # rnn features
         output = self.rnn(conv)
         return output,
 
@@ -101,12 +102,13 @@ class CRNN2(nn.Module):
         nh: LSTM dimension
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
-                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5):
+                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5, detach_embedding=True):
         super(CRNN2, self).__init__()
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
         self.rnn = BidirectionalLSTM(cnnOutSize + embedding_size, nh, alphabet_size, dropout=recognizer_dropout)
         self.writer_classifier = BidirectionalLSTM(cnnOutSize, writer_rnn_dimension, writer_rnn_output_size, dropout=writer_dropout)
         self.softmax = nn.LogSoftmax()
+        self.detach_embedding=detach_embedding
 
         ## Create a MLP on the end to create an embedding
         if "embedding" in mlp_layers:
@@ -125,12 +127,14 @@ class CRNN2(nn.Module):
         conv = self.cnn(input)
 
         # hwr classifier
-        classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # 671 dimensional vector
-        classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding")
+        classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # RNN dimensional vector
+        classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding") # i.e. 671 dimensional vector
 
         # get embedding
-        rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
-
+        if self.detach_embedding:
+            rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
+        else:
+            rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2)  # detach embedding
         # rnn features
         recognizer_output = self.rnn(rnn_input)
 
@@ -140,14 +144,15 @@ class CRNN2(nn.Module):
 
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = CRNN(config['cnn_out_size']+config["embedding_size"], config['num_of_channels'], config['alphabet_size'], 512, recognizer_dropout=config["recognizer_dropout"])
+    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512, recognizer_dropout=config["recognizer_dropout"])
+
     return crnn
 
 def create_CRNNClassifier(config):
     crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=512,
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
                  writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"])
+                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"])
     return crnn
 
 class MLP(nn.Module):
@@ -178,7 +183,7 @@ class MLP(nn.Module):
             next_in = h
 
         # Last Layer - don't use nonlinearity
-        addLayer(i+1, next_in, classifier_output_dimension, use_nonlinearity=False)
+        addLayer(len(hidden_layers), next_in, classifier_output_dimension, use_nonlinearity=False)
         self.classifier = classifier
 
         if embedding_idx is None:

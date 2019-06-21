@@ -112,7 +112,11 @@ class HwDataset(Dataset):
 
         percent = float(self.img_height) / img.shape[0]
 
-        img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
+        #if random.randint(0, 1):
+        #    img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
+        #else:
+        img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+
 
         # Add channel dimension, since resize only keeps non-trivial channel axis
         if self.num_of_channels==1:

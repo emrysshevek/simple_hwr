@@ -19,7 +19,7 @@ testing_root: "./data"
 testing_shuffle: false
 
 #Network
-style_encoder: naive_encoder                 # "False", "naive_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: fake_encoder                 # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN

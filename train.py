@@ -14,7 +14,6 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 ### TO DO:
-# SAVE/LOAD VISDOM
 # Merge in MASON's STUFF
 
 # EMAIL SUPERCOMPUTER?
@@ -67,6 +66,7 @@ def plot_loss(epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
     # Plot writer recognizer loss and total loss
     if _writer_loss is None:
         _writer_loss = 0
+    if _total_loss is None:
         _total_loss = _hwr_loss
 
     # Plot regular losses
@@ -109,11 +109,11 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
     steps = 0.0
     model.train()
 
-    model_with_two_losses = type(model).__name__ == "CRNNClassifier" or not secondary_criterion is None
+    crnn_with_classifier = type(model).__name__ == "CRNNClassifier"
 
     loss_history_recognizer = []
     loss_history_writer = []
-    loss_history_total = loss_history_recognizer if not model_with_two_losses else []
+    loss_history_total = loss_history_recognizer if not crnn_with_classifier else []
 
     for i, x in enumerate(dataloader):
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
@@ -122,58 +122,47 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         GLOBAL_COUNTER += 1
         plot_freq = 50 if not config["TESTING"] else 1
 
+        pred_text, *pred_author = [x.cpu() for x in model(line_imgs)]
+
+        # Calculate HWR loss
+        preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
+
+        output_batch = pred_text.permute(1, 0, 2)
+        out = output_batch.data.cpu().numpy()
+
+        loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
+        total_loss = loss_recognizer
+        loss_history_recognizer.append(torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item())
+
         ## With writer classification
-        if model_with_two_losses:
+        if not secondary_criterion is None:
             labels_author = Variable(x['writer_id'], requires_grad=False).long()
 
-            pred_text, pred_author = [x.cpu() for x in model(line_imgs)]
-            preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
-
-            output_batch = pred_text.permute(1, 0, 2)
-            out = output_batch.data.cpu().numpy()
-
-            loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
-
             # pred_author: batch size * number of authors
-            # labels_author: batch size (each element is an index)
+            # labels_author: batch size (each element is an author index number)
             loss_author = secondary_criterion(pred_author, labels_author)
-
-            loss_history_recognizer.append(torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item())
             loss_history_writer.append(    torch.mean(loss_author.cpu(),     0, keepdim=False).item())
 
             # rescale writer loss function
-            if loss_history_writer[-1] < .05:
-                total_loss = loss_recognizer
-            else:
+            if loss_history_writer[-1] > .05:
                 total_loss = (loss_recognizer + loss_author * loss_history_recognizer[-1]/loss_history_writer[-1])/ 2
-            loss_history_total.append(total_loss)
-        else:
-            preds = model(line_imgs)[0].cpu()
-            preds_size = Variable(torch.IntTensor([preds.size(0)] * preds.size(1)))
-
-            output_batch = preds.permute(1, 0, 2)
-            out = output_batch.data.cpu().numpy()
-            total_loss = ctc_criterion(preds, labels, preds_size, label_lengths)
-
-            # Plotting
-            loss_history_recognizer.append(torch.mean(total_loss.cpu(), 0, keepdim=False).item())
-
+            loss_history_total.append(torch.mean(total_loss.cpu(),     0, keepdim=False).item())
 
         # Plot it with visdom
         if GLOBAL_COUNTER % plot_freq == 0 and GLOBAL_COUNTER > 0:
             print(GLOBAL_COUNTER)
 
             # Writer loss
-            primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
+            plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
 
-            if model_with_two_losses:
+            if not secondary_criterion is None:
                 plot_total_loss = np.mean(loss_history_total[-plot_freq:])
-                secondary_loss = np.mean(loss_history_writer[-plot_freq:])
+                plot_secondary_loss = np.mean(loss_history_writer[-plot_freq:])
             else:
-                plot_total_loss = primary_loss
-                secondary_loss = 0
+                plot_total_loss = plot_primary_loss
+                plot_secondary_loss = 0
 
-            plot_loss(GLOBAL_COUNTER*config["batch_size"], primary_loss, secondary_loss, plot_total_loss)
+            plot_loss(GLOBAL_COUNTER*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -235,7 +224,9 @@ def main():
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
 
     # Create classifier
-    if config["style_encoder"] == "naive_encoder":
+    if config["style_encoder"] == "basic_encoder":
+        hw = crnn.create_CRNNClassifier(config)
+    elif config["style_encoder"] == "fake_encoder":
         hw = crnn.create_CRNNClassifier(config)
     else:
         hw = crnn.create_CRNN(config)
@@ -258,7 +249,7 @@ def main():
 
     # Alternative Models
     secondary_criterion = None
-    if config["style_encoder"]=="naive_encoder":
+    if config["style_encoder"]=="basic_encoder":
         secondary_criterion = CrossEntropyLoss()
     else: # config["style_encoder"] = False
         secondary_criterion = None

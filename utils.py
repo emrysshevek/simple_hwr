@@ -119,7 +119,8 @@ def load_config(config_path):
         config['training_suffle'] = False
     if "testing_suffle" not in config.keys():
         config['testing_suffle'] = False
-
+    if config["style_encoder"] == "fake_encoder":
+        config["detach_embedding"] = True
     return config
 
 def wait_for_gpu():
