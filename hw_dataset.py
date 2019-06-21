@@ -59,7 +59,7 @@ def collate(batch):
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, root="./data", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
+    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
@@ -71,6 +71,7 @@ class HwDataset(Dataset):
         self.char_to_idx = char_to_idx
         self.data = data
         self.warp = warp
+        self.num_of_channels = num_of_channels
 
     def add_writer_ids(self, data, writer_id_path):
         """
@@ -98,14 +99,24 @@ class HwDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
 
-        img = cv2.imread(os.path.join(self.root, item['image_path']))
-
+        image_path = os.path.join(self.root, item['image_path'])
+        if self.num_of_channels == 3:
+            img = cv2.imread(image_path)
+        elif self.num_of_channels == 1: # read grayscale
+            img = cv2.imread(image_path, 0)
+        else:
+            raise Exception("Unexpected number of channels")
         if img is None:
             print("Warning: image is None:", os.path.join(self.root, item['image_path']))
             return None
 
         percent = float(self.img_height) / img.shape[0]
+
         img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
+
+        # Add channel dimension, since resize only keeps non-trivial channel axis
+        if self.num_of_channels==1:
+            img=img[:,:, np.newaxis]
 
         if self.warp:
             img = grid_distortion.warp_image(img) 

@@ -1,17 +1,17 @@
+import warnings
 import torch
 from torch import nn
-
+from utils import *
 # Use ResNet?
-# Shuffle data-loaders?
-
+# Increase LSTM dropout
 
 
 class BidirectionalLSTM(nn.Module):
 
-    def __init__(self, nIn, nHidden, nOut):
+    def __init__(self, nIn, nHidden, nOut, dropout=.5):
         super(BidirectionalLSTM, self).__init__()
 
-        self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=0.5, num_layers=2)
+        self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=2)
         self.embedding = nn.Linear(nHidden * 2, nOut)
 
     def forward(self, input):
@@ -35,10 +35,10 @@ class CNN(nn.Module):
 
         super(CNN, self).__init__()
 
-        ks = [3, 3, 3, 3, 3, 3, 2]
-        ps = [1, 1, 1, 1, 1, 1, 0]
-        ss = [1, 1, 1, 1, 1, 1, 1]
-        nm = [64, 128, 256, 256, 512, 512, 512]
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
+        ps = [1, 1, 1, 1, 1, 1, 0] # padding
+        ss = [1, 1, 1, 1, 1, 1, 1] # stride
+        nm = [64, 128, 256, 256, 512, 512, 512] # number of channels/maps
 
         cnn = nn.Sequential()
 
@@ -46,7 +46,7 @@ class CNN(nn.Module):
             nIn = nc if i == 0 else nm[i - 1]
             nOut = nm[i]
             cnn.add_module('conv{0}'.format(i),
-                           nn.Conv2d(nIn, nOut, ks[i], ss[i], ps[i]))
+                           nn.Conv2d(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i]))
             if batchNormalization:
                 cnn.add_module('batchnorm{0}'.format(i), nn.BatchNorm2d(nOut))
             if leakyRelu:
@@ -68,7 +68,6 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
         convRelu(6, True)  # 512x1x16
-
         self.cnn = cnn
 
     def forward(self, input):
@@ -79,39 +78,47 @@ class CNN(nn.Module):
 
         # Width effectively becomes the "time" seq2seq variable
         output = conv.permute(2, 0, 1)  # [w, b, c], first time: [404, 8, 1024] ; second time: 213, 8, 1024
-
         return output
 
 class CRNN(nn.Module):
     """ Original CRNN
     """
-    def __init__(self, cnnOutSize, nc, nclass, nh, n_rnn=2, leakyRelu=False):
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, leakyRelu=False, recognizer_dropout=.5):
         super(CRNN, self).__init__()
 
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.rnn = BidirectionalLSTM(cnnOutSize, nh, nclass)
+        self.rnn = BidirectionalLSTM(cnnOutSize, nh, alphabet_size)
         self.softmax = nn.LogSoftmax()
 
     def forward(self, input):
         conv = self.cnn(input)
         # rnn features
         output = self.rnn(conv)
-        return output
+        return output,
 
 class CRNN2(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, class_size=512, leakyRelu=False, embedding_input_size=64, dropout=.5, writer_rnn_output_size=128):
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
+                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5):
         super(CRNN2, self).__init__()
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.rnn = BidirectionalLSTM(cnnOutSize+embedding_input_size, nh, alphabet_size)
-        self.writer_classifier = BidirectionalLSTM(cnnOutSize, 128, class_size)
+        self.rnn = BidirectionalLSTM(cnnOutSize + embedding_size, nh, alphabet_size, dropout=recognizer_dropout)
+        self.writer_classifier = BidirectionalLSTM(cnnOutSize, writer_rnn_dimension, writer_rnn_output_size, dropout=writer_dropout)
         self.softmax = nn.LogSoftmax()
 
         ## Create a MLP on the end to create an embedding
-        self.embedding_input_size = embedding_input_size
-        self.mlp = MLP(class_size, class_size, [64,embedding_input_size,128], dropout=dropout) # dropout = 0 means no dropout
+        if "embedding" in mlp_layers:
+            embedding_idx = mlp_layers.index("embedding")
+            if embedding_idx != get_last_index(mlp_layers, "embedding"):
+                warnings.warn("Multiple dimensions in MLP specified as 'embedding'")
+            mlp_layers = [m if m != "embedding" else embedding_size for m in mlp_layers] # replace None with embedding size
+        else:
+            embedding_idx = None
+
+
+        self.mlp = MLP(writer_rnn_output_size, number_of_writers, mlp_layers, dropout=writer_dropout, embedding_idx=embedding_idx) # dropout = 0 means no dropout
         #rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
 
     def forward(self, input):
@@ -122,7 +129,7 @@ class CRNN2(nn.Module):
         classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding")
 
         # get embedding
-        rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2) # duplicate embedding across
+        rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
 
         # rnn features
         recognizer_output = self.rnn(rnn_input)
@@ -132,21 +139,34 @@ class CRNN2(nn.Module):
         return recognizer_output, classifier_output
 
 def create_CRNN(config):
-    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512)
+    # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
+    crnn = CRNN(config['cnn_out_size']+config["embedding_size"], config['num_of_channels'], config['alphabet_size'], 512, recognizer_dropout=config["recognizer_dropout"])
     return crnn
 
 def create_CRNNClassifier(config):
-    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=512, 
-                 class_size=config["num_of_writers"], embedding_input_size=config["embedding_size"], dropout=config["dropout"], writer_rnn_output_size=config["writer_rnn_output_size"])
+    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=512,
+                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
+                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
+                 mlp_layers=config["mlp_layers"])
     return crnn
 
 class MLP(nn.Module):
-    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.9):
+    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
+        """
+
+        Args:
+            input_size (int): Dimension of input
+            classifier_output_dimension (int): Dimension of output layer
+            hidden_layers (list): A list of hidden layer dimensions
+            dropout (float): 0 means no dropout
+            embedding_idx: The hidden layer index of the embedding layer starting with 0
+                e.g. input-> 16 nodes -> 8 nodes [embedding] -> 16 nodes would be 1
+        """
 
         super(MLP, self).__init__()
         classifier = nn.Sequential()
 
-        def addLayer(i, input, output, dropout=False, use_nonlinearity=True):
+        def addLayer(i, input, output, use_nonlinearity=True):
             classifier.add_module('drop{}'.format(i), nn.Dropout(dropout))
             classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
             if use_nonlinearity:
@@ -156,8 +176,15 @@ class MLP(nn.Module):
         for i, h in enumerate(hidden_layers):
             addLayer(i, next_in, h)
             next_in = h
+
+        # Last Layer - don't use nonlinearity
         addLayer(i+1, next_in, classifier_output_dimension, use_nonlinearity=False)
         self.classifier = classifier
+
+        if embedding_idx is None:
+            self.embedding_idx = len(classifier) # if no embedding specified, assume embedding=output
+        else:
+            self.embedding_idx = (embedding_idx + 1) * 3 # +1 for zero index, 3 items per layer
 
     def forward(self, input, layer="output"):
         input = input.view(input.shape[0], -1)
@@ -166,9 +193,9 @@ class MLP(nn.Module):
             output = self.classifier(input) # batch size, everything else
             return output
         elif layer == "output+embedding":
-            embedding = self.classifier[0:6](input)
-            output = self.classifier[6:](embedding)  # batch size, everything else
+            embedding = self.classifier[0:self.embedding_idx](input)
+            output = self.classifier[self.embedding_idx:](embedding)  # batch size, everything else
             return output, embedding
         elif layer == "embedding":
-            embedding = self.classifier[0:6](input)
+            embedding = self.classifier[0:self.embedding_idx](input)
             return embedding

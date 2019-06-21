@@ -1,3 +1,4 @@
+import torch
 import re
 import shutil
 import time
@@ -49,6 +50,8 @@ def setup_logging(folder, log_std_out=False):
 
     today = datetime.datetime.now()
     log_path = "{}/{}.log".format(folder, today.strftime("%m-%d-%Y"))
+    if folder is None:
+        log_path = None
     logging.basicConfig(filename=log_path,
                             filemode='a',
                             format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
@@ -70,35 +73,43 @@ def log_print(*args, print_statements=True, **kwargs):
         LOGGER.debug(" ".join([str(a) for a in args]))
 
 def load_config(config_path):
-
     config = read_config(config_path)
 
     # Main output folder
     output_root = os.path.join(config["output_folder"], config["name"])
 
-    hyper_parameter_str='lr_{}_bs_{}_warp_{}'.format(
+    hyper_parameter_str='lr_{}_bs_{}_warp_{}_arch_{}'.format(
          config["learning_rate"],
          config["batch_size"],
          config["warp"],
+         config["style_encoder"]
      )
 
     train_suffix = '{}-{}'.format(
         hyper_parameter_str,
         time.strftime("%Y%m%d-%H%M%S"))
-
+    config["full_specs"] = train_suffix
     # Default options
     if 'results_dir' not in config.keys():
         config['results_dir']=os.path.join(output_root, train_suffix)
     if "log_dir" not in config.keys():
         config["log_dir"]=os.path.join(output_root, train_suffix)
+    if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
+        config["scheduler_step"] = 1
+        config["scheduler_gamma"] = 1
+    if config["TESTING"]:
+        config['results_dir'] = None
+        config["log_dir"] = None
+        config["output_folder"] = None
+    else:
+        # Create paths
+        for path in (output_root, config["results_dir"], config["log_dir"]):
+            if len(path) > 0 and not os.path.exists(path):
+                os.makedirs(path)
 
-    for path in (output_root, config["results_dir"], config["log_dir"]):
-        if len(path) > 0 and not os.path.exists(path):
-            os.makedirs(path)
-
-    # Copy config to output folder
-    #parent, child = os.path.split(config)
-    shutil.copy(config_path, config['results_dir'])
+        # Copy config to output folder
+        #parent, child = os.path.split(config)
+        shutil.copy(config_path, config['results_dir'])
 
     log_print("Using config file", config_path, new_start=True, log_dir=config["log_dir"])
     log_print(json.dumps(config, indent=2))
@@ -119,9 +130,11 @@ def wait_for_gpu():
     utilization = GPUs[0].load * 100  # memoryUtil
     print(utilization)
 
-    if utilization > 45:
-        time.sleep(3600)
-        print("Waiting 1 hour for GPU...")
+    while utilization > 45:
+        print("Waiting 30 minutes for GPU...")
+        time.sleep(1800)
+        utilization = GPUs[0].load * 100  # memoryUtil
+    torch.cuda.empty_cache()
     return
 
 def is_iterable(object, string_is_iterable=True):
@@ -143,7 +156,6 @@ def is_iterable(object, string_is_iterable=True):
         return False
     return True
 
-
 def fix_scientific_notation(config):
     exp = re.compile("[0-9.]+e[-0-9]+")
     for key,item in config.items():
@@ -151,3 +163,12 @@ def fix_scientific_notation(config):
         if type(item) is str and exp.match(item):
             config[key] = float(item)
     return config
+
+def get_last_index(my_list, value):
+    return len(my_list) - 1 - my_list[::-1].index(value)
+
+if __name__=="__main__":
+    from visualize import Plot
+    viz = Plot()
+    viz.viz.close()
+    viz.load_all_env("./results")

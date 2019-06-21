@@ -58,8 +58,8 @@ def main():
     pred, pred_raw = string_utils.naive_decode(out[0])
     pred_str = string_utils.label2str(pred, idx_to_char, False)
     pred_raw_str = string_utils.label2str(pred_raw, idx_to_char, True)
-    print pred_raw_str
-    print pred_str
+    print(pred_raw_str)
+    print(pred_str)
 
 if __name__ == "__main__":
     main()
