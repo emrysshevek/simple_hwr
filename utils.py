@@ -121,6 +121,9 @@ def load_config(config_path):
         config['testing_suffle'] = False
     if config["style_encoder"] == "fake_encoder":
         config["detach_embedding"] = True
+    else:
+        config["detach_embedding"] = False
+       
     return config
 
 def wait_for_gpu():

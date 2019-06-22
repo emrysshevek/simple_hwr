@@ -19,7 +19,7 @@ testing_root: "./data"
 testing_shuffle: false
 
 #Network
-style_encoder: fake_encoder                 # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: basic_encoder                 # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
@@ -31,9 +31,9 @@ recognizer_dropout: .7                       # Dropout in recognizer LSTM
 # Writer Classifier - LSTM + MLP (with embedding layer)
 writer_dropout: 0.4                          # Probability of being "dropped out" in writer LSTM+MLP
 writer_rnn_dimension: 64                     # Dimension of LSTM state vector
-writer_rnn_output_size: 64                  # LSTM output dimension for writer classifier
-mlp_layers: [embedding, 128]             # Layer dimensions for MLP writer classifier
-embedding_size: 32                           # The size of the embedding layer in the MLP
+writer_rnn_output_size: 128                  # LSTM output dimension for writer classifier
+mlp_layers: [embedding]             # Layer dimensions for MLP writer classifier
+embedding_size: 128                           # The size of the embedding layer in the MLP
 
 # LR schedule
 learning_rate: 1e-3          # LR

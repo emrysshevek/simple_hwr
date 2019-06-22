@@ -140,7 +140,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
             # pred_author: batch size * number of authors
             # labels_author: batch size (each element is an author index number)
-            loss_author = secondary_criterion(pred_author, labels_author)
+            loss_author = secondary_criterion(pred_author[0], labels_author)
             loss_history_writer.append(    torch.mean(loss_author.cpu(),     0, keepdim=False).item())
 
             # rescale writer loss function
@@ -200,7 +200,9 @@ def make_dataloaders(config):
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
 def main():
-    config = load_config(sys.argv[1])
+    config_path = sys.argv[1] if len(sys.argv) > 1 else "./configs/taylor.yaml"
+ 
+    config = load_config(config_path)
 
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
