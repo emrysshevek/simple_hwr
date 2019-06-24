@@ -71,7 +71,7 @@ class CRNN(nn.Module):
         rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
 
         # rnn featuresgit
-        output = self.rnn(conv)
+        output = self.rnn(rnn_input)
 
         return output
 
