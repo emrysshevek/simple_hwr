@@ -80,14 +80,14 @@ class HwDataset(Dataset):
         img = cv2.imread(os.path.join(self.root, item['image_path']))
 
         if img is None:
-            print("Warning: image is None:", os.path.join(root, item['image_path']))
+            print("Warning: image is None:", os.path.join(self.root, item['image_path']))
             return None
 
         percent = float(self.img_height) / img.shape[0]
         img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
 
         if self.warp:
-            img = grid_distortion.warp_image(img) 
+            img = grid_distortion.warp_image(img)
 
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
