@@ -55,7 +55,8 @@ def collate(batch):
         "labels": labels,
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
-        "writer_id": torch.FloatTensor([b['writer_id'] for b in batch])
+        "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
+        "paths": [b["path"] for b in batch]
     }
 
 class HwDataset(Dataset):
@@ -117,13 +118,12 @@ class HwDataset(Dataset):
         #else:
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
-
-        # Add channel dimension, since resize only keeps non-trivial channel axis
-        if self.num_of_channels==1:
-            img=img[:,:, np.newaxis]
-
         if self.warp:
             img = grid_distortion.warp_image(img) 
+
+        # Add channel dimension, since resize and warp only keep non-trivial channel axis
+        if self.num_of_channels==1:
+            img=img[:,:, np.newaxis]
 
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
@@ -134,5 +134,6 @@ class HwDataset(Dataset):
             "line_img": img,
             "gt_label": gt_label,
             "gt": gt,
-            "writer_id": int(item['writer_id'])
+            "writer_id": int(item['writer_id']),
+            "path": image_path
         }

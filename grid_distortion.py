@@ -39,7 +39,7 @@ def warp_image(img, random_state=None, **kwargs):
     source = source.transpose(1,2,0).reshape(-1,2)
 
     if kwargs.get("draw_grid_lines", False):
-        if len(img.shape) == 2:
+        if len(img.shape) == 2 or img.shape[2]==1: # if already grayscale
             color = 0
         else:
             color = np.array([0,0,255])
@@ -66,6 +66,7 @@ if __name__ == "__main__":
     input_image = sys.argv[1]
     output_image = sys.argv[2]
     img = cv2.imread(input_image)
+    #img = cv2.imread("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png",0)
     img = warp_image(img, draw_grid_lines=True)
     cv2.imwrite(output_image, img)
 

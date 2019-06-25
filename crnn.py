@@ -2,9 +2,96 @@ import warnings
 import torch
 from torch import nn
 from utils import *
+import os
+
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
 # Increase LSTM dropout
 
+import transformer.Constants as Constants
+#from dataset import TranslationDataset, paired_collate_fn
+from transformer.Models import Transformer
+from transformer.Optim import ScheduledOptim
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+MAX_LENGTH=60
+class EncoderRNN(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers=1, dropout=.5):
+        super(EncoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+
+        self.embedding = nn.Embedding(input_size, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size, bidirectional=True)
+
+    def forward(self, input, hidden):
+        embedded = self.embedding(input).view(1, 1, -1)
+        output = embedded
+        output, hidden = self.gru(output, hidden)
+        return output, hidden
+
+    def initHidden(self):
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+	
+class AttnDecoderRNN(nn.Module):
+    def __init__(self, hidden_size, output_size, dropout=0.1, max_length=MAX_LENGTH):
+        super(AttnDecoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.dropout = dropout
+        self.max_length = max_length
+
+        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
+        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
+        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
+        self.dropout = nn.Dropout(self.dropout)
+        self.gru = nn.GRU(self.hidden_size, self.hidden_size, bidirectional=True)
+        self.out = nn.Linear(self.hidden_size, self.output_size)
+
+    def forward(self, input, hidden, encoder_outputs):
+        embedded = self.embedding(input).view(1, 1, -1)
+        embedded = self.dropout(embedded)
+
+        attn_weights = F.softmax(
+            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
+        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
+                                 encoder_outputs.unsqueeze(0))
+
+        output = torch.cat((embedded[0], attn_applied[0]), 1)
+        output = self.attn_combine(output).unsqueeze(0)
+
+        output = F.relu(output)
+        output, hidden = self.gru(output, hidden)
+
+        output = F.log_softmax(self.out(output[0]), dim=1)
+        return output, hidden, attn_weights
+
+    def initHidden(self):
+        return torch.zeros(1, 1, self.hidden_size, device=device)
+
+
+class BidirectionalLSTM2(nn.Module):
+
+    def __init__(self, nIn, nHidden, nOut, dropout=.5):
+        super(BidirectionalLSTM, self).__init__()
+
+        self.encoder = EncoderRNN(nIn, nHidden, dropout=dropout, num_layers=2)
+        self.encoder_hidden = self.encoder.initHidden()
+        
+        self.decoder = AttnDecoderRNN(nHidden, nOut, dropout=dropout, max_length=55)
+
+    def forward(self, _in):
+        embedding, hidden = self.encoder(_in, self.encoder_hidden)
+        out, *_ = self.decoder(embedding, hidden)
+
+        #T, b, h = out.size()
+        #t_rec = out.view(T * b, h)
+
+        #output = self.embedding(t_rec)  # [T * b, nOut]
+        #output = output.view(T, b, -1) # Time, batch size, alphabet size
+
+        return out
 
 class BidirectionalLSTM(nn.Module):
 
@@ -27,6 +114,9 @@ class BidirectionalLSTM(nn.Module):
 class CNN(nn.Module):
     def __init__(self, cnnOutSize, nc, leakyRelu=False):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
+
+        The CNN learns some kind of sequential ordering because the maps are fed into the LSTM sequentially.
+
         Args:
             cnnOutSize: DOES NOT DO ANYTHING! Determined by architecture
             nc:
@@ -67,11 +157,11 @@ class CNN(nn.Module):
         convRelu(5)
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
-        convRelu(6, True)  # 512x1x16
+        convRelu(6, True)  # 512x1x16 = channels, height, width
         self.cnn = cnn
 
     def forward(self, input):
-        # INPUT: BATCH, CHANNELS (3), Height, Width
+        # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
         conv = self.cnn(input)
         b, c, h, w = conv.size()
         conv = conv.view(b, -1, w) # batch, Height * Channels, Width
@@ -144,16 +234,44 @@ class CRNN2(nn.Module):
 
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], 512, recognizer_dropout=config["recognizer_dropout"])
+    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], config["rnn_dimension"], recognizer_dropout=config["recognizer_dropout"])
 
     return crnn
 
 def create_CRNNClassifier(config):
-    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=512,
+    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
                  writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
                  mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"])
     return crnn
+
+
+    transformer = Transformer(
+        opt.src_vocab_size,
+        opt.tgt_vocab_size,
+        opt.max_token_seq_len,
+        tgt_emb_prj_weight_sharing=opt.proj_share_weight,
+        emb_src_tgt_weight_sharing=opt.embs_share_weight,
+        d_k=opt.d_k,
+        d_v=opt.d_v,
+        d_model=opt.d_model,
+        d_word_vec=opt.d_word_vec,
+        d_inner=opt.d_inner_hid,
+        n_layers=opt.n_layers,
+        n_head=opt.n_head,
+        dropout=opt.dropout).to(device)
+
+
+
+
+
+
+
+
+
+
+
+
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):

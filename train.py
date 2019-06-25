@@ -25,15 +25,15 @@ from torch.autograd import Variable
 # Dropout schedule
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
 from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
 from torch.nn import CrossEntropyLoss
+import traceback
 
 import visualize
 import matplotlib
-matplotlib.use('Agg')
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -46,35 +46,12 @@ from torch.optim import lr_scheduler
 
 wait_for_gpu()
 
+def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
+    if with_analysis:
+        charAcc = CharAcc(config["char_to_idx"])
+        cers = []
+        lens = []
 
-hwr_loss_title = "HWR Loss"
-writer_loss_title = "Writer Loss"
-total_loss_title = "Total Loss"
-
-GLOBAL_COUNTER = 0
-
-def initialize_visdom_manager(env_name, config):
-    global visdom_manager
-    visdom_manager = visualize.Plot("Loss", env_name=env_name, config=config)
-    visdom_manager.register_plot(hwr_loss_title, "Instances", "Loss")
-    visdom_manager.register_plot(writer_loss_title, "Instances", "Loss")
-    visdom_manager.register_plot(total_loss_title, "Instances", "Loss")
-    visdom_manager.register_plot("Test Error Rate", "Epoch", "Loss", ymax=.2)
-    return visdom_manager
-
-def plot_loss(epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
-    # Plot writer recognizer loss and total loss
-    if _writer_loss is None:
-        _writer_loss = 0
-    if _total_loss is None:
-        _total_loss = _hwr_loss
-
-    # Plot regular losses
-    visdom_manager.update_plot(hwr_loss_title, [epoch], _hwr_loss)
-    visdom_manager.update_plot(writer_loss_title, [epoch], _writer_loss)
-    visdom_manager.update_plot(total_loss_title, [epoch], _total_loss)
-
-def test(model, dataloader, idx_to_char, dtype, config):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
@@ -96,15 +73,58 @@ def test(model, dataloader, idx_to_char, dtype, config):
             pred, raw_pred = string_utils.naive_decode(logits)
             pred_str = string_utils.label2str(pred, idx_to_char, False)
             cer = error_rates.cer(gt_line, pred_str)
+
+            if with_analysis:
+                charAcc.char_accuracy(pred_str, gt_line)
+                cers.append(cer)
+                lens.append(len(gt_line))
+                if cer > 0 and config["output_predictions"]:
+                    write_out(config["results_dir"], "incorrect.txt", "\n".join((str(cer), pred_str, gt_line, os.path.abspath(x['paths'][i]))))
+                if cer > 0.3 and config["output_predictions"]:
+                    write_out(config["results_dir"], "very_incorrect.txt", "\n".join((str(cer), pred_str, gt_line, os.path.abspath(x['paths'][i]))))
+
             sum_loss += cer
             steps += 1
+
+        # Only do one test
         if config["TESTING"]:
             break
+
+    if with_analysis:
+        # Plot accuracy by character
+        chars = [m[0] for m in sorted(config["char_to_idx"].items(), key=lambda kv: kv[1])]
+
+        #print(charAcc.correct, charAcc.false_negative, charAcc.false_positive)
+        plt.bar(chars, charAcc.correct/(charAcc.correct+charAcc.false_negative)) # recall
+        plt.title("Recall")
+        plt.show()
+
+        plt.bar(chars, charAcc.correct/(charAcc.correct+charAcc.false_positive)) # precision
+        plt.title("Precision")
+        plt.show()
+
+        # Plot character error rate by line length
+        plt.scatter(cers, lens)
+        plt.show()
+
+        # Plot 2d histogram of letters
+        plt.hist2d(cers, lens, density=True)
+        plt.show()
+
+        m = list(zip(lens,cers))
+        for x in range(0,100,10):
+            to_plot = [p[1] for p in m if p[0] in range(x,x+10)]
+            print(to_plot)
+            plt.title("{} {}".format(x, x+10))
+            plt.hist(to_plot, density=True)
+            plt.show()
+
+
     test_cer = sum_loss / steps
     return test_cer
 
+
 def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, config, secondary_criterion=None):
-    global GLOBAL_COUNTER
     sum_loss = 0.0
     steps = 0.0
     model.train()
@@ -119,7 +139,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False)
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
-        GLOBAL_COUNTER += 1
+        config["global_counter"] += 1
         plot_freq = 50 if not config["TESTING"] else 1
 
         pred_text, *pred_author = [x.cpu() for x in model(line_imgs)]
@@ -149,8 +169,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
             loss_history_total.append(torch.mean(total_loss.cpu(),     0, keepdim=False).item())
 
         # Plot it with visdom
-        if GLOBAL_COUNTER % plot_freq == 0 and GLOBAL_COUNTER > 0:
-            print(GLOBAL_COUNTER)
+        if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
+            print(config["global_counter"])
 
             # Writer loss
             plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
@@ -162,7 +182,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
                 plot_total_loss = plot_primary_loss
                 plot_secondary_loss = 0
 
-            plot_loss(GLOBAL_COUNTER*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
+            visualize.plot_loss(config["visdom_manager"],config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -191,39 +211,40 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
     return training_cer
 
 def make_dataloaders(config):
-    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["training_root"], warp=config["warp"])
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=2, collate_fn=hw_dataset.collate, pin_memory=True)
+    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["training_root"], warp=config["training_warp"])
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=6, collate_fn=hw_dataset.collate, pin_memory=True)
 
-    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"])
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=2, collate_fn=hw_dataset.collate)
+    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=6, collate_fn=hw_dataset.collate)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
+def load_data(config):
+    # Load characters and prep datasets
+    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(config['training_jsons'])
+
+    train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
+
+    config['alphabet_size'] = len(config["idx_to_char"]) + 1 # alphabet size to be recognized
+    config['num_of_writers'] = train_dataset.classes_count + 1
+
+    config['n_train_instances'] = len(train_dataloader.dataset)
+    log_print("Number of training instances:", config['n_train_instances'])
+    log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
+    return train_dataloader, test_dataloader, train_dataset, test_dataset
+
 def main():
+    global config
     config_path = sys.argv[1] if len(sys.argv) > 1 else "./configs/taylor.yaml"
- 
     config = load_config(config_path)
+    config["global_counter"] = 0
 
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
         config["batch_size"] = 1
 
-    # Launch visdom
-    initialize_visdom_manager(config["full_specs"], config)
-
-    # Load characters and prep datasets
-    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(config['training_jsons'])
-
-    train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
-    #        train_json=config['training_jsons'], train_root=config['training_root'], test_json=config['testing_jsons'], test_root=config['testing_root'], char_to_idx=config["char_to_idx"],
-    # img_height=config['input_height'], num_of_channels=config['num_of_channels'], warp=config['warp'], batch_size=config['shuffle_train=config['training_suffle'], shuffle_test=config['testing_suffle']
-
-    config['alphabet_size'] = len(config["idx_to_char"]) + 1 # alphabet size to be recognized
-    config['num_of_writers'] = train_dataset.classes_count + 1
-
-    n_train_instances = len(train_dataloader.dataset)
-    log_print("Number of training instances:", n_train_instances)
-    log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
+    # Prep data loaders
+    train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
@@ -233,6 +254,7 @@ def main():
     else:
         hw = crnn.create_CRNN(config)
 
+    # Prep GPU
     if config["TESTING"]: # don't use GPU for testing
         dtype = torch.FloatTensor
         log_print("Testing mode, not using GPU")
@@ -244,65 +266,71 @@ def main():
         dtype = torch.FloatTensor
         log_print("No GPU detected")
 
+    # Prep optimizer
     optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
-
     criterion = CTCLoss()
 
     # Alternative Models
-    secondary_criterion = None
     if config["style_encoder"]=="basic_encoder":
         secondary_criterion = CrossEntropyLoss()
     else: # config["style_encoder"] = False
         secondary_criterion = None
 
-    lowest_loss = float('inf')
-    train_losses = []
-    test_losses = []
-    for epoch in range(1, config["epochs"]+1):
-        log_print("Epoch ", epoch)
-        training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, config["idx_to_char"], dtype, config, secondary_criterion=secondary_criterion)
-        scheduler.step()
+    # Setup defaults
+    config["starting_epoch"] = 1
+    config["optimizer"] = optimizer
+    config["model"] = hw
+    config['lowest_loss'] = float('inf')
+    config["train_losses"] = []
+    config["test_losses"] = []
 
-        log_print("Training CER", training_cer)
-        train_losses.append(training_cer)
+    # Launch visdom
+    visualize.initialize_visdom(config["full_specs"], config)
+
+    ## LOAD FROM OLD MODEL
+    if config["load_path"]:
+        load_model(config)
+
+    for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
+        log_print("Epoch ", epoch)
+        config["current_epoch"] = epoch
+
+        # Only test
+        if not config["test_only"]:
+            training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, config["idx_to_char"], dtype, config, secondary_criterion=secondary_criterion)
+            scheduler.step()
+
+            log_print("Training CER", training_cer)
+            config["train_losses"].append(training_cer)
 
         # CER plot
         test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
         log_print("Test CER", test_cer)
-        test_losses.append(test_cer)
-        visdom_manager.update_plot("Test Error Rate", [epoch], test_cer)
+        config["test_losses"].append(test_cer)
+        config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
+
+        if config["test_only"]:
+            break
 
         if not config["results_dir"] is None:
-            # Save visdom graph
-            visdom_manager.save_env()
 
-            # Save the best model
-            if lowest_loss > test_cer:
-                lowest_loss = test_cer
-                log_print("Saving Best")
-                torch.save(hw.state_dict(), os.path.join(config["results_dir"], config['name'] + "_model.pt"))
+            # Save BSF
+            if config['lowest_loss'] > test_cer:
+                config['lowest_loss'] = test_cer
+                save_model(config, bsf=True)
 
-            # Save losses/CER
-            results = {'train': train_losses, 'test': test_losses}
-            with open(os.path.join(config["results_dir"], "losses.json"), 'w') as fh:
-                json.dump(results, fh, indent=4)
+            if config["save_freq"] % epoch == 0:
+                save_model(config, bsf=False)
 
-            ## Plot with matplotlib
-            x_axis = [(i+1) * n_train_instances for i in range(epoch)]
-            plt.figure()
-            plt.plot(x_axis, train_losses, label='train')
-            plt.plot(x_axis, test_losses, label='test')
-            plt.legend()
-            plt.ylim(top=.2)
-            plt.ylabel("CER")
-            plt.xlabel("Number of Instances")
-            plt.title("CER Loss")
-            plt.savefig(os.path.join(config["results_dir"], config['name'] + ".png"))
-            plt.close()
+            plt_loss(config)
 
 if __name__ == "__main__":
-    main()
-
+    try:
+        main()
+    except Exception as e:
+        traceback.print_exc()
+    finally:
+        torch.cuda.empty_cache()
 
 # https://github.com/theevann/visdom-save/blob/master/vis.py

@@ -54,13 +54,14 @@ class Plot(object):
 
     # LOADING
     def load_log(self, path):
-        self.viz.replay_log(self, path)
+        self.viz.replay_log(path)
 
     def load_all_env(self, root, keyword="visdom"):
         for d, ss, fs in os.walk(root):
             for f in fs:
                 full_env = os.path.join(d, f)
-                if full_env[-5:]==".json" and keyword in full_env and f != "losses.json":
+                # Don't load "BSF" graphs, just complete graphs
+                if full_env[-5:]==".json" and keyword in full_env and f != "losses.json" and "BSF_" not in full_env:
                     print("Loading {}".format(full_env))
                     self.viz.replay_log(full_env) # viz.load load the environment to viz
 
@@ -98,6 +99,31 @@ class Plot(object):
             to_write = json.dumps(["events", output])
             file.write(to_write + '\n')
         file.close()
+
+hwr_loss_title = "HWR Loss"
+writer_loss_title = "Writer Loss"
+total_loss_title = "Total Loss"
+
+def initialize_visdom(env_name, config):
+    config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
+    config["visdom_manager"].register_plot(hwr_loss_title, "Instances", "Loss")
+    config["visdom_manager"].register_plot(writer_loss_title, "Instances", "Loss")
+    config["visdom_manager"].register_plot(total_loss_title, "Instances", "Loss")
+    config["visdom_manager"].register_plot("Test Error Rate", "Epoch", "Loss", ymax=.2)
+    return config["visdom_manager"]
+
+def plot_loss(visdom_manager, epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
+    # Plot writer recognizer loss and total loss
+    if _writer_loss is None:
+        _writer_loss = 0
+    if _total_loss is None:
+        _total_loss = _hwr_loss
+
+    # Plot regular losses
+    visdom_manager.update_plot(hwr_loss_title, [epoch], _hwr_loss)
+    visdom_manager.update_plot(writer_loss_title, [epoch], _writer_loss)
+    visdom_manager.update_plot(total_loss_title, [epoch], _total_loss)
+
 
 if __name__=="__main__":
     plot = Plot("Test")
