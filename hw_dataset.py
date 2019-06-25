@@ -49,6 +49,7 @@ def collate(batch):
     line_imgs = torch.from_numpy(line_imgs)
     labels = torch.from_numpy(all_labels.astype(np.int32))
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32))
+    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch]))
 
     return {
         "line_imgs": line_imgs,
@@ -56,17 +57,29 @@ def collate(batch):
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
-        "paths": [b["path"] for b in batch]
+        "paths": [b["path"] for b in batch],
+        "online": online
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_ids_pickle="./data/prepare_IAM_Lines/writer_IDs.pickle"):
+    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",)):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
                 data.extend(json.load(fp))
 
-        data, self.classes_count = self.add_writer_ids(data, writer_ids_pickle)
+        ## Read in all writer IDs
+        writer_id_dict = {}
+        for writer_id_file in writer_id_paths:
+            path = os.path.join(root, writer_id_file)
+            # Add files to create super dicitonary
+            d = unpickle_it(path)
+            print(d)
+            writer_id_dict = {**writer_id_dict, **d}
+
+        print(writer_id_dict)
+        data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
+
         self.root = root
         self.img_height = img_height
         self.char_to_idx = char_to_idx
@@ -74,25 +87,26 @@ class HwDataset(Dataset):
         self.warp = warp
         self.num_of_channels = num_of_channels
 
-    def add_writer_ids(self, data, writer_id_path):
+    def add_writer_ids(self, data, writer_dict):
         """
+
         Args:
             data (json type thing): hw-dataset_
-            writer_id_path (str): Path to pickle dictionary of form {ID: [file1,file2...] ... }
+            writer_id_path (str): Path to pickle dictionary of form {Writer_ID: [file_path1,file_path2...] ... }
 
         Returns:
             tuple: updated data with ID, number of classes
         """
-        d = unpickle_it(writer_id_path)
-        inverted_dict = dict([[v, k] for k, vs in d.items() for v in vs ])
+        inverted_dict = dict([[v, k] for k, vs in writer_dict.items() for v in vs ]) # {Partial path : Writer ID}
 
         for i,item in enumerate(data):
             # Get writer ID from file
             p,child = os.path.split(item["image_path"])
-            child = re.search("([a-z0-9]+-[a-z0-9]+)", child).group(1)
+            child = re.search("([a-z0-9]+-[0-9]+)", child).group(1)[0:7] # take the first 7 characters
+            print(child)
             item["writer_id"] = inverted_dict[child]
             data[i] = item
-        return data, int(max(d.keys()))
+        return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
 
     def __len__(self):
         return len(self.data)
@@ -119,7 +133,7 @@ class HwDataset(Dataset):
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
         if self.warp:
-            img = grid_distortion.warp_image(img) 
+            img = grid_distortion.warp_image(img)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
@@ -128,12 +142,16 @@ class HwDataset(Dataset):
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
 
+
         gt = item['gt'] # actual text
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
+        online = item.get('online', False)
+
         return {
             "line_img": img,
             "gt_label": gt_label,
             "gt": gt,
             "writer_id": int(item['writer_id']),
-            "path": image_path
+            "path": image_path,
+            "online": online
         }

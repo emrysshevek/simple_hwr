@@ -3,7 +3,7 @@ TESTING: false # Load as little as possible for fast prototyping
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
-load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
+#load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
 test_only: false                             # Do not train
 
 # General
@@ -16,10 +16,12 @@ save_freq: 5
 # log_dir:
 
 # Training data
-training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json]
+training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: "./data"
 training_shuffle: true
 training_warp: true
+online_augmentation: true
+writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
 testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]

@@ -2,6 +2,13 @@
 *prepare*/
 *.pt
 
+# results
+results/
+
+# Data
+data/prepare_IAM_Lines/lines/
+data/prepare_online_data/cropped_images/
+
 # Passwords and cookies
 password.txt
 username.txt

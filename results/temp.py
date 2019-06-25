@@ -17,7 +17,7 @@ with open('warp/losses.json') as fp:
 with open('augmented_train/losses.json') as fp:
     augmented = json.load(fp)['test']
 
-with open('augmented_train+warp/losses.json') as fp:
+with open('augmented_train_warp/losses.json') as fp:
     augmented_warp = json.load(fp)['test']
 
 with open('all_online/losses.json') as fp:
@@ -33,5 +33,7 @@ plt.legend()
 plt.ylabel("CER")
 plt.xlabel("Number of Instances")
 plt.title("Loss Comparison")
+plt.ylim(0, .2)
+plt.xlim(0, 3000000)
 plt.savefig('loss_comparison.png')
 plt.close()

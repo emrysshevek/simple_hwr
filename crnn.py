@@ -15,83 +15,7 @@ from transformer.Optim import ScheduledOptim
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
 MAX_LENGTH=60
-class EncoderRNN(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers=1, dropout=.5):
-        super(EncoderRNN, self).__init__()
-        self.hidden_size = hidden_size
-
-        self.embedding = nn.Embedding(input_size, hidden_size)
-        self.gru = nn.GRU(hidden_size, hidden_size, bidirectional=True)
-
-    def forward(self, input, hidden):
-        embedded = self.embedding(input).view(1, 1, -1)
-        output = embedded
-        output, hidden = self.gru(output, hidden)
-        return output, hidden
-
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
-	
-class AttnDecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size, dropout=0.1, max_length=MAX_LENGTH):
-        super(AttnDecoderRNN, self).__init__()
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.dropout = dropout
-        self.max_length = max_length
-
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.dropout = nn.Dropout(self.dropout)
-        self.gru = nn.GRU(self.hidden_size, self.hidden_size, bidirectional=True)
-        self.out = nn.Linear(self.hidden_size, self.output_size)
-
-    def forward(self, input, hidden, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
-        embedded = self.dropout(embedded)
-
-        attn_weights = F.softmax(
-            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1)
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
-
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
-
-        output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
-
-        output = F.log_softmax(self.out(output[0]), dim=1)
-        return output, hidden, attn_weights
-
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=device)
-
-
-class BidirectionalLSTM2(nn.Module):
-
-    def __init__(self, nIn, nHidden, nOut, dropout=.5):
-        super(BidirectionalLSTM, self).__init__()
-
-        self.encoder = EncoderRNN(nIn, nHidden, dropout=dropout, num_layers=2)
-        self.encoder_hidden = self.encoder.initHidden()
-        
-        self.decoder = AttnDecoderRNN(nHidden, nOut, dropout=dropout, max_length=55)
-
-    def forward(self, _in):
-        embedding, hidden = self.encoder(_in, self.encoder_hidden)
-        out, *_ = self.decoder(embedding, hidden)
-
-        #T, b, h = out.size()
-        #t_rec = out.view(T * b, h)
-
-        #output = self.embedding(t_rec)  # [T * b, nOut]
-        #output = output.view(T, b, -1) # Time, batch size, alphabet size
-
-        return out
 
 class BidirectionalLSTM(nn.Module):
 
@@ -102,6 +26,7 @@ class BidirectionalLSTM(nn.Module):
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
     def forward(self, input):
+        # input [time size, batch size, output dimension], e.g. 404, 8, 1024
         recurrent, _ = self.rnn(input)
         T, b, h = recurrent.size()
         t_rec = recurrent.view(T * b, h)
@@ -192,39 +117,50 @@ class CRNN2(nn.Module):
         nh: LSTM dimension
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
-                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5, detach_embedding=True):
+                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
+                 detach_embedding=True, online_augmentation=False, use_writer_classifier=True):
         super(CRNN2, self).__init__()
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.rnn = BidirectionalLSTM(cnnOutSize + embedding_size, nh, alphabet_size, dropout=recognizer_dropout)
-        self.writer_classifier = BidirectionalLSTM(cnnOutSize, writer_rnn_dimension, writer_rnn_output_size, dropout=writer_dropout)
         self.softmax = nn.LogSoftmax()
-        self.detach_embedding=detach_embedding
+        self.use_writer_classifier = use_writer_classifier
 
-        ## Create a MLP on the end to create an embedding
-        if "embedding" in mlp_layers:
-            embedding_idx = mlp_layers.index("embedding")
-            if embedding_idx != get_last_index(mlp_layers, "embedding"):
-                warnings.warn("Multiple dimensions in MLP specified as 'embedding'")
-            mlp_layers = [m if m != "embedding" else embedding_size for m in mlp_layers] # replace None with embedding size
-        else:
-            embedding_idx = None
+        rnn_expansion_dimension = embedding_size + 1 if online_augmentation else embedding_size
+        self.rnn = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension, nh, alphabet_size, dropout=recognizer_dropout)
 
+        if self.use_writer_classifier:
+            self.writer_classifier = BidirectionalLSTM(cnnOutSize, writer_rnn_dimension, writer_rnn_output_size, dropout=writer_dropout)
+            self.detach_embedding=detach_embedding
 
-        self.mlp = MLP(writer_rnn_output_size, number_of_writers, mlp_layers, dropout=writer_dropout, embedding_idx=embedding_idx) # dropout = 0 means no dropout
-        #rnn_input = torch.cat([conv, online.expand(conv.shape[0], -1, -1)], dim=2)
+            ## Create a MLP on the end to create an embedding
+            if "embedding" in mlp_layers:
+                embedding_idx = mlp_layers.index("embedding")
+                if embedding_idx != get_last_index(mlp_layers, "embedding"):
+                    warnings.warn("Multiple dimensions in MLP specified as 'embedding'")
+                mlp_layers = [m if m != "embedding" else embedding_size for m in mlp_layers] # replace None with embedding size
+            else:
+                embedding_idx = None
 
-    def forward(self, input):
+            self.mlp = MLP(writer_rnn_output_size, number_of_writers, mlp_layers, dropout=writer_dropout, embedding_idx=embedding_idx) # dropout = 0 means no dropout
+
+    def forward(self, input, online=None):
         conv = self.cnn(input)
 
         # hwr classifier
-        classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # RNN dimensional vector
-        classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding") # i.e. 671 dimensional vector
+        if self.use_writer_classifier:
+            classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # RNN dimensional vector
+            classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding") # i.e. 671 dimensional vector
 
-        # get embedding
-        if self.detach_embedding:
-            rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
+            # get embedding
+            if self.detach_embedding:
+                rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
+            else:
+                rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2)  # detach embedding
         else:
-            rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2)  # detach embedding
+            rnn_input = conv
+
+        if not online is None:
+            rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
+
         # rnn features
         recognizer_output = self.rnn(rnn_input)
 
@@ -242,36 +178,8 @@ def create_CRNNClassifier(config):
     crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
                  writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"])
+                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"], online_augmentation=config["online_augmentation"])
     return crnn
-
-
-    transformer = Transformer(
-        opt.src_vocab_size,
-        opt.tgt_vocab_size,
-        opt.max_token_seq_len,
-        tgt_emb_prj_weight_sharing=opt.proj_share_weight,
-        emb_src_tgt_weight_sharing=opt.embs_share_weight,
-        d_k=opt.d_k,
-        d_v=opt.d_v,
-        d_model=opt.d_model,
-        d_word_vec=opt.d_word_vec,
-        d_inner=opt.d_inner_hid,
-        n_layers=opt.n_layers,
-        n_head=opt.n_head,
-        dropout=opt.dropout).to(device)
-
-
-
-
-
-
-
-
-
-
-
-
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):

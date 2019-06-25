@@ -14,14 +14,14 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 ### TO DO:
-# Merge in MASON's STUFF
+# Add ONLINE flag to regular CRNN
+# Download updated JSONs/Processing
+
 
 # EMAIL SUPERCOMPUTER?
 # "right" way to make an embedding
-
 # CycleGAN - threshold
 # Deepwriting - clean up generated images?
-
 # Dropout schedule
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -44,7 +44,12 @@ from torch.optim import lr_scheduler
 # conda activate hw2
 # python -m visdom.server -p 8080
 
+
 wait_for_gpu()
+
+import socket
+if socket.gethostname() == "Galois":
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     if with_analysis:
@@ -60,9 +65,10 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
             line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
             labels = Variable(x['labels'], requires_grad=False)
             label_lengths = Variable(x['label_lengths'], requires_grad=False)
-
+            online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+                "online_augmentation"] else None
         # Returns letter_predictions, writer_predictions
-        preds, *_ = model(line_imgs)
+        preds, *_ = model(line_imgs, online)
 
         preds = preds.cpu()
         output_batch = preds.permute(1, 0, 2)
@@ -139,10 +145,14 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False)
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
+
         config["global_counter"] += 1
         plot_freq = 50 if not config["TESTING"] else 1
 
-        pred_text, *pred_author = [x.cpu() for x in model(line_imgs)]
+        # Add online/offline binary flag
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+
+        pred_text, *pred_author = [x.cpu() for x in model(line_imgs, online)]
 
         # Calculate HWR loss
         preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
@@ -211,7 +221,9 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
     return training_cer
 
 def make_dataloaders(config):
-    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["training_root"], warp=config["training_warp"])
+    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
+                              num_of_channels=config["num_of_channels"], root=config["training_root"],
+                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=6, collate_fn=hw_dataset.collate, pin_memory=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])

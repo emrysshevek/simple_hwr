@@ -1,5 +1,5 @@
 {
-    "name": "baseline",
+    "name": "warp",
     "train_data": {
         "root": "data",
         "paths": [
@@ -17,5 +17,5 @@
         "cnn_out_size": 1024,
         "learning_rate": 1e-4
     },
-    "warp": false
+    "warp": true
 }
