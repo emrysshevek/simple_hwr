@@ -233,7 +233,7 @@ def make_dataloaders(config):
 
 def load_data(config):
     # Load characters and prep datasets
-    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(config['training_jsons'])
+    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(config['training_jsons'], root=config["training_root"])
 
     train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
 

@@ -74,10 +74,8 @@ class HwDataset(Dataset):
             path = os.path.join(root, writer_id_file)
             # Add files to create super dicitonary
             d = unpickle_it(path)
-            print(d)
             writer_id_dict = {**writer_id_dict, **d}
 
-        print(writer_id_dict)
         data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
 
         self.root = root
