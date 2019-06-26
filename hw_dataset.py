@@ -97,15 +97,17 @@ class HwDataset(Dataset):
         Returns:
             tuple: updated data with ID, number of classes
         """
-        inverted_dict = dict([[v, k] for k, vs in writer_dict.items() for v in vs ]) # {Partial path : Writer ID}
+        actual_ids = dict([[v, k] for k, vs in writer_dict.items() for v in vs ]) # {Partial path : Writer ID}
+        writer_ids = dict([[v, k] for k, (_, vs) in enumerate(writer_dict.items()) for v in vs])  # {Partial path : IDX}
 
         for i,item in enumerate(data):
             # Get writer ID from file
             p,child = os.path.split(item["image_path"])
             child = re.search("([a-z0-9]+-[0-9]+)", child).group(1)[0:7] # take the first 7 characters
-            print(child)
-            item["writer_id"] = inverted_dict[child]
+            item["actual_writer_id"] = actual_ids[child]
+            item["writer_id"] = writer_ids[child]
             data[i] = item
+
         return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
 
     def __len__(self):
@@ -151,6 +153,7 @@ class HwDataset(Dataset):
             "line_img": img,
             "gt_label": gt_label,
             "gt": gt,
+            "actual_writer_id": int(item['actual_writer_id']),
             "writer_id": int(item['writer_id']),
             "path": image_path,
             "online": online
