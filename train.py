@@ -192,7 +192,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
                 plot_total_loss = plot_primary_loss
                 plot_secondary_loss = 0
 
-            visualize.plot_loss(config["visdom_manager"],config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
+            visualize.plot_loss(config,config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -247,8 +247,8 @@ def load_data(config):
 
 def main():
     global config
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "./configs/taylor.yaml"
-    config = load_config(config_path)
+    opts = parse_args()
+    config = load_config(opts.config)
     config["global_counter"] = 0
 
     # Use small batch size when using CPU/testing
@@ -341,6 +341,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
+        print(e)
         traceback.print_exc()
     finally:
         torch.cuda.empty_cache()

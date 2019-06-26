@@ -7,10 +7,12 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
+experiment: baseline
 name: baseline
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
+use_visdom: false
 
 # results_dir:
 # log_dir:
@@ -31,7 +33,7 @@ testing_warp: false
 output_predictions: true                    # Output incorrect test predictions
 
 #Network
-style_encoder: basic_encoder                 # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: False                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN

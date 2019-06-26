@@ -1,3 +1,4 @@
+import argparse
 import matplotlib.pyplot as plt
 import torch
 import re
@@ -76,13 +77,27 @@ def log_print(*args, print_statements=True, **kwargs):
     else:
         LOGGER.debug(" ".join([str(a) for a in args]))
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default="./configs/taylor.yaml", help='Path to the config file.')
+    #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
+
+    opts = parser.parse_args()
+    return opts
+    # if "name" not in config.keys():
+    #     config["name"] = opts.name
+    # elif not config["name"] and opts.name:
+    #     config["name"] = opts.name
+
+
 def load_config(config_path):
     config = read_config(config_path)
 
     # Main output folder
-    output_root = os.path.join(config["output_folder"], config["name"])
+    output_root = os.path.join(config["output_folder"], config["experiment"])
 
-    hyper_parameter_str='lr_{}_bs_{}_warp_{}_arch_{}'.format(
+    hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
+         config["name"],
          config["learning_rate"],
          config["batch_size"],
          config["training_warp"],

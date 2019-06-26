@@ -105,6 +105,8 @@ writer_loss_title = "Writer Loss"
 total_loss_title = "Total Loss"
 
 def initialize_visdom(env_name, config):
+    if not config["use_visdom"]:
+        return
     config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
     config["visdom_manager"].register_plot(hwr_loss_title, "Instances", "Loss")
     config["visdom_manager"].register_plot(writer_loss_title, "Instances", "Loss")
@@ -112,7 +114,11 @@ def initialize_visdom(env_name, config):
     config["visdom_manager"].register_plot("Test Error Rate", "Epoch", "Loss", ymax=.2)
     return config["visdom_manager"]
 
-def plot_loss(visdom_manager, epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
+def plot_loss(config, epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
+    visdom_manager = config["visdom_manager"]
+    if not config["use_visdom"]:
+        return
+
     # Plot writer recognizer loss and total loss
     if _writer_loss is None:
         _writer_loss = 0
