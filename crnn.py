@@ -235,3 +235,30 @@ class MLP(nn.Module):
         elif layer == "embedding":
             embedding = self.classifier[0:self.embedding_idx](input)
             return embedding
+
+
+class CRNN_2Stage(nn.Module):
+    """ CRNN with writer classifier
+        nh: LSTM dimension
+    """
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
+                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
+                 detach_embedding=True, online_augmentation=False, use_writer_classifier=True):
+        super(CRNN2, self).__init__()
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.softmax = nn.LogSoftmax()
+        self.rnn = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension, nh, alphabet_size, dropout=recognizer_dropout)
+
+    def forward(self, input, online=None, classifier_output=None):
+        conv = self.cnn(input)
+        rnn_input = conv
+
+        if not online is None:
+            rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
+
+        # rnn features
+        recognizer_output = self.rnn(rnn_input)
+
+        ## Append 16-bit embedding
+
+        return recognizer_output, classifier_output
