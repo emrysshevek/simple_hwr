@@ -142,6 +142,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         loss_history_total = loss_history_recognizer
             
     for i, x in enumerate(dataloader):
+        LOGGER.debug("Training Iteration: {}".format(i))
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False)
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
@@ -160,6 +161,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         output_batch = pred_text.permute(1, 0, 2)
         out = output_batch.data.cpu().numpy()
 
+        LOGGER.debug("Calculating CTC Loss: {}".format(i))
         loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
         total_loss = loss_recognizer
         loss_history_recognizer.append(torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item())
@@ -195,6 +197,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
                 visualize.plot_loss(config,config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
 
+        LOGGER.debug("Calculating Gradients: {}".format(i))
         optimizer.zero_grad()
         total_loss.backward()
         optimizer.step()
@@ -247,9 +250,10 @@ def load_data(config):
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
 def main():
-    global config
+    global config, LOGGER
     opts = parse_args()
     config = load_config(opts.config)
+    LOGGER = config["logger"]
     config["global_counter"] = 0
 
     # Use small batch size when using CPU/testing
