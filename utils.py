@@ -1,3 +1,4 @@
+
 import socket
 import argparse
 import matplotlib.pyplot as plt
@@ -92,6 +93,13 @@ def parse_args():
 
 
 def load_config(config_path):
+    par, chld = os.path.split(config_path)
+
+    # Correct config paths
+    if par=="":
+        config_path = os.path.join("./configs", config_path)
+    if config_path[-5:].lower() != ".yaml":
+        config_path = config_path + ".yaml"
     config = read_config(config_path)
 
     # Main output folder
@@ -159,7 +167,7 @@ def computer_defaults(config):
     if socket.gethostname() == "Galois":
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     else:
-        config["use_visdom"]==False
+        config["use_visdom"]=False
     return config
 
 def wait_for_gpu():
@@ -207,7 +215,6 @@ def fix_scientific_notation(config):
         if type(item) is str and exp.match(item):
             config[key] = float(item)
     return config
-
 
 def get_last_index(my_list, value):
     return len(my_list) - 1 - my_list[::-1].index(value)
