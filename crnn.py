@@ -241,24 +241,28 @@ class CRNN_2Stage(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
-                 embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
-                 detach_embedding=True, online_augmentation=False, use_writer_classifier=True):
-        super(CRNN2, self).__init__()
-        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
+                 first_rnn_out_dim=128, second_rnn_out_dim=512):
+        super(CRNN_2Stage, self).__init__()
         self.softmax = nn.LogSoftmax()
-        self.rnn = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension, nh, alphabet_size, dropout=recognizer_dropout)
+        rnn_expansion_dimension = 1 if online_augmentation else 0
+
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.first_rnn  = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension, rnn_hidden_dim, first_rnn_out_dim, dropout=0)
+        self.second_rnn = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension + first_rnn_out_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
 
     def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
         rnn_input = conv
 
-        if not online is None:
+        if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
 
-        # rnn features
-        recognizer_output = self.rnn(rnn_input)
+        # First Stage
+        recognizer_output = self.first_rnn(rnn_input)
 
-        ## Append 16-bit embedding
+        # Second stage
+        recognizer_output = self.second_rnn(rnn_input)
+        rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
 
-        return recognizer_output, classifier_output
+        return recognizer_output, None

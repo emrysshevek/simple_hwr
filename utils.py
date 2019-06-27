@@ -289,7 +289,8 @@ def load_model(config):
         config["model"].load_state_dict(old_state)
 
     # Launch visdom
-    config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
+    if config["use_visdom"]:
+        config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
 
     # Load Loss History
     with open(os.path.join(path, "losses.json"), 'r') as fh:
@@ -328,7 +329,8 @@ def save_model(config, bsf=False):
         json.dump(results, fh, indent=4)
 
     # Save visdom
-    config["visdom_manager"].save_env(file_path=os.path.join(path, "visdom.json"))
+    if config["use_visdom"]:
+        config["visdom_manager"].save_env(file_path=os.path.join(path, "visdom.json"))
 
 
 def plt_loss(config):
