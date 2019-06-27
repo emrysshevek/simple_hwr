@@ -47,9 +47,6 @@ from torch.optim import lr_scheduler
 
 wait_for_gpu()
 
-import socket
-if socket.gethostname() == "Galois":
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     if with_analysis:
@@ -135,12 +132,16 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
     steps = 0.0
     model.train()
 
-    crnn_with_classifier = type(model).__name__ == "CRNNClassifier"
+    #crnn_with_classifier = type(model).__name__ == "CRNNClassifier"
 
+    # move these to config?
     loss_history_recognizer = []
     loss_history_writer = []
-    loss_history_total = loss_history_recognizer if not crnn_with_classifier else []
-
+    if config["style_encoder"]=="basic_encoder":
+        loss_history_total = []
+    else:
+        loss_history_total = loss_history_recognizer
+            
     for i, x in enumerate(dataloader):
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False)
@@ -152,7 +153,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
 
-        pred_text, *pred_author = [x.cpu() for x in model(line_imgs, online)]
+        pred_text, *pred_author = [x.cpu() for x in model(line_imgs, online) if not x is None]
 
         # Calculate HWR loss
         preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
@@ -263,8 +264,9 @@ def main():
         hw = crnn.create_CRNNClassifier(config)
     elif config["style_encoder"] == "fake_encoder":
         hw = crnn.create_CRNNClassifier(config)
-    else:
-        hw = crnn.create_CRNN(config)
+    else: # basic HWR
+        config["embedding_size"]=0
+        hw = crnn.create_CRNNClassifier(config)
 
     # Prep GPU
     if config["TESTING"]: # don't use GPU for testing

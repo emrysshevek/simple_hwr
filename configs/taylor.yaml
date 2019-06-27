@@ -12,7 +12,7 @@ name: baseline
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
-use_visdom: false
+use_visdom: true
 
 # results_dir:
 # log_dir:

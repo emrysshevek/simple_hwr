@@ -1,3 +1,4 @@
+import socket
 import argparse
 import matplotlib.pyplot as plt
 import torch
@@ -151,7 +152,15 @@ def load_config(config_path):
     if "test_only" not in config.keys():
         config["test_only"] = False
 
+    computer_defaults(config)
     return config
+
+def computer_defaults(config):
+    if socket.gethostname() == "Galois":
+        os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    else:
+        config["use_visdom"]==False
+
 
 def wait_for_gpu():
     ## Wait until GPU is available

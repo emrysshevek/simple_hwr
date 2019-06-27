@@ -142,7 +142,7 @@ class CRNN2(nn.Module):
 
             self.mlp = MLP(writer_rnn_output_size, number_of_writers, mlp_layers, dropout=writer_dropout, embedding_idx=embedding_idx) # dropout = 0 means no dropout
 
-    def forward(self, input, online=None):
+    def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
 
         # hwr classifier
@@ -174,11 +174,16 @@ def create_CRNN(config):
 
     return crnn
 
-def create_CRNNClassifier(config):
+def create_CRNNClassifier(config, use_writer_classifier=True):
+    # Don't use writer classifier
+    if not config["style_encoder"]:
+        use_writer_classifier = False
+        config["embedding_size"] = 0
+        
     crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
                  writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"], online_augmentation=config["online_augmentation"])
+                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"], online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
     return crnn
 
 class MLP(nn.Module):
