@@ -13,6 +13,7 @@ output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
 use_visdom: true
+debug: off
 
 # results_dir:
 # log_dir:

@@ -63,21 +63,19 @@ def setup_logging(folder, log_std_out=False):
                             filemode='a',
                             format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%H:%M:%S',
-                            level=logging.DEBUG)
+                            level=logging.INFO)
     if not log_std_out:
         logger.addHandler(logging.StreamHandler())
-        logger.setLevel("DEBUG")
+        logger.setLevel("INFO")
 
     LOGGER = logger
     return logger
 
-def log_print(*args, print_statements=True, **kwargs):
-    if kwargs.pop('new_start', False):
-        setup_logging(kwargs["log_dir"], log_std_out=~print_statements)
+def log_print(*args, print_statements=True):
     if print_statements:
         print(" ".join([str(a) for a in args]))
     else:
-        LOGGER.debug(" ".join([str(a) for a in args]))
+        LOGGER.info(" ".join([str(a) for a in args]))
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -140,8 +138,15 @@ def load_config(config_path):
     #parent, child = os.path.split(config)
     shutil.copy(config_path, config['results_dir'])
 
-    log_print("Using config file", config_path, new_start=True, log_dir=config["log_dir"])
+    logger = setup_logging(folder=config["log_dir"])
+
+    if config["debug"]:
+        logger.setLevel("DEBUG")
+
+    log_print("Using config file", config_path)
     log_print(json.dumps(config, indent=2))
+
+    config["logger"] = logger
 
     # Set defaults if unspecified
     if "load_path" not in config.keys():

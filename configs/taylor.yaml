@@ -8,11 +8,12 @@ test_only: false                             # Do not train
 
 # General
 experiment: baseline
-name: baseline
+name: unknown_experiment # unknown_experiment
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
 use_visdom: true
+debug: on
 
 # results_dir:
 # log_dir:
