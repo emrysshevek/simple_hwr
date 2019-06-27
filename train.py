@@ -24,7 +24,6 @@ from torch.autograd import Variable
 # Deepwriting - clean up generated images?
 # Dropout schedule
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
@@ -301,7 +300,8 @@ def main():
     config["test_losses"] = []
 
     # Launch visdom
-    visualize.initialize_visdom(config["full_specs"], config)
+    if config["use_visdom"]:
+        visualize.initialize_visdom(config["full_specs"], config)
 
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
@@ -323,7 +323,9 @@ def main():
         test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
         log_print("Test CER", test_cer)
         config["test_losses"].append(test_cer)
-        config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
+
+        if config["use_visdom"]:
+            config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
 
         if config["test_only"]:
             break

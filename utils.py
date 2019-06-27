@@ -170,8 +170,16 @@ def computer_defaults(config):
         config["use_visdom"]=False
     return config
 
+def get_computer():
+    return socket.gethostname()
+
 def wait_for_gpu():
-    ## Wait until GPU is available
+    if get_computer() != "Galois":
+        return
+
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+
+    ## Wait until GPU is available -- only on Galois
     import GPUtil
     GPUtil.showUtilization()
     GPUs = GPUtil.getGPUs()
