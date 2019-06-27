@@ -270,6 +270,8 @@ def main():
         hw = crnn.create_CRNNClassifier(config)
     elif config["style_encoder"] == "fake_encoder":
         hw = crnn.create_CRNNClassifier(config)
+    elif config["style_encoder"] == "2Stage":
+        hw = crnn.create_2Stage(config)
     else: # basic HWR
         config["embedding_size"]=0
         hw = crnn.create_CRNNClassifier(config)

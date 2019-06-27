@@ -7,13 +7,13 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: baseline
-name: unknown_experiment # unknown_experiment
+experiment: 2Stage
+name: baseline # unknown_experiment
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
 use_visdom: true
-debug: on
+debug: off
 
 # results_dir:
 # log_dir:
@@ -34,12 +34,12 @@ testing_warp: false
 output_predictions: true                    # Output incorrect test predictions
 
 #Network
-style_encoder: False                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: 2Stage                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
-rnn_dimension: 512                          # originally 512
+rnn_dimension: 512                           # originally 512
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM

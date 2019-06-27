@@ -168,24 +168,6 @@ class CRNN2(nn.Module):
 
         return recognizer_output, classifier_output
 
-def create_CRNN(config):
-    # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], config["rnn_dimension"], recognizer_dropout=config["recognizer_dropout"])
-
-    return crnn
-
-def create_CRNNClassifier(config, use_writer_classifier=True):
-    # Don't use writer classifier
-    if not config["style_encoder"]:
-        use_writer_classifier = False
-        config["embedding_size"] = 0
-        
-    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
-                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'], embedding_size=config["embedding_size"],
-                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"], writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"], online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
-    return crnn
-
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
         """
@@ -253,16 +235,52 @@ class CRNN_2Stage(nn.Module):
 
     def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
-        rnn_input = conv
+        rnn_input = conv # [width/time, batch, feature_maps]
 
         if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
 
         # First Stage
-        recognizer_output = self.first_rnn(rnn_input)
+        first_stage_output = self.first_rnn(rnn_input)
+
 
         # Second stage
-        recognizer_output = self.second_rnn(rnn_input)
-        rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
+        cnn_rnn_concat = torch.cat([rnn_input, first_stage_output], dim=2)
+        recognizer_output = self.second_rnn(cnn_rnn_concat)
 
-        return recognizer_output, None
+        #print(first_stage_output.shape)
+        #print(conv.shape)
+        #print(cnn_rnn_concat.shape)
+
+        return recognizer_output,
+
+
+def create_CRNN(config):
+    # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
+    crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], config["rnn_dimension"],
+                recognizer_dropout=config["recognizer_dropout"])
+
+    return crnn
+
+
+def create_CRNNClassifier(config, use_writer_classifier=True):
+    # Don't use writer classifier
+    if not config["style_encoder"]:
+        use_writer_classifier = False
+        config["embedding_size"] = 0
+
+    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
+                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
+                 embedding_size=config["embedding_size"],
+                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
+                 writer_rnn_dimension=config["writer_rnn_dimension"],
+                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"],
+                 online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
+    return crnn
+
+
+def create_2Stage(config):
+    crnn = CRNN_2Stage(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+                       n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
+                       online_augmentation=config["online_augmentation"], first_rnn_out_dim=128, second_rnn_out_dim=512)
+    return crnn
