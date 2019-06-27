@@ -5,7 +5,7 @@
 #SBATCH --output="./results/baseline/log.slurm"
 #SBATCH --time 72:00:00
 #SBATCH -C 'rhel7'
-#SBATCH --mail-user=masonfp@byu.edu   # email address
+#SBATCH --mail-user=taylor.archibald@byu.edu   # email address
 #SBATCH --mail-type=BEGIN
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
@@ -13,11 +13,14 @@
 #%Module
 
 module purge
-module load cuda
+module load cuda/10.1
+module load cudnn/7.6
 
-export PATH="/fslhome/masonfp/fsl_groups/fslg_hwr/compute/env/hwr_env/bin:$PATH"
+group_path="/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr"
+export PATH="${group_path}/env/hwr4_env/bin:$PATH"
 which python
 
-cd "/fslhome/masonfp/fsl_groups/fslg_hwr/compute/simple_hwr"
-python -u train.py configs/baseline.json
+cd "${group_path}/taylor_simple_hwr"
+python -u train.py --config baseline
+
 
