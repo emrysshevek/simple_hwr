@@ -182,8 +182,10 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
         # Plot it with visdom
         if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
+            LOGGER.info(config["global_counter"])
+
             if config["use_visdom"]:
-                print(config["global_counter"])
+
 
                 # Writer loss
                 plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
@@ -228,10 +230,10 @@ def make_dataloaders(config):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=6, collate_fn=hw_dataset.collate, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=3, collate_fn=hw_dataset.collate, pin_memory=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=6, collate_fn=hw_dataset.collate)
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=1, collate_fn=hw_dataset.collate)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
