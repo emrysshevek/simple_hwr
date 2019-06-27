@@ -1,6 +1,6 @@
 from __future__ import print_function
 from builtins import range
-
+import faulthandler
 from utils import is_iterable
 import json
 import character_set
@@ -24,7 +24,6 @@ from torch.autograd import Variable
 # Deepwriting - clean up generated images?
 # Dropout schedule
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
@@ -46,7 +45,7 @@ from torch.optim import lr_scheduler
 
 
 wait_for_gpu()
-
+faulthandler.enable()
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     if with_analysis:
@@ -181,19 +180,20 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
         # Plot it with visdom
         if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
-            print(config["global_counter"])
+            if config["use_visdom"]:
+                print(config["global_counter"])
 
-            # Writer loss
-            plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
+                # Writer loss
+                plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
 
-            if not secondary_criterion is None:
-                plot_total_loss = np.mean(loss_history_total[-plot_freq:])
-                plot_secondary_loss = np.mean(loss_history_writer[-plot_freq:])
-            else:
-                plot_total_loss = plot_primary_loss
-                plot_secondary_loss = 0
+                if not secondary_criterion is None:
+                    plot_total_loss = np.mean(loss_history_total[-plot_freq:])
+                    plot_secondary_loss = np.mean(loss_history_writer[-plot_freq:])
+                else:
+                    plot_total_loss = plot_primary_loss
+                    plot_secondary_loss = 0
 
-            visualize.plot_loss(config,config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
+                visualize.plot_loss(config,config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
 
         optimizer.zero_grad()
         total_loss.backward()
@@ -300,7 +300,8 @@ def main():
     config["test_losses"] = []
 
     # Launch visdom
-    visualize.initialize_visdom(config["full_specs"], config)
+    if config["use_visdom"]:
+        visualize.initialize_visdom(config["full_specs"], config)
 
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
@@ -322,7 +323,9 @@ def main():
         test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
         log_print("Test CER", test_cer)
         config["test_losses"].append(test_cer)
-        config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
+
+        if config["use_visdom"]:
+            config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
 
         if config["test_only"]:
             break
