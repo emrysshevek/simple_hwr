@@ -13,9 +13,9 @@ test_only: false                             # Do not train
 
 # General
 experiment: baseline
-name: baseline
+name: warp_augmented
 output_folder: ./results
-epochs_to_run: 150
+epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off

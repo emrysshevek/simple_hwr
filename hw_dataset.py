@@ -57,6 +57,7 @@ def collate(batch):
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
+        "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
         "paths": [b["path"] for b in batch],
         "online": online
     }
@@ -145,8 +146,10 @@ class HwDataset(Dataset):
 
         gt = item['gt'] # actual text
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
-        online = item.get('online', False)
-
+        #online = item.get('online', False)
+        # THIS IS A HACK, FIX THIS (below)
+        online = int(item['actual_writer_id']) > 700
+        
         return {
             "line_img": img,
             "gt_label": gt_label,

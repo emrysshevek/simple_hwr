@@ -158,7 +158,7 @@ class CRNN2(nn.Module):
         else:
             rnn_input = conv
 
-        if not online is None:
+        if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
 
         # rnn features
@@ -243,7 +243,6 @@ class CRNN_2Stage(nn.Module):
         # First Stage
         first_stage_output = self.first_rnn(rnn_input)
 
-
         # Second stage
         cnn_rnn_concat = torch.cat([rnn_input, first_stage_output], dim=2)
         recognizer_output = self.second_rnn(cnn_rnn_concat)
@@ -261,7 +260,6 @@ def create_CRNN(config):
                 recognizer_dropout=config["recognizer_dropout"])
 
     return crnn
-
 
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier

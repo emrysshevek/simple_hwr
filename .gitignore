@@ -5,6 +5,9 @@
 # results
 results/
 
+# Configs
+configs/
+
 # Data
 data/prepare_IAM_Lines/lines/
 data/prepare_online_data/cropped_images/

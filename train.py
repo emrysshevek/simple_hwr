@@ -64,8 +64,9 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
             online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
                 "online_augmentation"] else None
         # Returns letter_predictions, writer_predictions
+        #print(online, x['online'])
         preds, *_ = model(line_imgs, online)
-
+   
         preds = preds.cpu()
         output_batch = preds.permute(1, 0, 2)
         out = output_batch.data.cpu().numpy()
@@ -152,7 +153,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
-
+        #print(online, x['actual_writer_id'])
+        
         pred_text, *pred_author = [x.cpu() for x in model(line_imgs, online) if not x is None]
 
         # Calculate HWR loss
@@ -230,10 +232,10 @@ def make_dataloaders(config):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=3, collate_fn=hw_dataset.collate, pin_memory=True)
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=0, collate_fn=hw_dataset.collate, pin_memory=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=1, collate_fn=hw_dataset.collate)
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=0, collate_fn=hw_dataset.collate)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 

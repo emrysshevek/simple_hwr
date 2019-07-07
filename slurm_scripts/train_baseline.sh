@@ -2,9 +2,10 @@
 
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
-#SBATCH --output="./results/baseline/log.slurm"
-#SBATCH --time 72:00:00
-#SBATCH -C 'rhel7'
+#SBATCH --ntasks 4
+#SBATCH --output="./log2.slurm"
+#SBATCH --time 48:00:00
+#SBATCH -C 'rhel7&pascal'
 #SBATCH --mail-user=taylor.archibald@byu.edu   # email address
 #SBATCH --mail-type=BEGIN
 #SBATCH --mail-type=END
