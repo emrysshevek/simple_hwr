@@ -8,7 +8,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: two_stage
-name: baseline
+name: real_baseline
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
