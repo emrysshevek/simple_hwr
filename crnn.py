@@ -254,6 +254,41 @@ class CRNN_2Stage(nn.Module):
         return recognizer_output,
 
 
+class CRNN_2StageNudger(nn.Module):
+    """ CRNN with writer classifier
+        nh: LSTM dimension
+	Same idea as 2 stage; but instead of concatenating vectors, we add them
+    """
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
+                 first_rnn_out_dim=128, second_rnn_out_dim=512):
+        super(CRNN_2Stage, self).__init__()
+        self.softmax = nn.LogSoftmax()
+        rnn_expansion_dimension = 1 if online_augmentation else 0
+        rnn_in_dim = cnnOutSize + rnn_expansion_dimension
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+
+        self.first_rnn  = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, rnn_in_dim, dropout=0)
+        self.second_rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
+
+    def forward(self, input, online=None, classifier_output=None):
+        conv = self.cnn(input)
+        rnn_input = conv # [width/time, batch, feature_maps]
+
+        if online is not None:
+            rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
+
+        # First Stage
+        first_stage_output = self.first_rnn(rnn_input)
+
+        # Second stage
+        cnn_rnn_sum = rnn_input + first_stage_output
+
+        recognizer_output_refined = self.second_rnn(cnn_rnn_sum)
+        recognizer_output = self.second_rnn(rnn_input)
+
+        return recognizer_output, recognizer_output_refined
+
+
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
     crnn = CRNN(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], config["rnn_dimension"],
