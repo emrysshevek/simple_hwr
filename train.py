@@ -126,22 +126,11 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     test_cer = sum_loss / steps
     return test_cer
 
-
 def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, config, secondary_criterion=None):
     sum_loss = 0.0
     steps = 0.0
     model.train()
 
-    #crnn_with_classifier = type(model).__name__ == "CRNNClassifier"
-
-    # move these to config?
-    loss_history_recognizer = []
-    loss_history_writer = []
-    if config["style_encoder"]=="basic_encoder":
-        loss_history_total = []
-    else:
-        loss_history_total = loss_history_recognizer
-            
     for i, x in enumerate(dataloader):
         LOGGER.debug("Training Iteration: {}".format(i))
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
@@ -153,20 +142,13 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
-        #print(online, x['actual_writer_id'])
-        
-        pred_text, *pred_author = [x.cpu() for x in model(line_imgs, online) if not x is None]
 
-        # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
+        baseline_loss, baseline_prediction, rnn_input = crnn.train_baseline(model, optimizer, config, line_imgs, online,
+                                                                       labels, label_lengths, ctc_criterion, step=0)
 
-        output_batch = pred_text.permute(1, 0, 2)
-        out = output_batch.data.cpu().numpy()
-
-        LOGGER.debug("Calculating CTC Loss: {}".format(i))
-        loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
-        total_loss = loss_recognizer
-        loss_history_recognizer.append(torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item())
+        if config["style_encoder"]=="2StageNudger":
+            nudger_loss, nudger_prediction, nudged_rnn_input = crnn.train_nudger(model, optimizer, rnn_input, config, line_imgs, online,
+                                labels, label_lengths, ctc_criterion, step=0)
 
         ## With writer classification
         if not secondary_criterion is None:

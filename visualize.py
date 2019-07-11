@@ -100,36 +100,19 @@ class Plot(object):
             file.write(to_write + '\n')
         file.close()
 
-hwr_loss_title = "HWR Loss"
-writer_loss_title = "Writer Loss"
-total_loss_title = "Total Loss"
-
 def initialize_visdom(env_name, config):
     if not config["use_visdom"]:
         return
     config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
-    config["visdom_manager"].register_plot(hwr_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot(writer_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot(total_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot("Test Error Rate", "Epoch", "Loss", ymax=.2)
     return config["visdom_manager"]
 
-def plot_loss(config, epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
+def plot_loss(config, epoch, loss_list):
     visdom_manager = config["visdom_manager"]
     if not config["use_visdom"]:
         return
 
-    # Plot writer recognizer loss and total loss
-    if _writer_loss is None:
-        _writer_loss = 0
-    if _total_loss is None:
-        _total_loss = _hwr_loss
-
-    # Plot regular losses
-    visdom_manager.update_plot(hwr_loss_title, [epoch], _hwr_loss)
-    visdom_manager.update_plot(writer_loss_title, [epoch], _writer_loss)
-    visdom_manager.update_plot(total_loss_title, [epoch], _total_loss)
-
+    for loss in loss_list:
+        visdom_manager.update_plot(loss["title"], [epoch], loss["loss"])
 
 if __name__=="__main__":
     plot = Plot("Test")

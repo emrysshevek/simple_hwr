@@ -165,6 +165,7 @@ def load_config(config_path):
     if "test_only" not in config.keys():
         config["test_only"] = False
 
+    config["stats"] = {}
     config = computer_defaults(config)
     return config
 
