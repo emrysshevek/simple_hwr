@@ -203,7 +203,11 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
 
         LOGGER.debug("Calculating Gradients: {}".format(i))
         optimizer.zero_grad()
-        total_loss.backward()
+
+        if config["style_encoder"]=="2StageNudger":
+            pass
+        else:
+            total_loss.backward()
         optimizer.step()
 
         # if i == 0:
@@ -274,6 +278,12 @@ def main():
         hw = crnn.create_CRNNClassifier(config)
     elif config["style_encoder"] == "2Stage":
         hw = crnn.create_2Stage(config)
+        config["embedding_size"]=0
+
+    elif config["style_encoder"] == "2StageNudger":
+        hw = crnn.create_2StageNudger(config)
+        config["embedding_size"]=0
+
     else: # basic HWR
         config["embedding_size"]=0
         hw = crnn.create_CRNNClassifier(config)
@@ -347,7 +357,7 @@ def main():
                 config['lowest_loss'] = test_cer
                 save_model(config, bsf=True)
 
-            if config["save_freq"] % epoch == 0:
+            if epoch % config["save_freq"] == 0:
                 save_model(config, bsf=False)
 
             plt_loss(config)

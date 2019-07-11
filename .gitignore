@@ -6,7 +6,7 @@
 results/
 
 # Configs
-configs/
+# configs/
 
 # Data
 data/prepare_IAM_Lines/lines/

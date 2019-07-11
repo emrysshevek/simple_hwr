@@ -8,7 +8,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: two_stage
-name: real_baseline
+name: nudger
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
@@ -34,7 +34,7 @@ testing_warp: false
 output_predictions: true                    # Output incorrect test predictions
 
 #Network
-style_encoder: 2Stage                         # "2Stage", "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: 2StageNudger                         # "2StageNudger", "2Stage", "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN

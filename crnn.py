@@ -3,6 +3,9 @@ import torch
 from torch import nn
 from utils import *
 import os
+from torch.autograd import Variable
+from warpctc_pytorch import CTCLoss
+
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
@@ -116,7 +119,8 @@ class CRNN2(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
+
+    def __init__(self, cnnOutSize, nc, alphabet_size, nh, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
                  embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
                  detach_embedding=True, online_augmentation=False, use_writer_classifier=True):
         super(CRNN2, self).__init__()
@@ -145,26 +149,26 @@ class CRNN2(nn.Module):
     def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
 
-        # hwr classifier
+        # hwr with classifier
         if self.use_writer_classifier:
             classifier_output1 = torch.mean(self.writer_classifier(conv),0,keepdim=False) # RNN dimensional vector
             classifier_output, embedding = self.mlp(classifier_output1, layer="output+embedding") # i.e. 671 dimensional vector
 
-            # get embedding
+            # Attach style/classifier embedding
             if self.detach_embedding:
                 rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1).detach()], dim=2) # detach embedding
             else:
                 rnn_input = torch.cat([conv, embedding.expand(conv.shape[0], -1, -1)], dim=2)  # detach embedding
+        # else, vanilla classifier
         else:
             rnn_input = conv
 
+        # concatenate online flag as needed
         if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
 
         # rnn features
         recognizer_output = self.rnn(rnn_input)
-
-        ## Append 16-bit embedding
 
         return recognizer_output, classifier_output
 
@@ -222,9 +226,11 @@ class MLP(nn.Module):
 class CRNN_2Stage(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
+        nc: number of channels
+
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
-                 first_rnn_out_dim=128, second_rnn_out_dim=512):
+                 first_rnn_out_dim=128):
         super(CRNN_2Stage, self).__init__()
         self.softmax = nn.LogSoftmax()
         rnn_expansion_dimension = 1 if online_augmentation else 0
@@ -258,19 +264,31 @@ class CRNN_2StageNudger(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
 	Same idea as 2 stage; but instead of concatenating vectors, we add them
+
+	    Returns:
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
-                 first_rnn_out_dim=128, second_rnn_out_dim=512):
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim1, rnn_hidden_dim2, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False):
         super(CRNN_2Stage, self).__init__()
         self.softmax = nn.LogSoftmax()
         rnn_expansion_dimension = 1 if online_augmentation else 0
         rnn_in_dim = cnnOutSize + rnn_expansion_dimension
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
 
-        self.first_rnn  = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, rnn_in_dim, dropout=0)
-        self.second_rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
+        self.first_rnn  = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim1, rnn_in_dim, dropout=0)
+        self.second_rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim2, alphabet_size, dropout=recognizer_dropout)
 
     def forward(self, input, online=None, classifier_output=None):
+        """
+
+        Args:
+            input:
+            online:
+            classifier_output:
+
+        Returns:
+            tuple: normal prediction, refined prediction, normal CNN encoding, nudged CNN encoding
+
+        """
         conv = self.cnn(input)
         rnn_input = conv # [width/time, batch, feature_maps]
 
@@ -286,7 +304,7 @@ class CRNN_2StageNudger(nn.Module):
         recognizer_output_refined = self.second_rnn(cnn_rnn_sum)
         recognizer_output = self.second_rnn(rnn_input)
 
-        return recognizer_output, recognizer_output_refined
+        return recognizer_output, recognizer_output_refined, first_stage_output, cnn_rnn_sum
 
 
 def create_CRNN(config):
@@ -298,11 +316,16 @@ def create_CRNN(config):
 
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier
-    if not config["style_encoder"]:
+    if not config["style_encoder"] or config["style_encoder"] in ["2StageNudger", "2Stage"]:
         use_writer_classifier = False
         config["embedding_size"] = 0
+        config["num_of_writers"] = 0
+        config['writer_rnn_output_size'] = 0
+        config["embedding_size"] = 0
+        config["writer_dropout"] = 0
+        config["mlp_layers"] = []
 
-    crnn = CRNN2(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], nh=config["rnn_dimension"],
+    crnn = CRNN2(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], nh=config["rnn_dimension"],
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
                  embedding_size=config["embedding_size"],
                  writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
@@ -311,9 +334,44 @@ def create_CRNNClassifier(config, use_writer_classifier=True):
                  online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
     return crnn
 
-
 def create_2Stage(config):
-    crnn = CRNN_2Stage(config['cnn_out_size'], config['num_of_channels'], config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+    crnn = CRNN_2Stage(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                        n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
-                       online_augmentation=config["online_augmentation"], first_rnn_out_dim=128, second_rnn_out_dim=512)
+                       online_augmentation=config["online_augmentation"], first_rnn_out_dim=128)
     return crnn
+
+def create_2StageNudger(config):
+    crnn = CRNN_2StageNudger(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=['alphabet_size'], rnn_hidden_dim1=config["rnn_dimension"],
+                            rnn_hidden_dim2=config["rnn_dimension"]/2, n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
+                            online_augmentation=config["online_augmentation"])
+    return crnn
+
+
+def normal_loss(config):
+    pass
+
+def nudger_loss(model, config, line_imgs, online, labels, label_lengths, ctc_criterion, step=0):
+
+    pred_text, pred_text_refined, *_ = [x.cpu() for x in model(line_imgs, online) if not x is None]
+
+    # Calculate HWR loss
+    preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
+
+    output_batch = pred_text.permute(1, 0, 2)
+    out = output_batch.data.cpu().numpy()
+
+    # Get losses
+    config["logger"].debug("Calculating CTC Loss: {}".format(step))
+    loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
+    loss_recognizer_refined = ctc_criterion(pred_text_refined, labels, preds_size, label_lengths)
+
+    # Backprop
+    loss_recognizer.backward()
+
+    # Freeze Weights
+    model.cnn.train(False)
+    model.second_rnn.train(False)
+    loss_recognizer_refined.backward()
+
+
+
