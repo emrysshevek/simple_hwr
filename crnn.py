@@ -5,7 +5,8 @@ from utils import *
 import os
 from torch.autograd import Variable
 from warpctc_pytorch import CTCLoss
-
+import string_utils
+import error_rates
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
@@ -263,7 +264,7 @@ class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False):
-        super(CRNN_2Stage, self).__init__()
+        super(basic_CRNN, self).__init__()
         self.softmax = nn.LogSoftmax()
         rnn_expansion_dimension = 1 if online_augmentation else 0
         rnn_in_dim = cnnOutSize + rnn_expansion_dimension
@@ -313,7 +314,7 @@ class Nudger(nn.Module):
             leakyRelu:
         """
 
-        super(CRNN_2Stage, self).__init__()
+        super(Nudger, self).__init__()
         self.cnn = CNN(rnn_input_dim, nc, leakyRelu=leakyRelu)
         self.nudger_rnn = BidirectionalLSTM(rnn_input_dim, rnn_hidden_dim, rnn_input_dim, dropout=rnn_dropout)
 
@@ -353,7 +354,7 @@ def create_CRNNClassifier(config, use_writer_classifier=True):
         config["mlp_layers"] = []
 
     # Setup RNN input dimension
-    config["rnn_input_dimension"] = config["cnnOutSize"] + config["embedding_size"]
+    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
     if config["online_augmentation"]:
         config["rnn_input_dimension"] += 1
 
@@ -377,7 +378,9 @@ def create_Nudger(config):
                             rnn_layers=2, leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
     return crnn
 
-def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, ctc_criterion, step=0):
+def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
+    idx_to_char = config["idx_to_char"]
+
     pred_text, rnn_input, *_ = [x.cpu() for x in model(line_imgs, online) if not x is None]
 
     # Calculate HWR loss
@@ -395,16 +398,25 @@ def train_baseline(model, optimizer, config, line_imgs, online, labels, label_le
     loss_recognizer.backward()
     optimizer.step()
 
-    loss =  torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
+    loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
+
+    # Error Rate
+    config["stats"]["HWR Training Loss"].y += [loss] # Might need to be divided by batch size?
+    config["stats"]["Training Error Rate"].accumlate(*calculate_cer(out, gt, idx_to_char))
+
     return loss, out, rnn_input
 
 
-def train_nudger(model, optimizer, rnn_input, config, line_imgs, online, labels, label_lengths, ctc_criterion, step=0):
+def train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
+    # Run baseline
+    baseline_loss, baseline_prediction, rnn_input = train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step)
+
     # Setup nudger
     if "nudger" not in config.keys():
         config["nudger"] = create_Nudger(config)
 
     recognizer_rnn = model.rnn
+    idx_to_char = config["idx_to_char"]
     nudger = config["nudger"]
     nudger.train()
 
@@ -423,41 +435,10 @@ def train_nudger(model, optimizer, rnn_input, config, line_imgs, online, labels,
     loss_recognizer_nudged.backward()
     optimizer.step()
     model.train()
+
+    # Error Rate
+    config["stats"]["Nudged Training Loss"].y += [loss_recognizer_nudged] # Might need to be divided by batch size?
+    config["stats"]["Nudged Training Error Rate"].accumlate(*calculate_cer(out, gt, idx_to_char))
+
     return loss_recognizer_nudged, out, nudged_rnn_input
-
-class Stat:
-    def __init__(self, y, x, x_title="", y_title="", name="", ymax=None):
-        self.y = y
-        self.x = x
-        self.x_title = x_title
-        self.y_title = y_title
-        self.ymax = ymax
-        self.name = name
-
-def stat_prep(config):
-    """ Prep to track statistics/losses, setup plots etc.
-
-    Returns:
-
-    """
-    config["stats"]["epochs"] = []
-    config["stats"]["instances"] = []
-
-    # Prep storage
-    config_stats = []
-    config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title = "Loss", name="HWR Loss"))
-    config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title = "Loss", name="Total Loss"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title = "CER", name="Test Error Rate", ymax=.2))
-
-    if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss",name="Writer Style Loss"))
-
-    if config["style_encoder"] in ["2StageNudger"]:
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss",name="Nudged Test Loss"))
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Epochs", y_title="CER",name="Nudged Test Error Rate"))
-
-    # Register plots, save in stats dictionary
-    for stat in config_stats:
-        config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
-        config["stats"][stat.name] = stat
 
