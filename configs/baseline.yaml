@@ -1,5 +1,6 @@
 ### TESTING
 TESTING: false # Load as little as possible for fast prototyping
+SMALL_TRAINING: false
 
 ## Things that shouldn't matter much:
 # Random shuffling

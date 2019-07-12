@@ -14,6 +14,9 @@ import datetime
 from Bio import pairwise2
 import numpy as np
 import warnings
+import string_utils
+import error_rates
+from json import JSONEncoder
 
 def is_iterable(obj):
     try:
@@ -91,6 +94,7 @@ def parse_args():
 
 
 def load_config(config_path):
+
     par, chld = os.path.split(config_path)
 
     # Correct config paths
@@ -99,6 +103,29 @@ def load_config(config_path):
     if config_path[-5:].lower() != ".yaml":
         config_path = config_path + ".yaml"
     config = read_config(config_path)
+
+
+    # Set defaults if unspecified
+    if "load_path" not in config.keys():
+        config["load_path"] = False
+    if "training_suffle" not in config.keys():
+        config['training_suffle'] = False
+    if "testing_suffle" not in config.keys():
+        config['testing_suffle'] = False
+    if config["style_encoder"] == "fake_encoder":
+        config["detach_embedding"] = True
+    else:
+        config["detach_embedding"] = False
+    if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
+        config["scheduler_step"] = 1
+        config["scheduler_gamma"] = 1
+    if "test_only" not in config.keys():
+        config["test_only"] = False
+    if "TESTING" not in config.keys():
+        config["TESTING"] = False
+    if "SMALL_TRAINING" not in config.keys():
+        config["SMALL_TRAINING"] = False
+
 
     # Main output folder
     output_root = os.path.join(config["output_folder"], config["experiment"])
@@ -115,7 +142,7 @@ def load_config(config_path):
         time.strftime("%Y%m%d_%H%M%S"),
         hyper_parameter_str)
 
-    if config["TESTING"]:
+    if config["TESTING"] or config["SMALL_TRAINING"]:
         train_suffix = "TEST_"+train_suffix
 
     config["full_specs"] = train_suffix
@@ -147,23 +174,6 @@ def load_config(config_path):
     log_print(json.dumps(config, indent=2))
 
     config["logger"] = logger
-
-    # Set defaults if unspecified
-    if "load_path" not in config.keys():
-        config["load_path"] = False
-    if "training_suffle" not in config.keys():
-        config['training_suffle'] = False
-    if "testing_suffle" not in config.keys():
-        config['testing_suffle'] = False
-    if config["style_encoder"] == "fake_encoder":
-        config["detach_embedding"] = True
-    else:
-        config["detach_embedding"] = False
-    if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
-        config["scheduler_step"] = 1
-        config["scheduler_gamma"] = 1
-    if "test_only" not in config.keys():
-        config["test_only"] = False
 
     config["stats"] = {}
     config = computer_defaults(config)
@@ -350,6 +360,91 @@ def plt_loss(config):
         plt.close()
     except Exception as e:
         log_print("Problem graphing: {}".format(e))
+
+
+def calculate_cer(out, gt, idx_to_char):
+    # gt = x['gt']
+    sum_loss = 0
+    steps = 0
+    for j in range(out.shape[0]):
+        logits = out[j, ...]
+        pred, raw_pred = string_utils.naive_decode(logits)
+        pred_str = string_utils.label2str(pred, idx_to_char, False)
+        gt_str = gt[j]
+        cer = error_rates.cer(gt_str, pred_str)
+        sum_loss += cer
+        steps += 1
+    return sum_loss, steps
+
+
+def accumulate_stats(config):
+    for title, stat in config["stats"].items():
+        if isinstance(stat, Stat) and stat.accumlator_active:
+            stat.reset_accumlator()
+
+
+class Stat(JSONEncoder):
+    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None):
+        self.y = y
+        self.x = x
+        self.x_title = x_title
+        self.y_title = y_title
+        self.ymax = ymax
+        self.name = name
+        self.plot = plot
+        self.current_weight = 0
+        self.current_sum = 0
+        self.accumlator_active = False
+
+    def default(self, o):
+        print(o)
+        print(o.__dict__)
+        return o.__dict__
+
+    def accumlate(self, weight, sum):
+        self.current_sum += sum
+        self.current_weight += weight
+        self.accumlator_active = True
+
+    def reset_accumlator(self):
+        if self.accumlator_active:
+            print(self.current_weight)
+            print(self.current_sum)
+            self.x += [self.current_sum / self.current_weight]
+            self.current_weight = 0
+            self.current_sum = 0
+            self.accumlator_active = False
+
+
+def stat_prep(config):
+    """ Prep to track statistics/losses, setup plots etc.
+
+    Returns:
+
+    """
+    config["stats"]["epochs"] = []
+    config["stats"]["instances"] = []
+
+    # Prep storage
+    config_stats = []
+    config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss", name="HWR Training Loss"))
+    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
+    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+
+    if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
+        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss", name="Writer Style Loss"))
+
+    if config["style_encoder"] in ["2StageNudger"]:
+        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss",name="Nudged Training Loss"))
+        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate"))
+        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
+
+    # Register plots, save in stats dictionary
+    for stat in config_stats:
+        if config["use_visdom"]:
+            config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
+        config["stats"][stat.name] = stat
+
 
 if __name__=="__main__":
     from visualize import Plot

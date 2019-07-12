@@ -38,6 +38,7 @@ import numpy as np
 import time
 from utils import *
 from torch.optim import lr_scheduler
+from crnn import Stat
 
 ## Notes on usage
 # conda activate hw2
@@ -126,16 +127,16 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     test_cer = sum_loss / steps
     return test_cer
 
-def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, config, secondary_criterion=None):
-    sum_loss = 0.0
-    steps = 0.0
+def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     model.train()
+    config["stats"]["epochs"] += [config["current_epoch"]]
 
     for i, x in enumerate(dataloader):
         LOGGER.debug("Training Iteration: {}".format(i))
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
-        labels = Variable(x['labels'], requires_grad=False)
+        labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
+        gt = x['gt'] # actual string ground truth
 
         config["global_counter"] += 1
         plot_freq = 50 if not config["TESTING"] else 1
@@ -143,75 +144,22 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, idx_to_char, dtype, c
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
 
-        baseline_loss, baseline_prediction, rnn_input = crnn.train_baseline(model, optimizer, config, line_imgs, online,
-                                                                       labels, label_lengths, ctc_criterion, step=0)
-
         if config["style_encoder"]=="2StageNudger":
-            nudger_loss, nudger_prediction, nudged_rnn_input = crnn.train_nudger(model, optimizer, rnn_input, config, line_imgs, online,
-                                labels, label_lengths, ctc_criterion, step=0)
-
-        ## With writer classification
-        if not secondary_criterion is None:
-            labels_author = Variable(x['writer_id'], requires_grad=False).long()
-
-            # pred_author: batch size * number of authors
-            # labels_author: batch size (each element is an author index number)
-            loss_author = secondary_criterion(pred_author[0], labels_author)
-            loss_history_writer.append(    torch.mean(loss_author.cpu(),     0, keepdim=False).item())
-
-            # rescale writer loss function
-            if loss_history_writer[-1] > .05:
-                total_loss = (loss_recognizer + loss_author * loss_history_recognizer[-1]/loss_history_writer[-1])/ 2
-            loss_history_total.append(torch.mean(total_loss.cpu(),     0, keepdim=False).item())
+            crnn.train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_counter"])
+        elif not config["style_encoder"]:
+            crnn.train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_counter"])
 
         # Plot it with visdom
         if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
+            config["stats"]["instances"] += [config["global_counter"]]
             LOGGER.info(config["global_counter"])
+            visualize.plot_all(config)
 
-            if config["use_visdom"]:
-
-
-                # Writer loss
-                plot_primary_loss = np.mean(loss_history_recognizer[-plot_freq:])
-
-                if not secondary_criterion is None:
-                    plot_total_loss = np.mean(loss_history_total[-plot_freq:])
-                    plot_secondary_loss = np.mean(loss_history_writer[-plot_freq:])
-                else:
-                    plot_total_loss = plot_primary_loss
-                    plot_secondary_loss = 0
-
-                visualize.plot_loss(config,config["global_counter"]*config["batch_size"], plot_primary_loss, plot_secondary_loss, plot_total_loss)
-
-        LOGGER.debug("Calculating Gradients: {}".format(i))
-        optimizer.zero_grad()
-
-        if config["style_encoder"]=="2StageNudger":
-            pass
-        else:
-            total_loss.backward()
-        optimizer.step()
-
-        # if i == 0:
-        #    for i in xrange(out.shape[0]):
-        #        pred, pred_raw = string_utils.naive_decode(out[i,...])
-        #        pred_str = string_utils.label2str(pred_raw, idx_to_char, True)
-        #        print(pred_str)
-
-        # Calculate CER
-        for j in range(out.shape[0]):
-            logits = out[j, ...]
-            pred, raw_pred = string_utils.naive_decode(logits)
-            pred_str = string_utils.label2str(pred, idx_to_char, False)
-            gt_str = x['gt'][j]
-            cer = error_rates.cer(gt_str, pred_str)
-            sum_loss += cer
-            steps += 1
-
-        if config["TESTING"]:
+        if config["TESTING"] or config["SMALL_TRAINING"]:
             break
-    training_cer = sum_loss / steps
 
+    accumulate_stats(config)
+    training_cer = config["stats"]["Training Error Rate"].x[-1] # most recent training CER
     return training_cer
 
 def make_dataloaders(config):
@@ -263,12 +211,13 @@ def main():
         config["embedding_size"]=0
 
     elif config["style_encoder"] == "2StageNudger":
-        hw = crnn.create_2StageNudger(config)
+        hw = crnn.create_CRNN(config)
+        config["nudger"] = crnn.create_Nudger(config)
         config["embedding_size"]=0
 
     else: # basic HWR
         config["embedding_size"]=0
-        hw = crnn.create_CRNNClassifier(config)
+        hw = crnn.create_CRNN(config)
 
     # Prep GPU
     if config["TESTING"]: # don't use GPU for testing
@@ -289,9 +238,9 @@ def main():
 
     # Alternative Models
     if config["style_encoder"]=="basic_encoder":
-        secondary_criterion = CrossEntropyLoss()
+        config["secondary_criterion"] = CrossEntropyLoss()
     else: # config["style_encoder"] = False
-        secondary_criterion = None
+        config["secondary_criterion"] = None
 
     # Setup defaults
     config["starting_epoch"] = 1
@@ -305,6 +254,10 @@ def main():
     if config["use_visdom"]:
         visualize.initialize_visdom(config["full_specs"], config)
 
+    # Stat prep - must be after visdom
+    stat_prep(config)
+
+
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
         load_model(config)
@@ -315,7 +268,8 @@ def main():
 
         # Only test
         if not config["test_only"]:
-            training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, config["idx_to_char"], dtype, config, secondary_criterion=secondary_criterion)
+            training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, dtype, config)
+
             scheduler.step()
 
             log_print("Training CER", training_cer)

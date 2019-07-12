@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import warnings
 import json
-
+from crnn import Stat
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
 
@@ -103,16 +103,31 @@ class Plot(object):
 def initialize_visdom(env_name, config):
     if not config["use_visdom"]:
         return
-    config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
-    return config["visdom_manager"]
+    try:
+        config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
+        return config["visdom_manager"]
+    except:
+        config["use_visdom"] = False
+        config["logger"].warning("Unable to initialize visdom, is the visdom server started?")
 
-def plot_loss(config, epoch, loss_list):
-    visdom_manager = config["visdom_manager"]
+def plot_all(config):
+    """
+    ADD SMOOTHING
+    Args:
+        config:
+
+    Returns:
+
+    """
     if not config["use_visdom"]:
         return
 
-    for loss in loss_list:
-        visdom_manager.update_plot(loss["title"], [epoch], loss["loss"])
+    visdom_manager = config["visdom_manager"]
+
+    for title, stat in config["stats"].items():
+        if isinstance(stat, Stat) and stat.plot:
+            print(stat.x, stat.y)
+            visdom_manager.update_plot(stat.name, stat.x, stat.y)
 
 if __name__=="__main__":
     plot = Plot("Test")
