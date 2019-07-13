@@ -123,8 +123,18 @@ def load_config(config_path):
         config["test_only"] = False
     if "TESTING" not in config.keys():
         config["TESTING"] = False
+    if "plot_freq" not in config.keys():
+        config["plot_freq"] = 50
     if "SMALL_TRAINING" not in config.keys():
         config["SMALL_TRAINING"] = False
+    else:
+        if config["SMALL_TRAINING"]:
+            config["plot_freq"] = 1
+
+    # Removing online jsons if not using online
+    for data_path in config["training_jsons"]:
+        if "online" in data_path and not config["online_augmentation"]:
+            config["training_jsons"].remove(data_path)
 
 
     # Main output folder
@@ -157,7 +167,6 @@ def load_config(config_path):
 
     # Create paths
     for path in (output_root, config["results_dir"], config["log_dir"]):
-        print(path)
         if path is not None and len(path) > 0 and not os.path.exists(path):
             os.makedirs(path)
 
@@ -397,8 +406,6 @@ class Stat(JSONEncoder):
         self.accumlator_active = False
 
     def default(self, o):
-        print(o)
-        print(o.__dict__)
         return o.__dict__
 
     def accumlate(self, sum, weight):
@@ -410,12 +417,18 @@ class Stat(JSONEncoder):
 
     def reset_accumlator(self):
         if self.accumlator_active:
-            print(self.current_weight)
-            print(self.current_sum)
-            self.x += [self.current_sum / self.current_weight]
+            # print(self.current_weight)
+            # print(self.current_sum)
+            self.y += [self.current_sum / self.current_weight]
             self.current_weight = 0
             self.current_sum = 0
             self.accumlator_active = False
+
+    def __str__(self):
+        return repr(self)
+
+    def __repr__(self):
+        return str(self.__dict__)
 
 
 def stat_prep(config):
