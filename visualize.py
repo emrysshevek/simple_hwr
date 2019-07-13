@@ -126,7 +126,7 @@ def plot_all(config):
 
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.plot:
-            print(stat.x, stat.y)
+            #print(stat.x, stat.y)
             visdom_manager.update_plot(stat.name, stat.x, stat.y)
 
 if __name__=="__main__":

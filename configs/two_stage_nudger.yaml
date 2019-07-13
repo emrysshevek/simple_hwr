@@ -1,5 +1,7 @@
 ### TESTING
 TESTING: false # Load as little as possible for fast prototyping
+SMALL_TRAINING: false
+plot_freq: 50
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false

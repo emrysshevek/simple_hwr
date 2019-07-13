@@ -118,7 +118,7 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
         m = list(zip(lens,cers))
         for x in range(0,100,10):
             to_plot = [p[1] for p in m if p[0] in range(x,x+10)]
-            print(to_plot)
+            log_print(to_plot)
             plt.title("{} {}".format(x, x+10))
             plt.hist(to_plot, density=True)
             plt.show()
@@ -130,6 +130,7 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     model.train()
     config["stats"]["epochs"] += [config["current_epoch"]]
+    plot_freq = config["plot_freq"]
 
     for i, x in enumerate(dataloader):
         LOGGER.debug("Training Iteration: {}".format(i))
@@ -137,9 +138,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt'] # actual string ground truth
-
         config["global_counter"] += 1
-        plot_freq = 50 if not config["TESTING"] else 1
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
@@ -152,21 +151,23 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         # Plot it with visdom
         if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
             config["stats"]["instances"] += [config["global_counter"]]
-            LOGGER.info(config["global_counter"])
+            LOGGER.info("Instances: {}".format(config["global_counter"]))
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
 
     accumulate_stats(config)
-    training_cer = config["stats"]["Training Error Rate"].x[-1] # most recent training CER
-    print(config["stats"])
+    training_cer = config["stats"]["Training Error Rate"].y[-1] # most recent training CER
+    LOGGER.debug(config["stats"])
     return training_cer
 
 def make_dataloaders(config):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
+
+
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=0, collate_fn=hw_dataset.collate, pin_memory=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])

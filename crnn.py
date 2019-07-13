@@ -294,7 +294,6 @@ class basic_CRNN(nn.Module):
         recognizer_output = self.rnn(rnn_input)
         return recognizer_output, rnn_input
 
-
 class Nudger(nn.Module):
 
     def __init__(self, rnn_input_dim, nc, rnn_hidden_dim, rnn_layers=2, rnn_dropout=.5, leakyRelu=False):
