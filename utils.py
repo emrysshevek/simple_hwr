@@ -401,10 +401,12 @@ class Stat(JSONEncoder):
         print(o.__dict__)
         return o.__dict__
 
-    def accumlate(self, weight, sum):
+    def accumlate(self, sum, weight):
         self.current_sum += sum
         self.current_weight += weight
-        self.accumlator_active = True
+
+        if not self.accumlator_active:
+            self.accumlator_active = True
 
     def reset_accumlator(self):
         if self.accumlator_active:

@@ -25,7 +25,6 @@ class BidirectionalLSTM(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2):
         super(BidirectionalLSTM, self).__init__()
-        print(nIn, nHidden, dropout, num_layers)
         self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 

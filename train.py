@@ -160,6 +160,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
     accumulate_stats(config)
     training_cer = config["stats"]["Training Error Rate"].x[-1] # most recent training CER
+    print(config["stats"])
     return training_cer
 
 def make_dataloaders(config):
