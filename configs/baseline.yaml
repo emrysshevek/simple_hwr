@@ -59,6 +59,6 @@ mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer clas
 embedding_size: 32                           # The size of the embedding layer in the MLP
 
 # LR schedule
-learning_rate: 1e-4          # LR
-scheduler_step: 1500         # Every X steps, multiply LR by gamma
+learning_rate: 1e-3          # LR
+scheduler_step: 1         # Every X steps, multiply LR by gamma
 scheduler_gamma: .9          # LR decay rate
