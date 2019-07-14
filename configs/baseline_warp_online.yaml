@@ -62,3 +62,8 @@ embedding_size: 32                           # The size of the embedding layer i
 learning_rate: 1e-4          # LR
 scheduler_step: 1500         # Every X steps, multiply LR by gamma
 scheduler_gamma: .9          # LR decay rate
+
+#learning_rate: 5e-4          # LR
+#scheduler_step: 2         # Every X steps, multiply LR by gamma
+#scheduler_gamma: .95          # LR decay rate
+

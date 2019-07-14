@@ -271,12 +271,17 @@ class basic_CRNN(nn.Module):
         self.rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers)
 
     def freeze(self):
-        self.cnn.train(False)
-        self.rnn.train(False)
+        # self.cnn.train(False)
+        # self.rnn.train(False)
+        #for model in self.cnn, self.rnn:
+        for p in self.parameters():
+            p.requires_grad = False
 
     def unfreeze(self):
-        self.cnn.train(True)
-        self.rnn.train(True)
+        # self.cnn.train(True)
+        # self.rnn.train(True)
+        for p in self.parameters():
+            p.requires_grad = True
 
 
     def forward(self, input, online=None, classifier_output=None):
@@ -415,9 +420,11 @@ def train_nudger(model, optimizer, config, line_imgs, online, labels, label_leng
     recognizer_rnn = model.rnn
     idx_to_char = config["idx_to_char"]
     nudger = config["nudger"]
-    nudger.train()
+    nudger.train(True)
+    model.train()
 
     # Forward version for nudger
+    model.freeze()
     #model.eval() # freeze regular model
     pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in nudger(rnn_input, recognizer_rnn) if not x is None]
     preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
@@ -434,7 +441,7 @@ def train_nudger(model, optimizer, config, line_imgs, online, labels, label_leng
     #model.freeze()
     loss_recognizer_nudged.backward()
     optimizer.step()
-    #model.unfreeze()
+    model.unfreeze()
 
     # Error Rate
     config["stats"]["Nudged Training Loss"].y += [loss_recognizer_nudged] # Might need to be divided by batch size?
