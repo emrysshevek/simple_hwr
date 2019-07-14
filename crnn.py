@@ -274,6 +274,11 @@ class basic_CRNN(nn.Module):
         self.cnn.train(False)
         self.rnn.train(False)
 
+    def unfreeze(self):
+        self.cnn.train(True)
+        self.rnn.train(True)
+
+
     def forward(self, input, online=None, classifier_output=None):
         """
 
@@ -309,7 +314,6 @@ class Nudger(nn.Module):
         """
 
         super(Nudger, self).__init__()
-        self.cnn = CNN(rnn_input_dim, nc, leakyRelu=leakyRelu)
         self.nudger_rnn = BidirectionalLSTM(rnn_input_dim, rnn_hidden_dim, rnn_input_dim, dropout=rnn_dropout)
 
     def forward(self, feature_maps, recognizer_rnn, classifier_output=None):
@@ -375,7 +379,8 @@ def create_Nudger(config):
 def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
     idx_to_char = config["idx_to_char"]
 
-    pred_text, rnn_input, *_ = [x.cpu() for x in model(line_imgs, online) if not x is None]
+    pred_tup = model(line_imgs, online)
+    pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
     # Calculate HWR loss
     preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
@@ -401,13 +406,11 @@ def train_baseline(model, optimizer, config, line_imgs, online, labels, label_le
     return loss, out, rnn_input
 
 
+## Loop through models to make them all CUDA, all "training" etc at the beginning of the epoch, etc.
+
 def train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
     # Run baseline
     baseline_loss, baseline_prediction, rnn_input = train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step)
-
-    # Setup nudger
-    if "nudger" not in config.keys():
-        config["nudger"] = create_Nudger(config)
 
     recognizer_rnn = model.rnn
     idx_to_char = config["idx_to_char"]
@@ -415,8 +418,8 @@ def train_nudger(model, optimizer, config, line_imgs, online, labels, label_leng
     nudger.train()
 
     # Forward version for nudger
-    model.eval() # freeze regular model
-    pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in recognizer_rnn(nudger(rnn_input)) if not x is None]
+    #model.eval() # freeze regular model
+    pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in nudger(rnn_input, recognizer_rnn) if not x is None]
     preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
     output_batch = pred_text_nudged.permute(1, 0, 2)
     out = output_batch.data.cpu().numpy() # uncollapsed, predictions
@@ -426,9 +429,12 @@ def train_nudger(model, optimizer, config, line_imgs, online, labels, label_leng
 
     # Backprop
     optimizer.zero_grad()
+    #model.train()
+    #nudger.train()
+    #model.freeze()
     loss_recognizer_nudged.backward()
     optimizer.step()
-    model.train()
+    #model.unfreeze()
 
     # Error Rate
     config["stats"]["Nudged Training Loss"].y += [loss_recognizer_nudged] # Might need to be divided by batch size?

@@ -225,13 +225,18 @@ def main():
     if config["TESTING"]: # don't use GPU for testing
         dtype = torch.FloatTensor
         log_print("Testing mode, not using GPU")
+        config["cuda"]=False
     elif torch.cuda.is_available():
         hw.cuda()
+        if "nudger" in config.keys():
+            config["nudger"].cuda()
         dtype = torch.cuda.FloatTensor
         log_print("Using GPU")
+        config["cuda"] = True
     else:
         dtype = torch.FloatTensor
         log_print("No GPU detected")
+        config["cuda"]=False
 
     # Prep optimizer
     optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
