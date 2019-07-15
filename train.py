@@ -27,6 +27,7 @@ from torch.autograd import Variable
 from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
+import grid_distortion
 from torch.nn import CrossEntropyLoss
 import traceback
 
@@ -46,6 +47,112 @@ from torch.optim import lr_scheduler
 
 wait_for_gpu()
 faulthandler.enable()
+
+
+def test_with_augmentations(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
+    if with_analysis:
+        charAcc = CharAcc(config["char_to_idx"])
+        cers = []
+        lens = []
+
+    use_aug = config['testing_augmentation']
+    use_lm = config['testing_language_model']
+
+    sum_loss = 0.0
+    steps = 0.0
+    model.eval()
+    n_warp_iterations = 20
+    for x in dataloader:
+        for i in range(len(x['line_imgs'])):
+            with torch.no_grad():
+                line_imgs = []
+                online = []
+                for j in range(n_warp_iterations):
+                    img = (np.float32(x['line_imgs'][i].permute(1, 2, 0)) + 1) * 128.0
+                    img = grid_distortion.warp_image(img)
+                    # Add channel dimension, since resize and warp only keep non-trivial channel axis
+                    if x['line_imgs'][i].shape[0] == 1:
+                        img = img[:, :, np.newaxis]
+
+                    img = img.astype(np.float32)
+                    img = img / 128.0 - 1.0
+                    line_imgs.append(img.transpose(2, 0, 1))
+
+                online = torch.tensor([x['online'][i] for j in range(n_warp_iterations)]).type(dtype)
+                online = Variable(online, requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+                line_imgs = torch.from_numpy(np.array(line_imgs)).type(dtype)
+                line_imgs = Variable(line_imgs, requires_grad=False)
+
+            # Returns letter_predictions, writer_predictions
+            preds, *_ = model(line_imgs, online)
+
+            preds = preds.cpu()
+            output_batch = preds.permute(1, 0, 2)
+            out = output_batch.data.cpu().numpy()
+
+            preds = []
+            for logits in out:
+                pred, raw_pred = string_utils.naive_decode(logits)
+                pred_str = string_utils.label2str(pred, idx_to_char, False)
+                preds.append(pred_str)
+
+            preds, counts = np.unique(preds, return_counts=True)
+            best_pred = preds[np.argmax(counts)]
+            gt_line = x['gt'][i]
+
+            print(gt_line, best_pred)
+            cer = error_rates.cer(gt_line, best_pred)
+
+            if with_analysis:
+                charAcc.char_accuracy(best_pred, gt_line)
+                cers.append(cer)
+                lens.append(len(gt_line))
+                if cer > 0 and config["output_predictions"]:
+                    write_out(config["results_dir"], "incorrect.txt",
+                              "\n".join((str(cer), best_pred, gt_line, os.path.abspath(x['paths'][i]))))
+                if cer > 0.3 and config["output_predictions"]:
+                    write_out(config["results_dir"], "very_incorrect.txt",
+                              "\n".join((str(cer), best_pred, gt_line, os.path.abspath(x['paths'][i]))))
+
+            sum_loss += cer
+            steps += 1
+
+            # Only do one test
+            if config["TESTING"]:
+                break
+
+    if with_analysis:
+        # Plot accuracy by character
+        chars = [m[0] for m in sorted(config["char_to_idx"].items(), key=lambda kv: kv[1])]
+
+        # print(charAcc.correct, charAcc.false_negative, charAcc.false_positive)
+        plt.bar(chars, charAcc.correct / (charAcc.correct + charAcc.false_negative))  # recall
+        plt.title("Recall")
+        plt.show()
+
+        plt.bar(chars, charAcc.correct / (charAcc.correct + charAcc.false_positive))  # precision
+        plt.title("Precision")
+        plt.show()
+
+        # Plot character error rate by line length
+        plt.scatter(cers, lens)
+        plt.show()
+
+        # Plot 2d histogram of letters
+        plt.hist2d(cers, lens, density=True)
+        plt.show()
+
+        m = list(zip(lens, cers))
+        for x in range(0, 100, 10):
+            to_plot = [p[1] for p in m if p[0] in range(x, x + 10)]
+            print(to_plot)
+            plt.title("{} {}".format(x, x + 10))
+            plt.hist(to_plot, density=True)
+            plt.show()
+
+    test_cer = sum_loss / steps
+    return test_cer
+
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     if with_analysis:
@@ -330,7 +437,8 @@ def main():
             config["train_losses"].append(training_cer)
 
         # CER plot
-        test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
+        # test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
+        test_cer = test_with_augmentations(hw, test_dataloader, config["idx_to_char"], dtype, config)
         log_print("Test CER", test_cer)
         config["test_losses"].append(test_cer)
 

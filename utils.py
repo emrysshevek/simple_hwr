@@ -79,7 +79,7 @@ def log_print(*args, print_statements=True):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default="./configs/taylor.yaml", help='Path to the config file.')
+    parser.add_argument('--config', type=str, default="./configs/sample.yaml", help='Path to the config file.')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
 
     opts = parser.parse_args()
