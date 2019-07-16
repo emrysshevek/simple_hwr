@@ -381,7 +381,7 @@ def create_Nudger(config):
                             rnn_layers=2, leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
     return crnn
 
-def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
+def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0, retain_graph=False):
     idx_to_char = config["idx_to_char"]
 
     pred_tup = model(line_imgs, online)
@@ -399,14 +399,14 @@ def train_baseline(model, optimizer, config, line_imgs, online, labels, label_le
 
     # Backprop
     optimizer.zero_grad()
-    loss_recognizer.backward()
+    loss_recognizer.backward(retain_graph=retain_graph)
     optimizer.step()
 
     loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
 
     # Error Rate
-    config["stats"]["HWR Training Loss"].yappend(loss) # Might need to be divided by batch size?
-    config["stats"]["Training Error Rate"].accumlate(*calculate_cer(out, gt, idx_to_char))
+    config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+    config["stats"]["Training Error Rate"].accumulate(*calculate_cer(out, gt, idx_to_char))
 
     return loss, out, rnn_input
 
@@ -416,7 +416,7 @@ def train_baseline(model, optimizer, config, line_imgs, online, labels, label_le
 def train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
     # Run baseline
     model.train()
-    baseline_loss, baseline_prediction, rnn_input = train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step)
+    baseline_loss, baseline_prediction, rnn_input = train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step, retain_graph=True)
     recognizer_rnn = model.rnn
     idx_to_char = config["idx_to_char"]
     nudger = config["nudger"]
@@ -443,7 +443,7 @@ def train_nudger(model, optimizer, config, line_imgs, online, labels, label_leng
     model.unfreeze()
 
     # Error Rate
-    config["stats"]["Nudged Training Loss"].yappend(loss_recognizer_nudged) # Might need to be divided by batch size?
-    config["stats"]["Nudged Training Error Rate"].accumlate(*calculate_cer(out, gt, idx_to_char))
+    config["stats"]["Nudged Training Loss"].accumulate(loss_recognizer_nudged, 1) # Might need to be divided by batch size?
+    config["stats"]["Nudged Training Error Rate"].accumulate(*calculate_cer(out, gt, idx_to_char))
 
     return loss_recognizer_nudged, out, nudged_rnn_input

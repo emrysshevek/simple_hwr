@@ -338,7 +338,7 @@ def save_model(config, bsf=False):
         'epoch': config["current_epoch"] + 1,
         'model': config["model"].state_dict(),
         'optimizer': config["optimizer"].state_dict(),
-        'global_step': config["global_counter"]
+        'global_step': config["global_step"]
     }
 
     torch.save(state_dict, os.path.join(path, "{}_model.pt".format(config['name'])))
@@ -386,25 +386,43 @@ def calculate_cer(out, gt, idx_to_char):
     return sum_loss, steps
 
 
-def accumulate_stats(config):
+def accumulate_stats(config, freq=None):
     for title, stat in config["stats"].items():
-        if isinstance(stat, Stat) and stat.accumlator_active:
+        if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq:
             stat.reset_accumlator()
 
-
 class Stat(JSONEncoder):
-    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None):
+    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
+        """
+
+        Args:
+            y (list): iterable (e.g. list) for storing y-axis values of statistic
+            x (list): iterable (e.g. list) for storing x-axis values of statistic (e.g. epochs)
+            x_title:
+            y_title:
+            name (str):
+            plot (str):
+            ymax (float):
+            accumulator_freq: when should the variable be accumulated (e.g. each epoch, every "step", every X steps, etc.
+
+
+        """
+
         self.y = y
         self.x = x
+        self.current_weight = 0
+        self.current_sum = 0
+        self.accumlator_active = False
+        self.updated_since_plot = False
+        self.accumulator_freq = None # epoch or instances; when should this statistic accumulate?
+
+        # Plot details
         self.x_title = x_title
         self.y_title = y_title
         self.ymax = ymax
         self.name = name
         self.plot = plot
-        self.current_weight = 0
-        self.current_sum = 0
-        self.accumlator_active = False
-        self.updated_since_plot = False
+        self.plot_update_length = 1 # add last X items from y-list to plot
 
     def yappend(self, new_item):
         self.y.append(new_item)
@@ -415,7 +433,7 @@ class Stat(JSONEncoder):
     def default(self, o):
         return o.__dict__
 
-    def accumlate(self, sum, weight):
+    def accumulate(self, sum, weight):
         self.current_sum += sum
         self.current_weight += weight
 
@@ -446,21 +464,23 @@ def stat_prep(config):
 
     """
     config["stats"]["epochs"] = []
+    config["stats"]["epoch_decimal"] = []
     config["stats"]["instances"] = []
+    config["stats"]["updates"] = []
 
     # Prep storage
     config_stats = []
-    config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss", name="HWR Training Loss"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
+    config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
+    config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
 
     if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss", name="Writer Style Loss"))
+        config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="Writer Style Loss"))
 
     if config["style_encoder"] in ["2StageNudger"]:
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Instances", y_title="Loss",name="Nudged Training Loss"))
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate"))
-        config_stats.append(Stat(y=[], x=config["stats"]["instances"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
+        config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss",name="Nudged Training Loss"))
+        config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate"))
+        config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
 
     # Register plots, save in stats dictionary
     for stat in config_stats:

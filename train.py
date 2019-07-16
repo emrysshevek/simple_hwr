@@ -138,26 +138,30 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt'] # actual string ground truth
-        config["global_counter"] += 1
-        config["stats"]["instances"] += [config["global_counter"]]
-
+        config["global_step"] += 1
+        config["global_instances_counter"] += line_imgs.shape[0]
+        config["stats"]["instances"] += [config["global_instances_counter"]]
+        
+        
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
 
         if config["style_encoder"]=="2StageNudger":
-            crnn.train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_counter"])
+            crnn.train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_step"])
         elif not config["style_encoder"]:
-            crnn.train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_counter"])
+            crnn.train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_step"])
 
         # Update visdom every 50 instances
-        if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
-            LOGGER.info("Instances: {}".format(config["global_counter"]))
+        if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
+            config["stats"]["updates"] += [config["global_step"]]
+            config["stats"]["epoch_decimal"] += [config["current_epoch"]+i * config["batch_size"] / config['n_train_instances']]
+            LOGGER.info("updates: {}".format(config["global_step"]))
+            accumulate_stats(config)
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
 
-    accumulate_stats(config)
     training_cer = config["stats"]["Training Error Rate"].y[-1] # most recent training CER
     LOGGER.debug(config["stats"])
     return training_cer
@@ -194,8 +198,9 @@ def main():
     opts = parse_args()
     config = load_config(opts.config)
     LOGGER = config["logger"]
-    config["global_counter"] = 0
-
+    config["global_step"] = 0
+    config["global_instances_counter"] = 0
+    
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
         config["batch_size"] = 1
@@ -270,7 +275,7 @@ def main():
         load_model(config)
 
     for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
-        log_print("Epoch ", epoch)
+        LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
 
         # Only test
@@ -279,12 +284,12 @@ def main():
 
             scheduler.step()
 
-            log_print("Training CER", training_cer)
+            LOGGER.info("Training CER: {}".format(training_cer))
             config["train_losses"].append(training_cer)
 
         # CER plot
         test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
-        log_print("Test CER", test_cer)
+        LOGGER.info("Test CER: {}".format(test_cer))
         config["test_losses"].append(test_cer)
 
         if config["use_visdom"]:
