@@ -125,9 +125,10 @@ def plot_all(config):
     visdom_manager = config["visdom_manager"]
 
     for title, stat in config["stats"].items():
-        if isinstance(stat, Stat) and stat.plot:
-            #print(stat.x, stat.y)
+        if isinstance(stat, Stat) and stat.plot and stat.updated_since_plot:
+            print(stat.x, stat.y, stat.name)
             visdom_manager.update_plot(stat.name, stat.x, stat.y)
+            stat.updated_since_plot = False
 
 if __name__=="__main__":
     plot = Plot("Test")

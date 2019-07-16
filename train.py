@@ -139,6 +139,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt'] # actual string ground truth
         config["global_counter"] += 1
+        config["stats"]["instances"] += [config["global_counter"]]
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
@@ -148,9 +149,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         elif not config["style_encoder"]:
             crnn.train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_counter"])
 
-        # Plot it with visdom
+        # Update visdom every 50 instances
         if config["global_counter"] % plot_freq == 0 and config["global_counter"] > 0:
-            config["stats"]["instances"] += [config["global_counter"]]
             LOGGER.info("Instances: {}".format(config["global_counter"]))
             visualize.plot_all(config)
 

@@ -404,6 +404,13 @@ class Stat(JSONEncoder):
         self.current_weight = 0
         self.current_sum = 0
         self.accumlator_active = False
+        self.updated_since_plot = False
+
+    def yappend(self, new_item):
+        self.y.append(new_item)
+        if not self.updated_since_plot:
+            self.updated_since_plot = True
+
 
     def default(self, o):
         return o.__dict__
@@ -423,6 +430,7 @@ class Stat(JSONEncoder):
             self.current_weight = 0
             self.current_sum = 0
             self.accumlator_active = False
+            self.updated_since_plot = True
 
     def __str__(self):
         return repr(self)
