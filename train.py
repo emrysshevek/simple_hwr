@@ -66,7 +66,6 @@ def test_with_augmentations(model, dataloader, idx_to_char, dtype, config, with_
         for i in range(len(x['line_imgs'])):
             with torch.no_grad():
                 line_imgs = []
-                online = []
                 for j in range(n_warp_iterations):
                     img = (np.float32(x['line_imgs'][i].permute(1, 2, 0)) + 1) * 128.0
                     img = grid_distortion.warp_image(img)
@@ -100,7 +99,6 @@ def test_with_augmentations(model, dataloader, idx_to_char, dtype, config, with_
             best_pred = preds[np.argmax(counts)]
             gt_line = x['gt'][i]
 
-            print(gt_line, best_pred)
             cer = error_rates.cer(gt_line, best_pred)
 
             if with_analysis:
@@ -437,8 +435,10 @@ def main():
             config["train_losses"].append(training_cer)
 
         # CER plot
-        # test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
-        test_cer = test_with_augmentations(hw, test_dataloader, config["idx_to_char"], dtype, config)
+        if config['testing_augmentation']:
+            test_cer = test_with_augmentations(hw, test_dataloader, config["idx_to_char"], dtype, config)
+        else:
+            test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
         log_print("Test CER", test_cer)
         config["test_losses"].append(test_cer)
 
