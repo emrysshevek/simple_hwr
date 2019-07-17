@@ -320,7 +320,10 @@ def load_model(config):
 
     # Launch visdom
     if config["use_visdom"]:
-        config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
+        try:
+            config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
+        except:
+            warnings.warn("Unable to load from visdom.json; does the file exist?")
 
     # Load Loss History
     with open(os.path.join(path, "losses.json"), 'r') as fh:
@@ -487,6 +490,8 @@ def stat_prep(config):
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
     config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
     config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config["designated_training_cer"] = "Training Error Rate"
+    config["designated_test_cer"] = "Test Error Rate"
 
     if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="Writer Style Loss"))
@@ -495,8 +500,10 @@ def stat_prep(config):
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss",name="Nudged Training Loss"))
         config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
         config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate", ymax=.2))
+        config["designated_training_cer"] = "Nudged Training Error Rate"
+        config["designated_test_cer"] = "Nudged Test Error Rate"
 
-    # Register plots, save in stats dictionary
+        # Register plots, save in stats dictionary
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)

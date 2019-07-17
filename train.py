@@ -63,7 +63,8 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
             break
 
     accumulate_stats(config)
-    test_cer = config["stats"]["Test Error Rate"].y[-1] # most recent training CER
+    test_cer = config["stats"][config["designated_test_cer"]].y[-1] # most recent test CER
+
     LOGGER.debug(config["stats"])
     return test_cer
 
@@ -90,7 +91,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
             config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [config["current_epoch"]+i * config["batch_size"] / config['n_train_instances']]
+            config["stats"]["epoch_decimal"] += [config["current_epoch"]+ i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info("updates: {}".format(config["global_step"]))
             accumulate_stats(config)
             visualize.plot_all(config)
@@ -102,7 +103,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             accumulate_stats(config)
             break
 
-    training_cer = config["stats"]["Training Error Rate"].y[-1] # most recent training CER
+    training_cer = config["stats"][config["designated_training_cer"]].y[-1] # most recent training CER
     LOGGER.debug(config["stats"])
     return training_cer
 
@@ -174,7 +175,8 @@ def main():
 
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
-        config["trainer"] = crnn.TrainerNudger(hw, optimizer, config, criterion)
+        train_baseline = False if config["load_path"] else True
+        config["trainer"] = crnn.TrainerNudger(hw, optimizer, config, criterion, train_baseline=train_baseline)
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 
