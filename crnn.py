@@ -438,7 +438,7 @@ class TrainerBaseline(JSONEncoder):
 
 
 class TrainerNudger(JSONEncoder):
-    def __init__(self, model, optimizer, config, ctc_criterion):
+    def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
         self.model = model
         self.optimizer = optimizer
         self.config = config
@@ -447,15 +447,16 @@ class TrainerNudger(JSONEncoder):
         self.baseline_trainer = TrainerBaseline(model, optimizer, config, ctc_criterion)
         self.nudger = config["nudger"]
         self.recognizer_rnn = self.model.rnn
+        self.train_baseline = train_baseline
 
     def default(self, o):
         return None
 
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0, train_baseline=True):
+    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
         self.nudger.train()
 
         # Train baseline at the same time
-        if train_baseline:
+        if self.train_baseline:
             baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
             self.model.freeze()
         else:
@@ -475,7 +476,7 @@ class TrainerNudger(JSONEncoder):
         loss_recognizer_nudged.backward()
         self.optimizer.step()
 
-        if train_baseline:
+        if self.train_baseline:
             self.model.unfreeze()
 
         # Error Rate

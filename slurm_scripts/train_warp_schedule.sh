@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
 #SBATCH --ntasks 2
-#SBATCH --output="./train_warp_scheduled.slurm"
+#SBATCH --output="./train_warp_schedule.slurm"
 #SBATCH --time 24:00:00
 #SBATCH -C 'rhel7&pascal'
 #SBATCH --mail-user=taylor.archibald@byu.edu   # email address
@@ -22,6 +22,6 @@ export PATH="${group_path}/env/hwr4_env/bin:$PATH"
 which python
 
 cd "${group_path}/taylor_simple_hwr"
-python -u train.py --config warp.yaml
+python -u train.py --config train_warp_schedule.yaml
 #python -u train.py --config two_stage_nudger.yaml
 

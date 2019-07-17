@@ -4,7 +4,9 @@ SMALL_TRAINING: false
 plot_freq: 50
 
 # Load model
-load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
+#load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
+load_path: ./results/baseline/baseline_original_lr_schedule/true_baseline_model.pt
+
 #load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
 test_only: false                             # Do not train
 
