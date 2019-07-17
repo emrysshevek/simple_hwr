@@ -1,4 +1,4 @@
-
+import pathlib
 import socket
 import argparse
 import matplotlib.pyplot as plt
@@ -92,16 +92,31 @@ def parse_args():
     # elif not config["name"] and opts.name:
     #     config["name"] = opts.name
 
+def find_config(config_name):
+    # Correct config paths
+    found_paths = []
+    for d,s,fs in os.walk("./configs"):
+        for f in fs:
+            if config_name == f:
+                found_paths.append(os.path.join(d, f))
+
+    # Error handling
+    if len(found_paths) == 1:
+        return found_paths[0]
+    elif len(found_paths) > 1:
+        raise Exception("Multiple {} config were found: {}".format(config_name, "\n".join(found_paths)))
+    elif len(found_paths) < 0:
+        raise Exception("{} config not found".format(config_name))
 
 def load_config(config_path):
 
     par, chld = os.path.split(config_path)
 
-    # Correct config paths
-    if par=="":
-        config_path = os.path.join("./configs", config_path)
-    if config_path[-5:].lower() != ".yaml":
-        config_path = config_path + ".yaml"
+    if chld[-5:].lower() != ".yaml":
+        chld = chld + ".yaml"
+    config_path = find_config(chld)
+
+
     config = read_config(config_path)
 
     defaults = {"load_path":False,
@@ -366,7 +381,7 @@ def save_model(config, bsf=False):
         torch.save(state_dict, os.path.join(path, "{}_nudger_model.pt".format(config['name'])))
 
     # Save losses/CER
-    results = {'train': config["train_losses"], 'test': config["test_losses"]}
+    results = config["stats"]
     with open(os.path.join(path, "losses.json"), 'w') as fh:
         json.dump(results, fh, indent=4)
 
@@ -412,7 +427,7 @@ def accumulate_stats(config, freq=None):
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq:
             stat.reset_accumlator()
-            print(stat.name, stat.y[-1])
+            config["logger"].debug(stat.name, stat.y[-1])
 
 class Stat(JSONEncoder):
     def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
