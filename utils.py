@@ -171,7 +171,7 @@ def load_config(config_path):
             os.makedirs(path)
 
     # Make a link to most recent run
-    link = "./RECENT"
+    link = "./RECENT.lnk"
     if os.path.exists(link):
         os.remove(link)
     os.symlink(config['results_dir'], link)
@@ -493,7 +493,7 @@ def stat_prep(config):
 
     if config["style_encoder"] in ["2StageNudger"]:
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss",name="Nudged Training Loss"))
-        config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate"))
+        config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate", ymax=.2))
         config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
 
     # Register plots, save in stats dictionary

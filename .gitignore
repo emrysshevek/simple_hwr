@@ -1,6 +1,7 @@
 # Data
 *prepare*/
 *.pt
+.lnk
 
 # results
 results/

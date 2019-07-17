@@ -265,24 +265,21 @@ class basic_CRNN(nn.Module):
     def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False):
         super(basic_CRNN, self).__init__()
         self.softmax = nn.LogSoftmax()
+        self.dropout = recognizer_dropout
         rnn_expansion_dimension = 1 if online_augmentation else 0
         rnn_in_dim = cnnOutSize + rnn_expansion_dimension
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
         self.rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers)
 
     def freeze(self):
-        # self.cnn.train(False)
-        # self.rnn.train(False)
-        #for model in self.cnn, self.rnn:
         for p in self.parameters():
             p.requires_grad = False
+        self.rnn.rnn.dropout = 0
 
     def unfreeze(self):
-        # self.cnn.train(True)
-        # self.rnn.train(True)
         for p in self.parameters():
             p.requires_grad = True
-
+        self.rnn.rnn.dropout = self.dropout
 
     def forward(self, input, online=None, classifier_output=None):
         """
