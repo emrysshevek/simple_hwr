@@ -16,7 +16,6 @@ import numpy as np
 import warnings
 import string_utils
 import error_rates
-from json import JSONEncoder
 
 def is_iterable(obj):
     try:
@@ -393,7 +392,7 @@ def save_model(config, bsf=False):
     # Save losses/CER
     results = config["stats"]
     with open(os.path.join(path, "losses.json"), 'w') as fh:
-        json.dump(results, fh, indent=4)
+        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
     # Save visdom
     if config["use_visdom"]:
@@ -439,7 +438,7 @@ def accumulate_stats(config, freq=None):
             stat.reset_accumlator()
             config["logger"].debug(stat.name, stat.y[-1])
 
-class Stat(JSONEncoder):
+class Stat:
     def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
         """
 
@@ -455,7 +454,7 @@ class Stat(JSONEncoder):
 
 
         """
-
+        super(Stat, self).__init__()
         self.y = y
         self.x = x
         self.current_weight = 0
@@ -476,7 +475,6 @@ class Stat(JSONEncoder):
         self.y.append(new_item)
         if not self.updated_since_plot:
             self.updated_since_plot = True
-
 
     def default(self, o):
         return o.__dict__
@@ -504,6 +502,13 @@ class Stat(JSONEncoder):
     def __repr__(self):
         return str(self.__dict__)
 
+
+class EnhancedJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        try:
+            return super().default(o)
+        except:
+            return o.__dict__
 
 def stat_prep(config):
     """ Prep to track statistics/losses, setup plots etc.

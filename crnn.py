@@ -383,7 +383,7 @@ def create_Nudger(config):
                             rnn_layers=config["nudger_rnn_layers"], leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
     return crnn
 
-class TrainerBaseline(JSONEncoder):
+class TrainerBaseline(json.JSONEncoder):
     def __init__(self, model, optimizer, config, ctc_criterion):
         self.model = model
         self.optimizer = optimizer
@@ -443,7 +443,7 @@ class TrainerBaseline(JSONEncoder):
         return out, rnn_input
 
 
-class TrainerNudger(JSONEncoder):
+class TrainerNudger(json.JSONEncoder):
     def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
         self.model = model
         self.optimizer = optimizer

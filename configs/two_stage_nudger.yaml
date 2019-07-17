@@ -1,6 +1,6 @@
 ### TESTING
 TESTING: false # Load as little as possible for fast prototyping
-SMALL_TRAINING: false
+SMALL_TRAINING: true
 plot_freq: 50
 
 # Load model
