@@ -25,6 +25,7 @@ class BidirectionalLSTM(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2):
         super(BidirectionalLSTM, self).__init__()
+        print("Creating LSTM: in:{} hidden:{} dropout:{} layers:{}".format(nIn, nHidden, dropout, num_layers))
         self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
@@ -228,15 +229,13 @@ class CRNN_2Stage(nn.Module):
         nc: number of channels
 
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
+    def __init__(self, rnn_input_dimension, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
                  first_rnn_out_dim=128):
         super(CRNN_2Stage, self).__init__()
         self.softmax = nn.LogSoftmax()
-        rnn_expansion_dimension = 1 if online_augmentation else 0
-
-        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
-        self.first_rnn  = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension, rnn_hidden_dim, first_rnn_out_dim, dropout=recognizer_dropout)
-        self.second_rnn = BidirectionalLSTM(cnnOutSize + rnn_expansion_dimension + first_rnn_out_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
+        self.cnn = CNN(1024, nc, leakyRelu=leakyRelu)
+        self.first_rnn  = BidirectionalLSTM(rnn_input_dimension, rnn_hidden_dim, first_rnn_out_dim, dropout=recognizer_dropout)
+        self.second_rnn = BidirectionalLSTM(rnn_input_dimension + first_rnn_out_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
 
     def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
@@ -316,7 +315,7 @@ class Nudger(nn.Module):
         """
 
         super(Nudger, self).__init__()
-        self.nudger_rnn = BidirectionalLSTM(rnn_input_dim, rnn_hidden_dim, rnn_input_dim, dropout=rnn_dropout)
+        self.nudger_rnn = BidirectionalLSTM(rnn_input_dim, rnn_hidden_dim, rnn_input_dim, dropout=rnn_dropout, num_layers=rnn_layers)
 
     def forward(self, feature_maps, recognizer_rnn, classifier_output=None):
         """
@@ -339,11 +338,22 @@ class Nudger(nn.Module):
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
     crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"])
+                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"])
     return crnn
 
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier
+    check_inputs(config)
+    crnn = CRNN2(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], nh=config["rnn_dimension"],
+                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
+                 embedding_size=config["embedding_size"],
+                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
+                 writer_rnn_dimension=config["writer_rnn_dimension"],
+                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"],
+                 online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
+    return crnn
+
+def check_inputs(config):
     if not config["style_encoder"] or config["style_encoder"] in ["2StageNudger", "2Stage"]:
         use_writer_classifier = False
         config["embedding_size"] = 0
@@ -358,24 +368,19 @@ def create_CRNNClassifier(config, use_writer_classifier=True):
     if config["online_augmentation"]:
         config["rnn_input_dimension"] += 1
 
-    crnn = CRNN2(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], nh=config["rnn_dimension"],
-                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
-                 embedding_size=config["embedding_size"],
-                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
-                 writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"],
-                 online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier)
-    return crnn
+    return config
 
 def create_2Stage(config):
-    crnn = CRNN_2Stage(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+    check_inputs(config)
+    crnn = CRNN_2Stage(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                        n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
                        online_augmentation=config["online_augmentation"], first_rnn_out_dim=128)
     return crnn
 
 def create_Nudger(config):
-    crnn = Nudger(rnn_input_dim=config['cnn_out_size'], nc=config['num_of_channels'], rnn_hidden_dim=config["rnn_dimension"],
-                            rnn_layers=2, leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
+    check_inputs(config)
+    crnn = Nudger(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], rnn_hidden_dim=config["rnn_dimension"],
+                            rnn_layers=config["nudger_rnn_layers"], leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
     return crnn
 
 class TrainerBaseline(JSONEncoder):
@@ -419,7 +424,7 @@ class TrainerBaseline(JSONEncoder):
         return loss, out, rnn_input
 
 
-    def test(self, line_imgs, online, gt, force_training=False):
+    def test(self, line_imgs, online, gt, force_training=False, update_stats=True):
         if force_training:
             self.model.train()
         else:
@@ -432,7 +437,8 @@ class TrainerBaseline(JSONEncoder):
         out = output_batch.data.cpu().numpy() # uncollapsed, predictions
 
         # Error Rate
-        self.config["stats"]["Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+        if update_stats:
+            self.config["stats"]["Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
 
         return out, rnn_input
 
@@ -460,7 +466,7 @@ class TrainerNudger(JSONEncoder):
             baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
             self.model.freeze()
         else:
-            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True)
+            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
 
         pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
         preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))

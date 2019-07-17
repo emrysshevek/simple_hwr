@@ -177,6 +177,7 @@ def main():
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
         config["trainer"] = crnn.TrainerNudger(hw, optimizer, config, criterion, train_baseline=train_baseline)
+
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 
@@ -222,6 +223,8 @@ def main():
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
         load_model(config)
+        hw = config["model"]
+        # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
 
     for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
         LOGGER.info("Epoch: {}".format(epoch))

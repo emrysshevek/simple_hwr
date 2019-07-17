@@ -104,32 +104,34 @@ def load_config(config_path):
         config_path = config_path + ".yaml"
     config = read_config(config_path)
 
+    defaults = {"load_path":False,
+                "training_suffle": False,
+                "testing_suffle": False,
+                "test_only": False,
+                "TESTING": False,
+                "plot_freq": 50,
+                "SMALL_TRAINING": False,
+                "rnn_layers": 2,
+                "nudger_rnn_layers": 2,
+                "nudger_rnn_dimension": 512
+                }
 
-    # Set defaults if unspecified
-    if "load_path" not in config.keys():
-        config["load_path"] = False
-    if "training_suffle" not in config.keys():
-        config['training_suffle'] = False
-    if "testing_suffle" not in config.keys():
-        config['testing_suffle'] = False
+    for k in defaults.keys():
+        if k not in config.keys():
+            config[k] = defaults[k]
+
     if config["style_encoder"] == "fake_encoder":
         config["detach_embedding"] = True
     else:
         config["detach_embedding"] = False
+
     if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
         config["scheduler_step"] = 1
         config["scheduler_gamma"] = 1
-    if "test_only" not in config.keys():
-        config["test_only"] = False
-    if "TESTING" not in config.keys():
-        config["TESTING"] = False
-    if "plot_freq" not in config.keys():
-        config["plot_freq"] = 50
-    if "SMALL_TRAINING" not in config.keys():
-        config["SMALL_TRAINING"] = False
-    else:
-        if config["SMALL_TRAINING"]:
-            config["plot_freq"] = 1
+
+    if config["SMALL_TRAINING"]:
+        config["plot_freq"] = 1
+
 
     # Removing online jsons if not using online
     for data_path in config["training_jsons"]:
@@ -324,6 +326,9 @@ def load_model(config):
             config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
         except:
             warnings.warn("Unable to load from visdom.json; does the file exist?")
+            ## RECREAT VISDOM FROM FILE IF VISDOM IS NOT FOUND
+
+
 
     # Load Loss History
     with open(os.path.join(path, "losses.json"), 'r') as fh:
@@ -407,6 +412,7 @@ def accumulate_stats(config, freq=None):
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq:
             stat.reset_accumlator()
+            print(stat.name, stat.y[-1])
 
 class Stat(JSONEncoder):
     def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
