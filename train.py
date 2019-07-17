@@ -75,7 +75,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
     for i, x in enumerate(dataloader):
         LOGGER.debug("Training Iteration: {}".format(i))
-        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
+        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=config["improve_image"])
         labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt'] # actual string ground truth

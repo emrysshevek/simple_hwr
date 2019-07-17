@@ -1,7 +1,7 @@
 # Data
 *prepare*/
 *.pt
-*.lnk
+*.lnk*
 *.slurm
 
 # results

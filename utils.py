@@ -127,7 +127,8 @@ def load_config(config_path):
                 "SMALL_TRAINING": False,
                 "rnn_layers": 2,
                 "nudger_rnn_layers": 2,
-                "nudger_rnn_dimension": 512
+                "nudger_rnn_dimension": 512,
+                "improve_image": False
                 }
 
     for k in defaults.keys():
@@ -389,8 +390,13 @@ def save_model(config, bsf=False):
         state_dict["model"] = config["nudger"].state_dict()
         torch.save(state_dict, os.path.join(path, "{}_nudger_model.pt".format(config['name'])))
 
-    # Save losses/CER
+    # Save all stats
     results = config["stats"]
+    with open(os.path.join(path, "all_stats.json"), 'w') as fh:
+        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
+
+    # Save CER
+    results = config["stats"][config["designated_training_cer"]], config["stats"][config["designated_test_cer"]]
     with open(os.path.join(path, "losses.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
