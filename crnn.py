@@ -381,69 +381,122 @@ def create_Nudger(config):
                             rnn_layers=2, leakyRelu=False, rnn_dropout=config["recognizer_dropout"])
     return crnn
 
-def train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0, retain_graph=False):
-    idx_to_char = config["idx_to_char"]
+class TrainerBaseline(JSONEncoder):
+    def __init__(self, model, optimizer, config, ctc_criterion):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.ctc_criterion = ctc_criterion
+        self.idx_to_char = self.config["idx_to_char"]
 
-    pred_tup = model(line_imgs, online)
-    pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+    def default(self, o):
+        return None
 
-    # Calculate HWR loss
-    preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
+    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
+        self.model.train()
 
-    output_batch = pred_text.permute(1, 0, 2)
-    out = output_batch.data.cpu().numpy() # uncollapsed, predictions
+        pred_tup = self.model(line_imgs, online)
+        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
-    # Get losses
-    config["logger"].debug("Calculating CTC Loss: {}".format(step))
-    loss_recognizer = ctc_criterion(pred_text, labels, preds_size, label_lengths)
+        # Calculate HWR loss
+        preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
 
-    # Backprop
-    optimizer.zero_grad()
-    loss_recognizer.backward(retain_graph=retain_graph)
-    optimizer.step()
+        output_batch = pred_text.permute(1, 0, 2)
+        out = output_batch.data.cpu().numpy() # uncollapsed, predictions
 
-    loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
+        # Get losses
+        self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
+        loss_recognizer = self.ctc_criterion(pred_text, labels, preds_size, label_lengths)
 
-    # Error Rate
-    config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
-    config["stats"]["Training Error Rate"].accumulate(*calculate_cer(out, gt, idx_to_char))
+        # Backprop
+        self.optimizer.zero_grad()
+        loss_recognizer.backward(retain_graph=retain_graph)
+        self.optimizer.step()
 
-    return loss, out, rnn_input
+        loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
+
+        # Error Rate
+        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+        self.config["stats"]["Training Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+
+        return loss, out, rnn_input
 
 
-## Loop through models to make them all CUDA, all "training" etc at the beginning of the epoch, etc.
+    def test(self, line_imgs, online, gt, force_training=False):
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
 
-def train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=0):
-    # Run baseline
-    model.train()
-    baseline_loss, baseline_prediction, rnn_input = train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step, retain_graph=True)
-    recognizer_rnn = model.rnn
-    idx_to_char = config["idx_to_char"]
-    nudger = config["nudger"]
-    nudger.train(True)
+        pred_tup = self.model(line_imgs, online)
+        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
-    # Forward version for nudger
-    model.freeze()
-    #model.eval() # freeze regular model
-    pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in nudger(rnn_input, recognizer_rnn) if not x is None]
-    preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
-    output_batch = pred_text_nudged.permute(1, 0, 2)
-    out = output_batch.data.cpu().numpy() # uncollapsed, predictions
+        output_batch = pred_text.permute(1, 0, 2)
+        out = output_batch.data.cpu().numpy() # uncollapsed, predictions
 
-    config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-    loss_recognizer_nudged = ctc_criterion(pred_text_nudged, labels, preds_size, label_lengths)
+        # Error Rate
+        self.config["stats"]["Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
 
-    # Backprop
-    optimizer.zero_grad()
-    #model.train()
-    #nudger.train()
-    #model.freeze()
-    loss_recognizer_nudged.backward()
-    optimizer.step()
-    model.unfreeze()
+        return out, rnn_input
 
-    # Error Rate
-    config["stats"]["Nudged Training Loss"].accumulate(loss_recognizer_nudged, 1) # Might need to be divided by batch size?
-    config["stats"]["Nudged Training Error Rate"].accumulate(*calculate_cer(out, gt, idx_to_char))
 
-    return loss_recognizer_nudged, out, nudged_rnn_input
+class TrainerNudger(JSONEncoder):
+    def __init__(self, model, optimizer, config, ctc_criterion):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.ctc_criterion = ctc_criterion
+        self.idx_to_char = self.config["idx_to_char"]
+        self.baseline_trainer = TrainerBaseline(model, optimizer, config, ctc_criterion)
+        self.nudger = config["nudger"]
+        self.recognizer_rnn = self.model.rnn
+
+    def default(self, o):
+        return None
+
+    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0, train_baseline=True):
+        self.nudger.train()
+
+        # Train baseline at the same time
+        if train_baseline:
+            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
+            self.model.freeze()
+        else:
+            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True)
+
+        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
+        output_batch = pred_text_nudged.permute(1, 0, 2)
+        out = output_batch.data.cpu().numpy()  # uncollapsed, predictions
+
+        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
+        loss_recognizer_nudged = self.ctc_criterion(pred_text_nudged, labels, preds_size, label_lengths)
+        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
+
+        # Backprop
+        self.optimizer.zero_grad()
+        loss_recognizer_nudged.backward()
+        self.optimizer.step()
+
+        if train_baseline:
+            self.model.unfreeze()
+
+        # Error Rate
+        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
+        self.config["stats"]["Nudged Training Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+
+        return loss_recognizer_nudged, out, nudged_rnn_input
+
+
+    def test(self, line_imgs, online, gt):
+        self.nudger.eval()
+        baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt)
+
+        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        # preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
+        output_batch = pred_text_nudged.permute(1, 0, 2)
+        out = output_batch.data.cpu().numpy()  # uncollapsed, predictions
+
+        self.config["stats"]["Nudged Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+
+        return out, nudged_rnn_input

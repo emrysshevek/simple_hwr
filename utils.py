@@ -170,6 +170,12 @@ def load_config(config_path):
         if path is not None and len(path) > 0 and not os.path.exists(path):
             os.makedirs(path)
 
+    # Make a link to most recent run
+    link = "./RECENT"
+    if os.path.exists(link):
+        os.remove(link)
+    os.symlink(config['results_dir'], link)
+
     # Copy config to output folder
     #parent, child = os.path.split(config)
     shutil.copy(config_path, config['results_dir'])
@@ -219,6 +225,10 @@ def wait_for_gpu():
         time.sleep(1800)
         utilization = GPUtil.getGPUs()[0].load * 100  # memoryUtil
     torch.cuda.empty_cache()
+    if memory_utilization > 40:
+        pass
+        # alias gpu_reset="kill -9 $(nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed$
+
     return
 
 def is_iterable(object, string_is_iterable=True):
@@ -342,6 +352,10 @@ def save_model(config, bsf=False):
     }
 
     torch.save(state_dict, os.path.join(path, "{}_model.pt".format(config['name'])))
+
+    if "nudger" in config.keys():
+        state_dict["model"] = config["nudger"].state_dict()
+        torch.save(state_dict, os.path.join(path, "{}_nudger_model.pt".format(config['name'])))
 
     # Save losses/CER
     results = {'train': config["train_losses"], 'test': config["test_losses"]}

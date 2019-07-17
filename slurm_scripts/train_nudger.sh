@@ -2,7 +2,7 @@
 
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
-#SBATCH --ntasks 4
+#SBATCH --ntasks 2
 #SBATCH --output="./log2.slurm"
 #SBATCH --time 48:00:00
 #SBATCH -C 'rhel7&pascal'

@@ -46,7 +46,7 @@ batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
-rnn_dimension: 1024                          # originally 512
+rnn_dimension: 768                           # originally 512
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM

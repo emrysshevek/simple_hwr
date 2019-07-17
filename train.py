@@ -49,82 +49,22 @@ wait_for_gpu()
 faulthandler.enable()
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
-    if with_analysis:
-        charAcc = CharAcc(config["char_to_idx"])
-        cers = []
-        lens = []
-
     sum_loss = 0.0
     steps = 0.0
     model.eval()
     for x in dataloader:
-        with torch.no_grad():
-            line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
-            labels = Variable(x['labels'], requires_grad=False)
-            label_lengths = Variable(x['label_lengths'], requires_grad=False)
-            online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-                "online_augmentation"] else None
-        # Returns letter_predictions, writer_predictions
-        #print(online, x['online'])
-        preds, *_ = model(line_imgs, online)
-   
-        preds = preds.cpu()
-        output_batch = preds.permute(1, 0, 2)
-        out = output_batch.data.cpu().numpy()
-
-        for i, gt_line in enumerate(x['gt']):
-            logits = out[i, ...]
-            pred, raw_pred = string_utils.naive_decode(logits)
-            pred_str = string_utils.label2str(pred, idx_to_char, False)
-            cer = error_rates.cer(gt_line, pred_str)
-
-            if with_analysis:
-                charAcc.char_accuracy(pred_str, gt_line)
-                cers.append(cer)
-                lens.append(len(gt_line))
-                if cer > 0 and config["output_predictions"]:
-                    write_out(config["results_dir"], "incorrect.txt", "\n".join((str(cer), pred_str, gt_line, os.path.abspath(x['paths'][i]))))
-                if cer > 0.3 and config["output_predictions"]:
-                    write_out(config["results_dir"], "very_incorrect.txt", "\n".join((str(cer), pred_str, gt_line, os.path.abspath(x['paths'][i]))))
-
-            sum_loss += cer
-            steps += 1
+        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
+        gt = x['gt'] # actual string ground truth
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+        config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
         if config["TESTING"]:
             break
 
-    if with_analysis:
-        # Plot accuracy by character
-        chars = [m[0] for m in sorted(config["char_to_idx"].items(), key=lambda kv: kv[1])]
-
-        #print(charAcc.correct, charAcc.false_negative, charAcc.false_positive)
-        plt.bar(chars, charAcc.correct/(charAcc.correct+charAcc.false_negative)) # recall
-        plt.title("Recall")
-        plt.show()
-
-        plt.bar(chars, charAcc.correct/(charAcc.correct+charAcc.false_positive)) # precision
-        plt.title("Precision")
-        plt.show()
-
-        # Plot character error rate by line length
-        plt.scatter(cers, lens)
-        plt.show()
-
-        # Plot 2d histogram of letters
-        plt.hist2d(cers, lens, density=True)
-        plt.show()
-
-        m = list(zip(lens,cers))
-        for x in range(0,100,10):
-            to_plot = [p[1] for p in m if p[0] in range(x,x+10)]
-            log_print(to_plot)
-            plt.title("{} {}".format(x, x+10))
-            plt.hist(to_plot, density=True)
-            plt.show()
-
-
-    test_cer = sum_loss / steps
+    accumulate_stats(config)
+    test_cer = config["stats"]["Test Error Rate"].y[-1] # most recent training CER
+    LOGGER.debug(config["stats"])
     return test_cer
 
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
@@ -141,15 +81,11 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["global_step"] += 1
         config["global_instances_counter"] += line_imgs.shape[0]
         config["stats"]["instances"] += [config["global_instances_counter"]]
-        
-        
+
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
 
-        if config["style_encoder"]=="2StageNudger":
-            crnn.train_nudger(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_step"])
-        elif not config["style_encoder"]:
-            crnn.train_baseline(model, optimizer, config, line_imgs, online, labels, label_lengths, gt, ctc_criterion, step=config["global_step"])
+        config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
@@ -160,6 +96,10 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
+            config["stats"]["updates"] += [config["global_step"]]
+            config["stats"]["epoch_decimal"] += [config["current_epoch"]+i * config["batch_size"] / config['n_train_instances']]
+            LOGGER.info("updates: {}".format(config["global_step"]))
+            accumulate_stats(config)
             break
 
     training_cer = config["stats"]["Training Error Rate"].y[-1] # most recent training CER
@@ -208,6 +148,9 @@ def main():
     # Prep data loaders
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
+    # Prep optimizer
+    criterion = CTCLoss()
+
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
         hw = crnn.create_CRNNClassifier(config)
@@ -221,10 +164,19 @@ def main():
         hw = crnn.create_CRNN(config)
         config["nudger"] = crnn.create_Nudger(config)
         config["embedding_size"]=0
-
     else: # basic HWR
         config["embedding_size"]=0
         hw = crnn.create_CRNN(config)
+
+    # Create optimizer
+    optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
+
+    # Create trainer
+    if config["style_encoder"] == "2StageNudger":
+        config["trainer"] = crnn.TrainerNudger(hw, optimizer, config, criterion)
+    else:
+        config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 
     # Prep GPU
     if config["TESTING"]: # don't use GPU for testing
@@ -242,11 +194,6 @@ def main():
         dtype = torch.FloatTensor
         log_print("No GPU detected")
         config["cuda"]=False
-
-    # Prep optimizer
-    optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
-    scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
-    criterion = CTCLoss()
 
     # Alternative Models
     if config["style_encoder"]=="basic_encoder":
