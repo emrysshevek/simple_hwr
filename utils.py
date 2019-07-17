@@ -189,9 +189,11 @@ def load_config(config_path):
 
     # Make a link to most recent run
     link = "./RECENT.lnk"
-    if os.path.exists(link):
-        os.remove(link)
-    os.symlink(config['results_dir'], link)
+    old_link = "./RECENT.lnk2"
+    if os.path.exists(old_link):
+        os.remove(old_link)
+    os.rename(link, old_link)
+    symlink(config['results_dir'], link)
 
     # Copy config to output folder
     #parent, child = os.path.split(config)
@@ -217,6 +219,14 @@ def computer_defaults(config):
     else:
         config["use_visdom"]=False
     return config
+
+def symlink(target, link_location):
+    while True:
+        try:
+            os.symlink(target, link_location)
+            break
+        except FileExistsError:
+            os.remove(link_location)
 
 def get_computer():
     return socket.gethostname()
