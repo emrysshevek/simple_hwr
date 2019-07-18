@@ -135,6 +135,9 @@ def load_config(config_path):
         if k not in config.keys():
             config[k] = defaults[k]
 
+    if not config["TESTING"]:
+        wait_for_gpu()
+
     if config["style_encoder"] == "fake_encoder":
         config["detach_embedding"] = True
     else:
@@ -194,6 +197,13 @@ def load_config(config_path):
         os.remove(old_link)
     os.rename(link, old_link)
     symlink(config['results_dir'], link)
+
+    # Save images
+    if config["improve_image"]:
+        config["save_improved_images"] = True
+        config["image_dir"] = os.path.join(config["results_dir"], "images")
+        mkdir(config["image_dir"])
+
 
     # Copy config to output folder
     #parent, child = os.path.split(config)

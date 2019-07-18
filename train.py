@@ -45,7 +45,6 @@ from crnn import Stat
 # python -m visdom.server -p 8080
 
 
-wait_for_gpu()
 faulthandler.enable()
 
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
@@ -68,6 +67,20 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     LOGGER.debug(config["stats"])
     return test_cer
 
+def plot_images(line_imgs, name):
+    # Save images
+    f, axarr = plt.subplots(len(line_imgs), 1)
+    if len(line_imgs) > 1:
+        for j, img in enumerate(line_imgs):
+            axarr[j].imshow(img.squeeze().detach().numpy(), cmap='gray')
+    else:
+        axarr.imshow(line_imgs.squeeze().detach().numpy(), cmap='gray')
+
+    # plt.show()
+    path = os.path.join(config["image_dir"], '{}.png'.format(name))
+    plt.savefig(path)
+
+
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     model.train()
     config["stats"]["epochs"] += [config["current_epoch"]]
@@ -87,6 +100,13 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
 
         config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
+
+        if config["improve_image"]:
+            plot_images(x['line_imgs'], "{}_original".format(i))
+            plot_images(line_imgs, i)
+            print(torch.abs(x['line_imgs']-line_imgs).sum())
+
+
 
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
@@ -165,19 +185,36 @@ def main():
         hw = crnn.create_CRNN(config)
         config["nudger"] = crnn.create_Nudger(config)
         config["embedding_size"]=0
+        config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
+
     else: # basic HWR
         config["embedding_size"]=0
         hw = crnn.create_CRNN(config)
 
+    # Setup defaults
+    config["starting_epoch"] = 1
+    config["model"] = hw
+    config['lowest_loss'] = float('inf')
+    config["train_losses"] = []
+    config["test_losses"] = []
+
     # Create optimizer
     optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
+    config["optimizer"] = optimizer
+
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
+    config["scheduler"] = scheduler
+
+    ## LOAD FROM OLD MODEL
+    if config["load_path"]:
+        load_model(config)
+        hw = config["model"]
+        # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
 
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
-        config["trainer"] = crnn.TrainerNudger(hw, optimizer, config, criterion, train_baseline=train_baseline)
-
+        config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion, train_baseline=train_baseline)
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 
@@ -204,14 +241,6 @@ def main():
     else: # config["style_encoder"] = False
         config["secondary_criterion"] = None
 
-    # Setup defaults
-    config["starting_epoch"] = 1
-    config["optimizer"] = optimizer
-    config["model"] = hw
-    config['lowest_loss'] = float('inf')
-    config["train_losses"] = []
-    config["test_losses"] = []
-
     # Launch visdom
     if config["use_visdom"]:
         visualize.initialize_visdom(config["full_specs"], config)
@@ -219,12 +248,13 @@ def main():
     # Stat prep - must be after visdom
     stat_prep(config)
 
-
-    ## LOAD FROM OLD MODEL
-    if config["load_path"]:
-        load_model(config)
-        hw = config["model"]
-        # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
+    ## HACKISH IMAGE IMPROVER
+    if config["improve_image"]:
+        # hw.freeze()
+        # Reset optimizer
+        config['learning_rate'] = .1
+        # Improve test images
+        train_dataloader = test_dataloader
 
     for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
         LOGGER.info("Epoch: {}".format(epoch))

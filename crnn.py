@@ -270,15 +270,21 @@ class basic_CRNN(nn.Module):
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
         self.rnn = BidirectionalLSTM(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers)
 
+    def my_eval(self):
+        self.rnn.rnn.dropout = 0
+
+    def my_train(self):
+        self.rnn.rnn.dropout = self.dropout
+
     def freeze(self):
         for p in self.parameters():
             p.requires_grad = False
-        self.rnn.rnn.dropout = 0
+        self.my_eval()
 
     def unfreeze(self):
         for p in self.parameters():
             p.requires_grad = True
-        self.rnn.rnn.dropout = self.dropout
+        self.my_train()
 
     def forward(self, input, online=None, classifier_output=None):
         """
@@ -425,6 +431,19 @@ class TrainerBaseline(json.JSONEncoder):
 
 
     def test(self, line_imgs, online, gt, force_training=False, update_stats=True):
+        """
+
+        Args:
+            line_imgs:
+            online:
+            gt:
+            force_training: Run test in .train() as opposed to .eval() mode
+            update_stats:
+
+        Returns:
+
+        """
+
         if force_training:
             self.model.train()
         else:
@@ -450,7 +469,7 @@ class TrainerNudger(json.JSONEncoder):
         self.config = config
         self.ctc_criterion = ctc_criterion
         self.idx_to_char = self.config["idx_to_char"]
-        self.baseline_trainer = TrainerBaseline(model, optimizer, config, ctc_criterion)
+        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, ctc_criterion)
         self.nudger = config["nudger"]
         self.recognizer_rnn = self.model.rnn
         self.train_baseline = train_baseline
@@ -464,7 +483,7 @@ class TrainerNudger(json.JSONEncoder):
         # Train baseline at the same time
         if self.train_baseline:
             baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
-            self.model.freeze()
+            self.model.my_eval()
         else:
             baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
 
@@ -482,8 +501,10 @@ class TrainerNudger(json.JSONEncoder):
         loss_recognizer_nudged.backward()
         self.optimizer.step()
 
+        ## ASSERT SOMETHING HAS CHANGED
+
         if self.train_baseline:
-            self.model.unfreeze()
+            self.model.my_train()
 
         # Error Rate
         self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
