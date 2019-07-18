@@ -285,9 +285,11 @@ def main():
             # Save BSF
             if config['lowest_loss'] > test_cer:
                 config['lowest_loss'] = test_cer
+                log_print("Saving Best")
                 save_model(config, bsf=True)
 
-            if epoch % config["save_freq"] == 0:
+            elif epoch % config["save_freq"] == 0:
+                log_print("Saving most recent model")
                 save_model(config, bsf=False)
 
             plt_loss(config)

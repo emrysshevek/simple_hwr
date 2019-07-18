@@ -25,7 +25,7 @@ class BidirectionalLSTM(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2):
         super(BidirectionalLSTM, self).__init__()
-        print("Creating LSTM: in:{} hidden:{} dropout:{} layers:{}".format(nIn, nHidden, dropout, num_layers))
+        print("Creating LSTM: in:{} hidden:{} dropout:{} layers:{} out:{}".format(nIn, nHidden, dropout, num_layers, nOut))
         self.rnn = nn.LSTM(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
@@ -229,13 +229,13 @@ class CRNN_2Stage(nn.Module):
         nc: number of channels
 
     """
-    def __init__(self, rnn_input_dimension, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
+    def __init__(self, rnn_input_dim, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
                  first_rnn_out_dim=128):
         super(CRNN_2Stage, self).__init__()
         self.softmax = nn.LogSoftmax()
         self.cnn = CNN(1024, nc, leakyRelu=leakyRelu)
-        self.first_rnn  = BidirectionalLSTM(rnn_input_dimension, rnn_hidden_dim, first_rnn_out_dim, dropout=recognizer_dropout)
-        self.second_rnn = BidirectionalLSTM(rnn_input_dimension + first_rnn_out_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
+        self.first_rnn  = BidirectionalLSTM(rnn_input_dim, rnn_hidden_dim, first_rnn_out_dim, dropout=recognizer_dropout)
+        self.second_rnn = BidirectionalLSTM(rnn_input_dim + first_rnn_out_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout)
 
     def forward(self, input, online=None, classifier_output=None):
         conv = self.cnn(input)
@@ -255,7 +255,7 @@ class CRNN_2Stage(nn.Module):
         #print(conv.shape)
         #print(cnn_rnn_concat.shape)
 
-        return recognizer_output,
+        return recognizer_output, rnn_input
 
 
 class basic_CRNN(nn.Module):
@@ -378,7 +378,7 @@ def check_inputs(config):
 
 def create_2Stage(config):
     check_inputs(config)
-    crnn = CRNN_2Stage(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+    crnn = CRNN_2Stage(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                        n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
                        online_augmentation=config["online_augmentation"], first_rnn_out_dim=128)
     return crnn

@@ -104,7 +104,7 @@ def find_config(config_name):
         return found_paths[0]
     elif len(found_paths) > 1:
         raise Exception("Multiple {} config were found: {}".format(config_name, "\n".join(found_paths)))
-    elif len(found_paths) < 0:
+    elif len(found_paths) < 1:
         raise Exception("{} config not found".format(config_name))
 
 def load_config(config_path):
@@ -114,7 +114,6 @@ def load_config(config_path):
     if chld[-5:].lower() != ".yaml":
         chld = chld + ".yaml"
     config_path = find_config(chld)
-
 
     config = read_config(config_path)
 
@@ -384,8 +383,6 @@ def save_model(config, bsf=False):
         mkdir(path)
     else:
         path = config["results_dir"]
-
-    log_print("Saving Best")
 
     state_dict = {
         'epoch': config["current_epoch"] + 1,
