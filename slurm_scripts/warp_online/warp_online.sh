@@ -22,6 +22,5 @@ export PATH="${group_path}/env/hwr4_env/bin:$PATH"
 which python
 
 cd "${group_path}/taylor_simple_hwr"
-python -u train.py --config warp_lr_schedule1024.yaml
-#python -u train.py --config two_stage_nudger.yaml
+python -u train.py --config warp_online.yaml
 
