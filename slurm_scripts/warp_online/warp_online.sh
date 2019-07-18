@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
 #SBATCH --ntasks 2
-#SBATCH --output="./train_warp_schedule_1024.slurm"
+#SBATCH --output="./warp_online.slurm"
 #SBATCH --time 24:00:00
 #SBATCH -C 'rhel7&pascal'
 #SBATCH --mail-user=taylor.archibald@byu.edu   # email address
