@@ -15,7 +15,6 @@ from torch.autograd import Variable
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
-from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
 from torch.nn import CrossEntropyLoss

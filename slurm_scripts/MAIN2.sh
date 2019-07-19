@@ -1,6 +1,4 @@
 #!/bin/bash
-config=warp_online_lr_schedule4
-
 #SBATCH --gres=gpu:1
 #SBATCH --mem 16000M
 #SBATCH --ntasks 2
@@ -22,5 +20,6 @@ group_path="/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr"
 export PATH="${group_path}/env/hwr4_env/bin:$PATH"
 which python
 
+config=two_stage_warp_online
 cd "${group_path}/taylor_simple_hwr"
 python -u train.py --config $config

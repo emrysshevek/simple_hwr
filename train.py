@@ -12,6 +12,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+from torch import tensor
 
 ### TO DO:
 # Add ONLINE flag to regular CRNN
@@ -24,7 +25,6 @@ from torch.autograd import Variable
 # Deepwriting - clean up generated images?
 # Dropout schedule
 
-from warpctc_pytorch import CTCLoss
 import error_rates
 import string_utils
 from torch.nn import CrossEntropyLoss
@@ -52,9 +52,9 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     steps = 0.0
     model.eval()
     for x in dataloader:
-        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
+        line_imgs = tensor(x['line_imgs'].type(dtype), requires_grad=False)
         gt = x['gt'] # actual string ground truth
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
         config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
@@ -67,18 +67,57 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     LOGGER.debug(config["stats"])
     return test_cer
 
-def plot_images(line_imgs, name):
+def plot_images(line_imgs, name, text_str):
     # Save images
     f, axarr = plt.subplots(len(line_imgs), 1)
     if len(line_imgs) > 1:
         for j, img in enumerate(line_imgs):
-            axarr[j].imshow(img.squeeze().detach().numpy(), cmap='gray')
+            axarr[j].set_xlabel(f"{text_str[j]}")
+            axarr[j].imshow(img.squeeze().detach().cpu().numpy(), cmap='gray')
     else:
-        axarr.imshow(line_imgs.squeeze().detach().numpy(), cmap='gray')
+        axarr.imshow(line_imgs.squeeze().detach().cpu().numpy(), cmap='gray')
 
     # plt.show()
     path = os.path.join(config["image_dir"], '{}.png'.format(name))
-    plt.savefig(path)
+    plt.savefig(path, dpi=300)
+    plt.close('all')
+
+
+def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
+    model.train() # make sure gradients are tracked
+    lr = .01
+    model.my_eval() # set dropout to 0
+
+    for i, x in enumerate(dataloader):
+        LOGGER.debug("Improving Iteration: {}".format(i))
+        line_imgs = tensor(x['line_imgs'].type(dtype)).clone().detach().requires_grad_(True)
+        params = [torch.nn.Parameter(line_imgs)]
+        config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0.9)
+
+        labels = tensor(x['labels'], requires_grad=False)  # numeric indices version of ground truth
+        label_lengths = tensor(x['label_lengths'], requires_grad=False)
+        gt = x['gt']  # actual string ground truth
+
+        # Add online/offline binary flag
+        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+            "online_augmentation"] else None
+
+        loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
+                                                      step=config["global_step"])
+        print(first_pred_str)
+        # Nudge it X times
+        for ii in range(50):
+            loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt, step=config["global_step"])
+            #print(torch.abs(x['line_imgs']-params[0]).sum())
+            accumulate_stats(config)
+            training_cer = config["stats"][config["designated_training_cer"]].y[-1] # most recent training CER
+            LOGGER.info(f"{training_cer}")
+
+
+        plot_images(params[0], i, gt)
+        plot_images(x['line_imgs'], f"{i}_original", first_pred_str)
+
+    return training_cer
 
 
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
@@ -87,8 +126,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     plot_freq = config["plot_freq"]
 
     for i, x in enumerate(dataloader):
-        LOGGER.debug("Training Iteration: {}".format(i))
-        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=config["improve_image"])
+        LOGGER.debug(f"Training Iteration: {i}")
+        line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt'] # actual string ground truth
@@ -101,25 +140,18 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
-        if config["improve_image"]:
-            plot_images(x['line_imgs'], "{}_original".format(i))
-            plot_images(line_imgs, i)
-            print(torch.abs(x['line_imgs']-line_imgs).sum())
-
-
-
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [config["current_epoch"]+ i * config["batch_size"] * 1.0 / config['n_train_instances']]
-            LOGGER.info("updates: {}".format(config["global_step"]))
+            LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [config["current_epoch"]+i * config["batch_size"] / config['n_train_instances']]
-            LOGGER.info("updates: {}".format(config["global_step"]))
+            LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             break
 
@@ -170,7 +202,7 @@ def main():
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
     # Prep optimizer
-    criterion = CTCLoss()
+    criterion = torch.nn.CTCLoss()
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
@@ -248,20 +280,16 @@ def main():
     # Stat prep - must be after visdom
     stat_prep(config)
 
-    ## HACKISH IMAGE IMPROVER
-    if config["improve_image"]:
-        # hw.freeze()
-        # Reset optimizer
-        config['learning_rate'] = .1
-        # Improve test images
-        train_dataloader = test_dataloader
-
     for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
 
         # Only test
-        if not config["test_only"]:
+        if config["improve_image"]:
+            training_cer = improver(hw, test_dataloader, criterion, optimizer, dtype, config)
+            break
+
+        elif not config["test_only"]:
             training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, dtype, config)
 
             scheduler.step()

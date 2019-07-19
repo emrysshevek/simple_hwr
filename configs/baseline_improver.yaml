@@ -1,5 +1,5 @@
 ### TESTING
-TESTING: true # Load as little as possible for fast prototyping
+TESTING: false # Load as little as possible for fast prototyping
 SMALL_TRAINING: false
 plot_freq: 50
 
@@ -45,7 +45,7 @@ output_predictions: false                    # Output incorrect test predictions
 
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
-batch_size: 16                               # Batch size
+batch_size: 4                                # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image

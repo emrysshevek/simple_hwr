@@ -4,22 +4,65 @@ from torch import nn
 from utils import *
 import os
 from torch.autograd import Variable
-from warpctc_pytorch import CTCLoss
-import string_utils
-import error_rates
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
 # Increase LSTM dropout
 
-import transformer.Constants as Constants
-#from dataset import TranslationDataset, paired_collate_fn
-from transformer.Models import Transformer
-from transformer.Optim import ScheduledOptim
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
+
+class MLP(nn.Module):
+    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
+        """
+
+        Args:
+            input_size (int): Dimension of input
+            classifier_output_dimension (int): Dimension of output layer
+            hidden_layers (list): A list of hidden layer dimensions
+            dropout (float): 0 means no dropout
+            embedding_idx: The hidden layer index of the embedding layer starting with 0
+                e.g. input-> 16 nodes -> 8 nodes [embedding] -> 16 nodes would be 1
+        """
+
+        super(MLP, self).__init__()
+        classifier = nn.Sequential()
+
+        def addLayer(i, input, output, use_nonlinearity=True):
+            classifier.add_module('drop{}'.format(i), nn.Dropout(dropout))
+            classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
+            if use_nonlinearity:
+                classifier.add_module('relu{}'.format(i), nn.ReLU(True))
+
+        next_in = input_size
+        for i, h in enumerate(hidden_layers):
+            addLayer(i, next_in, h)
+            next_in = h
+
+        # Last Layer - don't use nonlinearity
+        addLayer(len(hidden_layers), next_in, classifier_output_dimension, use_nonlinearity=False)
+        self.classifier = classifier
+
+        if embedding_idx is None:
+            self.embedding_idx = len(classifier) # if no embedding specified, assume embedding=output
+        else:
+            self.embedding_idx = (embedding_idx + 1) * 3 # +1 for zero index, 3 items per layer
+
+    def forward(self, input, layer="output"):
+        input = input.view(input.shape[0], -1)
+
+        if layer == "output":
+            output = self.classifier(input) # batch size, everything else
+            return output
+        elif layer == "output+embedding":
+            embedding = self.classifier[0:self.embedding_idx](input)
+            output = self.classifier[self.embedding_idx:](embedding)  # batch size, everything else
+            return output, embedding
+        elif layer == "embedding":
+            embedding = self.classifier[0:self.embedding_idx](input)
+            return embedding
 
 class BidirectionalLSTM(nn.Module):
 
@@ -114,7 +157,7 @@ class CRNN(nn.Module):
     def forward(self, input):
         conv = self.cnn(input)
         output = self.rnn(conv)
-        return output,
+        return self.softmax(output),
 
 class CRNN2(nn.Module):
     """ CRNN with writer classifier
@@ -170,58 +213,7 @@ class CRNN2(nn.Module):
         # rnn features
         recognizer_output = self.rnn(rnn_input)
 
-        return recognizer_output, classifier_output
-
-class MLP(nn.Module):
-    def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
-        """
-
-        Args:
-            input_size (int): Dimension of input
-            classifier_output_dimension (int): Dimension of output layer
-            hidden_layers (list): A list of hidden layer dimensions
-            dropout (float): 0 means no dropout
-            embedding_idx: The hidden layer index of the embedding layer starting with 0
-                e.g. input-> 16 nodes -> 8 nodes [embedding] -> 16 nodes would be 1
-        """
-
-        super(MLP, self).__init__()
-        classifier = nn.Sequential()
-
-        def addLayer(i, input, output, use_nonlinearity=True):
-            classifier.add_module('drop{}'.format(i), nn.Dropout(dropout))
-            classifier.add_module('fc{}'.format(i), nn.Linear(input, output))
-            if use_nonlinearity:
-                classifier.add_module('relu{}'.format(i), nn.ReLU(True))
-
-        next_in = input_size
-        for i, h in enumerate(hidden_layers):
-            addLayer(i, next_in, h)
-            next_in = h
-
-        # Last Layer - don't use nonlinearity
-        addLayer(len(hidden_layers), next_in, classifier_output_dimension, use_nonlinearity=False)
-        self.classifier = classifier
-
-        if embedding_idx is None:
-            self.embedding_idx = len(classifier) # if no embedding specified, assume embedding=output
-        else:
-            self.embedding_idx = (embedding_idx + 1) * 3 # +1 for zero index, 3 items per layer
-
-    def forward(self, input, layer="output"):
-        input = input.view(input.shape[0], -1)
-
-        if layer == "output":
-            output = self.classifier(input) # batch size, everything else
-            return output
-        elif layer == "output+embedding":
-            embedding = self.classifier[0:self.embedding_idx](input)
-            output = self.classifier[self.embedding_idx:](embedding)  # batch size, everything else
-            return output, embedding
-        elif layer == "embedding":
-            embedding = self.classifier[0:self.embedding_idx](input)
-            return embedding
-
+        return self.softmax(recognizer_output), classifier_output
 
 class CRNN_2Stage(nn.Module):
     """ CRNN with writer classifier
@@ -255,7 +247,7 @@ class CRNN_2Stage(nn.Module):
         #print(conv.shape)
         #print(cnn_rnn_concat.shape)
 
-        return recognizer_output, rnn_input
+        return self.softmax(recognizer_output), rnn_input
 
 
 class basic_CRNN(nn.Module):
@@ -304,7 +296,7 @@ class basic_CRNN(nn.Module):
         if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
         recognizer_output = self.rnn(rnn_input)
-        return recognizer_output, rnn_input
+        return self.softmax(recognizer_output), rnn_input
 
 class Nudger(nn.Module):
 
@@ -339,7 +331,7 @@ class Nudger(nn.Module):
         # Second stage
         nudged_cnn_encoding = feature_maps + nudger_output
         recognizer_output_refined = recognizer_rnn(nudged_cnn_encoding)
-        return recognizer_output_refined, nudged_cnn_encoding
+        return self.softmax(recognizer_output_refined), nudged_cnn_encoding
 
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
@@ -425,12 +417,13 @@ class TrainerBaseline(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
-        self.config["stats"]["Training Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+        err, weight, pred_str = calculate_cer(out, gt, self.idx_to_char)
+        self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
-        return loss, out, rnn_input
+        return loss, err, pred_str
 
 
-    def test(self, line_imgs, online, gt, force_training=False, update_stats=True):
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
         """
 
         Args:
@@ -456,10 +449,13 @@ class TrainerBaseline(json.JSONEncoder):
         out = output_batch.data.cpu().numpy() # uncollapsed, predictions
 
         # Error Rate
-        if update_stats:
-            self.config["stats"]["Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
-
-        return out, rnn_input
+        if nudger:
+            return rnn_input
+        else:
+            err, weight, pred_str = calculate_cer(out, gt, self.idx_to_char)
+            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_str
 
 
 class TrainerNudger(json.JSONEncoder):
@@ -508,20 +504,22 @@ class TrainerNudger(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        self.config["stats"]["Nudged Training Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+        err, weight, pred_str = calculate_cer(out, gt, self.idx_to_char)
+        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
 
-        return loss_recognizer_nudged, out, nudged_rnn_input
-
+        return loss, err, pred_str
 
     def test(self, line_imgs, online, gt):
         self.nudger.eval()
-        baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt)
+        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
 
         pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
         # preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
         output_batch = pred_text_nudged.permute(1, 0, 2)
         out = output_batch.data.cpu().numpy()  # uncollapsed, predictions
 
-        self.config["stats"]["Nudged Test Error Rate"].accumulate(*calculate_cer(out, gt, self.idx_to_char))
+        err, weight, pred_str = calculate_cer(out, gt, self.idx_to_char)
+        self.config["stats"]["Nudged Test Error Rate"].accumulate(err, weight)
+        loss = -1
 
-        return out, nudged_rnn_input
+        return loss, err, pred_str

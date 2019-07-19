@@ -434,6 +434,7 @@ def calculate_cer(out, gt, idx_to_char):
     # gt = x['gt']
     sum_loss = 0
     steps = 0
+    pred_strs = []
     for j in range(out.shape[0]):
         logits = out[j, ...]
         pred, raw_pred = string_utils.naive_decode(logits)
@@ -442,7 +443,8 @@ def calculate_cer(out, gt, idx_to_char):
         cer = error_rates.cer(gt_str, pred_str)
         sum_loss += cer
         steps += 1
-    return sum_loss, steps
+        pred_strs.append(pred_str)
+    return sum_loss, steps, pred_strs
 
 
 def accumulate_stats(config, freq=None):
