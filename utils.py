@@ -364,11 +364,13 @@ def load_model(config):
 
 
     # Load Loss History
-    path = os.path.join(path, "all_stats.json")
-    path = path if os.path.exists(path) else os.path.join(path, "losses.json")
+    stat_path = os.path.join(path, "all_stats.json")
+    if not os.path.exists(path):
+        stat_path = os.path.join(path, "losses.json")
 
-    with open(path, 'r') as fh:
+    with open(stat_path, 'r') as fh:
         losses = json.load(fh)
+    print(losses, stat_path)
     config["train_losses"] = losses["train"]
     config["test_losses"] = losses["test"]
     if config["train_losses"]:
