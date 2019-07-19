@@ -363,9 +363,11 @@ def load_model(config):
             ## RECREAT VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
 
-
     # Load Loss History
-    with open(os.path.join(path, "losses.json"), 'r') as fh:
+    path = os.path.join(path, "all_stats.json")
+    path = path if os.path.exists(path) else os.path.join(path, "losses.json")
+
+    with open(path, 'r') as fh:
         losses = json.load(fh)
     config["train_losses"] = losses["train"]
     config["test_losses"] = losses["test"]
