@@ -365,16 +365,31 @@ def load_model(config):
 
     # Load Loss History
     stat_path = os.path.join(path, "all_stats.json")
-    if not os.path.exists(path):
-        stat_path = os.path.join(path, "losses.json")
+    loss_path = os.path.join(path, "losses.json")
+
+    with open(loss_path, 'r') as fh:
+        losses = json.load(fh)
+
+    try:
+        config["train_cer"] = losses["train_cer"]
+        config["test_cer"] = losses["test_cer"]
+    except:
+        warnings.warn("Could not load from losses.json")
+        config["train_cer"]=[]
+        config["test_cer"] = []
+
+    if config["train_cer"]:
+        config["lowest_loss"] = min(config["train_cer"])
 
     with open(stat_path, 'r') as fh:
-        losses = json.load(fh)
-    print(losses, stat_path)
-    config["train_losses"] = losses["train"]
-    config["test_losses"] = losses["test"]
-    if config["train_losses"]:
-        config["lowest_loss"] = min(config["train_losses"])
+        stats = json.load(fh)
+
+    for name, stat in config["stats"].items():
+        if isinstance(stat, Stat):
+            config["stats"][name].y = stats[name]["y"]
+        else:
+            config["stats"][name] = stats[name]
+
 
 def mkdir(path):
     if path is not None and len(path) > 0 and not os.path.exists(path):
@@ -407,7 +422,8 @@ def save_model(config, bsf=False):
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
     # Save CER
-    results = config["stats"][config["designated_training_cer"]], config["stats"][config["designated_test_cer"]]
+    #results = {"training":config["stats"][config["designated_training_cer"]], "test":config["stats"][config["designated_test_cer"]]}
+    results = {"train_cer":config["train_cer"], "test_cer":config["test_cer"]}
     with open(os.path.join(path, "losses.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -419,10 +435,10 @@ def save_model(config, bsf=False):
 def plt_loss(config):
     ## Plot with matplotlib
     try:
-        x_axis = [(i + 1) * config["n_train_instances"] for i in range(len(config["train_losses"]))]
+        x_axis = [(i + 1) * config["n_train_instances"] for i in range(len(config["train_cer"]))]
         plt.figure()
-        plt.plot(x_axis, config["train_losses"], label='train')
-        plt.plot(x_axis, config["test_losses"], label='test')
+        plt.plot(x_axis, config["train_cer"], label='train')
+        plt.plot(x_axis, config["test_cer"], label='test')
         plt.legend()
         plt.ylim(top=.2)
         plt.ylabel("CER")
@@ -432,7 +448,6 @@ def plt_loss(config):
         plt.close()
     except Exception as e:
         log_print("Problem graphing: {}".format(e))
-
 
 def calculate_cer(out, gt, idx_to_char):
     # gt = x['gt']

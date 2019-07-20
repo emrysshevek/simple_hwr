@@ -227,8 +227,15 @@ def main():
     config["starting_epoch"] = 1
     config["model"] = hw
     config['lowest_loss'] = float('inf')
-    config["train_losses"] = []
-    config["test_losses"] = []
+    config["train_cer"] = []
+    config["test_cer"] = []
+
+    # Launch visdom
+    if config["use_visdom"]:
+        visualize.initialize_visdom(config["full_specs"], config)
+
+    # Stat prep - must be after visdom
+    stat_prep(config)
 
     # Create optimizer
     optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
@@ -273,13 +280,6 @@ def main():
     else: # config["style_encoder"] = False
         config["secondary_criterion"] = None
 
-    # Launch visdom
-    if config["use_visdom"]:
-        visualize.initialize_visdom(config["full_specs"], config)
-
-    # Stat prep - must be after visdom
-    stat_prep(config)
-
     for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
@@ -295,12 +295,12 @@ def main():
             scheduler.step()
 
             LOGGER.info("Training CER: {}".format(training_cer))
-            config["train_losses"].append(training_cer)
+            config["train_cer"].append(training_cer)
 
         # CER plot
         test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
         LOGGER.info("Test CER: {}".format(test_cer))
-        config["test_losses"].append(test_cer)
+        config["test_cer"].append(test_cer)
 
         if config["use_visdom"]:
             config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
