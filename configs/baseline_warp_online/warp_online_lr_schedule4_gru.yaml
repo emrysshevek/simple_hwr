@@ -11,18 +11,18 @@ plot_freq: 50
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 #load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
-#load_path: ./results/warp_online/4Layer_20190718_142433-warp_lr_0.0002_bs_16_warp_True_arch_False/warp_model.pt
-test_only: true # Do not train
+test_only: false                             # Do not train
 
 # General
 experiment: warp_online
-name: warp_online_4layers
+name: warp_online_4RNN
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off
-decoder: beam # CTC decoder: naive, beam
+decoder_type: naive # beam
+
 
 # results_dir:
 # log_dir:
@@ -50,6 +50,7 @@ cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 768                           # originally 512
 rnn_layers: 4
+rnn_type: gru # gru, lstm
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
@@ -62,7 +63,7 @@ mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer clas
 embedding_size: 32                           # The size of the embedding layer in the MLP
 
 # LR schedule
-learning_rate: 1e-4          # LR
+learning_rate: 2e-4          # LR
 scheduler_step: 10           # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 

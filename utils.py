@@ -128,7 +128,8 @@ def load_config(config_path):
                 "nudger_rnn_layers": 2,
                 "nudger_rnn_dimension": 512,
                 "improve_image": False,
-                "decoder" : "naive"
+                "decoder_type" : "naive",
+                "rnn_type": "lstm"
                 }
 
 
@@ -458,21 +459,48 @@ def plt_loss(config):
         log_print("Problem graphing: {}".format(e))
 
 
-def calculate_cer(out, gt, idx_to_char):
+class Decoder:
+    def __init__(self, idx_to_char, beam=False):
+        self.decode_training = self.decode_batch_naive
+        self.decode_test = self.decode_batch_naive
+        self.idx_to_char = idx_to_char
+
+        if beam:
+            from ctcdecode import CTCBeamDecoder
+            print("Using beam")
+            self.beam_decoder = CTCBeamDecoder(labels=idx_to_char.values(), blank_id=0, beam_width=30, num_processes=3, log_probs_input=True)
+            self.decode_test = self.decode_batch_beam
+
+    def decode_batch_naive(self, out):
+        out = out.data.cpu().numpy()
+        for j in range(out.shape[0]):
+            logits = out[j, ...]
+            pred, raw_pred = string_utils.naive_decode(logits)
+            yield string_utils.label2str(pred, self.idx_to_char, False)
+
+    def decode_batch_beam(self, out):
+        pred, scores, timesteps, out_seq_len = self.beam_decoder.decode(out)
+        pred = pred.data.int().numpy()
+        output_lengths = out_seq_len.data.data.numpy()
+        rank = 0 # get top ranked prediction
+        # Loop through batches
+        for batch in range(pred.shape[0]):
+            line_length = output_lengths[batch][rank]
+            line = pred[batch][rank][:line_length]
+            string = u""
+            for char in line:
+                string += self.idx_to_char[char]
+            yield string
+
+def calculate_cer(pred_strs, gt):
     sum_loss = 0
     steps = 0
-    pred_strs = []
-    out = out.data.cpu().numpy()
-    for j in range(out.shape[0]):
-        logits = out[j, ...]
-        pred, raw_pred = string_utils.naive_decode(logits)
-        pred_str = string_utils.label2str(pred, idx_to_char, False)
+    for j, pred_str in enumerate(pred_strs):
         gt_str = gt[j]
         cer = error_rates.cer(gt_str, pred_str)
         sum_loss += cer
         steps += 1
-        pred_strs.append(pred_str)
-    return sum_loss, steps, pred_strs
+    return sum_loss, steps
 
 
 def accumulate_stats(config, freq=None):

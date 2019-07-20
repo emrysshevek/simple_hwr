@@ -108,7 +108,6 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                     step=config["global_step"])
-        print(first_pred_str)
         # Nudge it X times
         for ii in range(50):
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
@@ -191,7 +190,7 @@ def load_data(config):
 
     train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
 
-    config['alphabet_size'] = len(config["idx_to_char"]) + 1  # alphabet size to be recognized
+    config['alphabet_size'] = len(config["idx_to_char"])   # alphabet size to be recognized
     config['num_of_writers'] = train_dataset.classes_count + 1
 
     config['n_train_instances'] = len(train_dataloader.dataset)
@@ -241,13 +240,9 @@ def main():
 
     # Decoder
     config["calc_cer_training"] = calculate_cer
-    if config["decoder"] == "beam":
-        from ctcdecode import CTCBeamDecoder
-        labels = config["char_to_idx"].keys()
-        decoder = CTCBeamDecoder(labels=labels, blank_id=0, beam_width=50, num_processes=6, log_probs_input=True)
-        config["calc_cer_test"] = lambda x: decoder.decode(x)
-    else:
-        config["calc_cer_test"] = calculate_cer
+    use_beam = config["decoder_type"] == "beam"
+    print(config["decoder_type"])
+    config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":

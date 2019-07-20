@@ -34,7 +34,7 @@ def label2input(value, num_of_inputs, char_break_interval):
 
     return np.array(input_data)
 
-def label2str(label, indexToCharacter, asRaw, spaceChar = "~"):
+def label2str(label, indexToCharacter, asRaw=False, spaceChar = "|"):
     string = u""
     for i in range(len(label)):
         if label[i] == 0:

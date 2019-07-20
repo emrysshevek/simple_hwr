@@ -4,7 +4,7 @@
 #SBATCH -C 'rhel7&pascal'
 #SBATCH --mem 16000M
 #SBATCH --ntasks 1
-#SBATCH --output="./warp_online_lr_schedule4_resume.slurm"
+#SBATCH --output="./warp_online_lr_schedule4_gru.slurm"
 #SBATCH --time 24:00:00
 #SBATCH --mail-user=taylor.archibald@byu.edu   # email address
 #SBATCH --mail-type=BEGIN
@@ -21,7 +21,7 @@ group_path="/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr"
 export PATH="${group_path}/env/hwr4_env/bin:$PATH"
 which python
 
-config="warp_online_lr_schedule4_resume"
+config="warp_online_lr_schedule4_gru"
 cd "${group_path}/taylor_simple_hwr"
 echo $config
 python -u train.py --config $config
