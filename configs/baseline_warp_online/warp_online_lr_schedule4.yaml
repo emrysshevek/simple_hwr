@@ -21,6 +21,8 @@ epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off
+decoding: beam # beam
+
 
 # results_dir:
 # log_dir:

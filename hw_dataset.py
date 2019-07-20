@@ -18,7 +18,7 @@ from utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
-def collate(batch):
+def collate(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -46,10 +46,10 @@ def collate(batch):
     label_lengths = np.array(label_lengths)
 
     line_imgs = input_batch.transpose([0,3,1,2])
-    line_imgs = torch.from_numpy(line_imgs)
-    labels = torch.from_numpy(all_labels.astype(np.int32))
-    label_lengths = torch.from_numpy(label_lengths.astype(np.int32))
-    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch]))
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+    labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
+    label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
+    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
 
     return {
         "line_imgs": line_imgs,

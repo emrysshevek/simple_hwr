@@ -13,6 +13,8 @@ import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
+import torch
+
 
 ### TO DO:
 # Add ONLINE flag to regular CRNN
@@ -48,15 +50,14 @@ from crnn import Stat
 faulthandler.enable()
 
 
-def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
+def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
     for x in dataloader:
-        line_imgs = tensor(x['line_imgs'].type(dtype), requires_grad=False)
+        line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] else None
+        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] else None
         config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
@@ -166,19 +167,19 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     return training_cer
 
 
-def make_dataloaders(config):
+def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=0, collate_fn=hw_dataset.collate, pin_memory=True)
+                                  num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
                              warp=config["testing_warp"])
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=0, collate_fn=hw_dataset.collate)
+                                 num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device))
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
@@ -198,6 +199,18 @@ def load_data(config):
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
+def check_gpu(config):
+    # GPU stuff
+    use_gpu = torch.cuda.is_available() and not config["TESTING"]
+    device = torch.device("cuda" if use_gpu else "cpu")
+    dtype = torch.cuda.FloatTensor if use_gpu else torch.FloatTensor
+    if use_gpu:
+        log_print("Using GPU")
+    elif not torch.cuda.is_available():
+        log_print("No GPU found")
+    elif config["TESTING"]:
+        log_print("Testing, not using GPU")
+    return device, dtype
 
 def main():
     global config, LOGGER
@@ -207,6 +220,8 @@ def main():
     config["global_step"] = 0
     config["global_instances_counter"] = 0
 
+    device, dtype = check_gpu(config)
+
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
         config["batch_size"] = 1
@@ -214,10 +229,24 @@ def main():
     # Prep data loaders
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
+
     # Prep optimizer
-    ctc = torch.nn.CTCLoss()
-    log_softmax = torch.nn.LogSoftmax()
-    criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
+    if True:
+        ctc = torch.nn.CTCLoss()
+        log_softmax = torch.nn.LogSoftmax(dim=2).to(device)
+        criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
+    else:
+        from warpctc_pytorch import CTCLoss
+        criterion = CTCLoss()
+
+    # Decoder
+    if config["decoder"] == "beam":
+        from ctcdecode import CTCBeamDecoder
+        labels = config["char_to_idx"].keys()
+        decoder = CTCBeamDecoder(labels=labels, blank_id=0, beam_width=50, num_processes=6, log_probs_input=True)
+        config["calc_cer"] = lambda x: decoder.decode(x)
+    else:
+        config["calc_cer"] = calculate_cer
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
@@ -230,13 +259,15 @@ def main():
 
     elif config["style_encoder"] == "2StageNudger":
         hw = crnn.create_CRNN(config)
-        config["nudger"] = crnn.create_Nudger(config)
+        config["nudger"] = crnn.create_Nudger(config).to(device)
         config["embedding_size"] = 0
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
 
     else:  # basic HWR
         config["embedding_size"] = 0
         hw = crnn.create_CRNN(config)
+
+    hw.to(device)
 
     # Setup defaults
     config["starting_epoch"] = 1
@@ -262,7 +293,7 @@ def main():
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
         load_model(config)
-        hw = config["model"]
+        hw = config["model"].to(device)
         # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
 
     # Create trainer
@@ -272,23 +303,6 @@ def main():
                                                train_baseline=train_baseline)
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
-
-    # Prep GPU
-    if config["TESTING"]:  # don't use GPU for testing
-        dtype = torch.FloatTensor
-        log_print("Testing mode, not using GPU")
-        config["cuda"] = False
-    elif torch.cuda.is_available():
-        hw.cuda()
-        if "nudger" in config.keys():
-            config["nudger"].cuda()
-        dtype = torch.cuda.FloatTensor
-        log_print("Using GPU")
-        config["cuda"] = True
-    else:
-        dtype = torch.FloatTensor
-        log_print("No GPU detected")
-        config["cuda"] = False
 
     # Alternative Models
     if config["style_encoder"] == "basic_encoder":
@@ -314,7 +328,7 @@ def main():
             config["train_cer"].append(training_cer)
 
         # CER plot
-        test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
+        test_cer = test(hw, test_dataloader, config["idx_to_char"], device, config)
         LOGGER.info("Test CER: {}".format(test_cer))
         config["test_cer"].append(test_cer)
 

@@ -127,8 +127,10 @@ def load_config(config_path):
                 "rnn_layers": 2,
                 "nudger_rnn_layers": 2,
                 "nudger_rnn_dimension": 512,
-                "improve_image": False
+                "improve_image": False,
+                "decoder" : "naive"
                 }
+
 
     for k in defaults.keys():
         if k not in config.keys():
@@ -390,7 +392,9 @@ def load_model(config):
             if isinstance(stat, Stat):
                 config["stats"][name].y = stats[name]["y"]
             else:
-                config["stats"][name] = stats[name]
+                for i in stats[name]: # so we don't mess up the reference etc.
+                    config["stats"][name].append(i)
+
     except:
         warnings.warn("Could not load from all_stats.json")
 
@@ -453,11 +457,12 @@ def plt_loss(config):
     except Exception as e:
         log_print("Problem graphing: {}".format(e))
 
+
 def calculate_cer(out, gt, idx_to_char):
-    # gt = x['gt']
     sum_loss = 0
     steps = 0
     pred_strs = []
+    out = out.cpu().numpy()
     for j in range(out.shape[0]):
         logits = out[j, ...]
         pred, raw_pred = string_utils.naive_decode(logits)

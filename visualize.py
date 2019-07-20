@@ -123,7 +123,6 @@ def plot_all(config):
         return
 
     visdom_manager = config["visdom_manager"]
-
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.plot and stat.updated_since_plot:
             #print("updating {}".format(stat.name), stat.x, stat.y)
