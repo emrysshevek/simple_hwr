@@ -32,7 +32,7 @@ import traceback
 
 import visualize
 import matplotlib
-#matplotlib.use('TkAgg')
+# matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -47,14 +47,16 @@ from crnn import Stat
 
 faulthandler.enable()
 
+
 def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
     for x in dataloader:
         line_imgs = tensor(x['line_imgs'].type(dtype), requires_grad=False)
-        gt = x['gt'] # actual string ground truth
-        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+        gt = x['gt']  # actual string ground truth
+        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+            "online_augmentation"] else None
         config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
@@ -62,10 +64,11 @@ def test(model, dataloader, idx_to_char, dtype, config, with_analysis=False):
             break
 
     accumulate_stats(config)
-    test_cer = config["stats"][config["designated_test_cer"]].y[-1] # most recent test CER
+    test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
 
     LOGGER.debug(config["stats"])
     return test_cer
+
 
 def plot_images(line_imgs, name, text_str):
     # Save images
@@ -84,9 +87,9 @@ def plot_images(line_imgs, name, text_str):
 
 
 def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
-    model.train() # make sure gradients are tracked
+    model.train()  # make sure gradients are tracked
     lr = .01
-    model.my_eval() # set dropout to 0
+    model.my_eval()  # set dropout to 0
 
     for i, x in enumerate(dataloader):
         LOGGER.debug("Improving Iteration: {}".format(i))
@@ -103,16 +106,16 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
             "online_augmentation"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
-                                                      step=config["global_step"])
+                                                                    step=config["global_step"])
         print(first_pred_str)
         # Nudge it X times
         for ii in range(50):
-            loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt, step=config["global_step"])
-            #print(torch.abs(x['line_imgs']-params[0]).sum())
+            loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
+                                                                      step=config["global_step"])
+            # print(torch.abs(x['line_imgs']-params[0]).sum())
             accumulate_stats(config)
-            training_cer = config["stats"][config["designated_training_cer"]].y[-1] # most recent training CER
+            training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
             LOGGER.info(f"{training_cer}")
-
 
         plot_images(params[0], i, gt)
         plot_images(x['line_imgs'], f"{i}_original", first_pred_str)
@@ -128,63 +131,73 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     for i, x in enumerate(dataloader):
         LOGGER.debug(f"Training Iteration: {i}")
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
-        labels = Variable(x['labels'], requires_grad=False) # numeric indices version of ground truth
+        labels = Variable(x['labels'], requires_grad=False)  # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
-        gt = x['gt'] # actual string ground truth
+        gt = x['gt']  # actual string ground truth
         config["global_step"] += 1
         config["global_instances_counter"] += line_imgs.shape[0]
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+            "online_augmentation"] else None
 
         config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
             config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [config["current_epoch"]+ i * config["batch_size"] * 1.0 / config['n_train_instances']]
+            config["stats"]["epoch_decimal"] += [
+                config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [config["current_epoch"]+i * config["batch_size"] / config['n_train_instances']]
+            config["stats"]["epoch_decimal"] += [
+                config["current_epoch"] + i * config["batch_size"] / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             break
 
-    training_cer = config["stats"][config["designated_training_cer"]].y[-1] # most recent training CER
+    training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
     LOGGER.debug(config["stats"])
     return training_cer
+
 
 def make_dataloaders(config):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
 
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
+                                  num_workers=0, collate_fn=hw_dataset.collate, pin_memory=True)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"], num_workers=0, collate_fn=hw_dataset.collate, pin_memory=True)
-
-    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"], num_of_channels=config["num_of_channels"], root=config["testing_root"], warp=config["testing_warp"])
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"], num_workers=0, collate_fn=hw_dataset.collate)
+    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
+                             num_of_channels=config["num_of_channels"], root=config["testing_root"],
+                             warp=config["testing_warp"])
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
+                                 num_workers=0, collate_fn=hw_dataset.collate)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
+
 def load_data(config):
     # Load characters and prep datasets
-    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(config['training_jsons'], root=config["training_root"])
+    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(
+        config['training_jsons'], root=config["training_root"])
 
     train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
 
-    config['alphabet_size'] = len(config["idx_to_char"]) + 1 # alphabet size to be recognized
+    config['alphabet_size'] = len(config["idx_to_char"]) + 1  # alphabet size to be recognized
     config['num_of_writers'] = train_dataset.classes_count + 1
 
     config['n_train_instances'] = len(train_dataloader.dataset)
     log_print("Number of training instances:", config['n_train_instances'])
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
     return train_dataloader, test_dataloader, train_dataset, test_dataset
+
 
 def main():
     global config, LOGGER
@@ -193,7 +206,7 @@ def main():
     LOGGER = config["logger"]
     config["global_step"] = 0
     config["global_instances_counter"] = 0
-    
+
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
         config["batch_size"] = 1
@@ -202,7 +215,9 @@ def main():
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
     # Prep optimizer
-    criterion = torch.nn.CTCLoss()
+    ctc = torch.nn.CTCLoss()
+    log_softmax = torch.nn.LogSoftmax()
+    criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
@@ -211,16 +226,16 @@ def main():
         hw = crnn.create_CRNNClassifier(config)
     elif config["style_encoder"] == "2Stage":
         hw = crnn.create_2Stage(config)
-        config["embedding_size"]=0
+        config["embedding_size"] = 0
 
     elif config["style_encoder"] == "2StageNudger":
         hw = crnn.create_CRNN(config)
         config["nudger"] = crnn.create_Nudger(config)
-        config["embedding_size"]=0
+        config["embedding_size"] = 0
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
 
-    else: # basic HWR
-        config["embedding_size"]=0
+    else:  # basic HWR
+        config["embedding_size"] = 0
         hw = crnn.create_CRNN(config)
 
     # Setup defaults
@@ -253,15 +268,16 @@ def main():
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
-        config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion, train_baseline=train_baseline)
+        config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
+                                               train_baseline=train_baseline)
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 
     # Prep GPU
-    if config["TESTING"]: # don't use GPU for testing
+    if config["TESTING"]:  # don't use GPU for testing
         dtype = torch.FloatTensor
         log_print("Testing mode, not using GPU")
-        config["cuda"]=False
+        config["cuda"] = False
     elif torch.cuda.is_available():
         hw.cuda()
         if "nudger" in config.keys():
@@ -272,15 +288,15 @@ def main():
     else:
         dtype = torch.FloatTensor
         log_print("No GPU detected")
-        config["cuda"]=False
+        config["cuda"] = False
 
     # Alternative Models
-    if config["style_encoder"]=="basic_encoder":
+    if config["style_encoder"] == "basic_encoder":
         config["secondary_criterion"] = CrossEntropyLoss()
-    else: # config["style_encoder"] = False
+    else:  # config["style_encoder"] = False
         config["secondary_criterion"] = None
 
-    for epoch in range(config["starting_epoch"], config["starting_epoch"]+config["epochs_to_run"]+1):
+    for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
 
@@ -321,6 +337,7 @@ def main():
                 save_model(config, bsf=False)
 
             plt_loss(config)
+
 
 if __name__ == "__main__":
     try:

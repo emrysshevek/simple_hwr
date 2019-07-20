@@ -381,14 +381,18 @@ def load_model(config):
     if config["train_cer"]:
         config["lowest_loss"] = min(config["train_cer"])
 
-    with open(stat_path, 'r') as fh:
-        stats = json.load(fh)
+    # Load stats
+    try:
+        with open(stat_path, 'r') as fh:
+            stats = json.load(fh)
 
-    for name, stat in config["stats"].items():
-        if isinstance(stat, Stat):
-            config["stats"][name].y = stats[name]["y"]
-        else:
-            config["stats"][name] = stats[name]
+        for name, stat in config["stats"].items():
+            if isinstance(stat, Stat):
+                config["stats"][name].y = stats[name]["y"]
+            else:
+                config["stats"][name] = stats[name]
+    except:
+        warnings.warn("Could not load from all_stats.json")
 
 
 def mkdir(path):

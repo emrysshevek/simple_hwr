@@ -157,7 +157,7 @@ class CRNN(nn.Module):
     def forward(self, input):
         conv = self.cnn(input)
         output = self.rnn(conv)
-        return self.softmax(output),
+        return output,
 
 class CRNN2(nn.Module):
     """ CRNN with writer classifier
@@ -213,7 +213,7 @@ class CRNN2(nn.Module):
         # rnn features
         recognizer_output = self.rnn(rnn_input)
 
-        return self.softmax(recognizer_output), classifier_output
+        return recognizer_output, classifier_output
 
 class CRNN_2Stage(nn.Module):
     """ CRNN with writer classifier
@@ -247,7 +247,7 @@ class CRNN_2Stage(nn.Module):
         #print(conv.shape)
         #print(cnn_rnn_concat.shape)
 
-        return self.softmax(recognizer_output), rnn_input
+        return recognizer_output, rnn_input
 
 
 class basic_CRNN(nn.Module):
@@ -296,7 +296,7 @@ class basic_CRNN(nn.Module):
         if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
         recognizer_output = self.rnn(rnn_input)
-        return self.softmax(recognizer_output), rnn_input
+        return recognizer_output, rnn_input
 
 class Nudger(nn.Module):
 
@@ -331,7 +331,7 @@ class Nudger(nn.Module):
         # Second stage
         nudged_cnn_encoding = feature_maps + nudger_output
         recognizer_output_refined = recognizer_rnn(nudged_cnn_encoding)
-        return self.softmax(recognizer_output_refined), nudged_cnn_encoding
+        return recognizer_output_refined, nudged_cnn_encoding
 
 def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
