@@ -462,7 +462,7 @@ def calculate_cer(out, gt, idx_to_char):
     sum_loss = 0
     steps = 0
     pred_strs = []
-    out = out.cpu().numpy()
+    out = out.data.cpu().numpy()
     for j in range(out.shape[0]):
         logits = out[j, ...]
         pred, raw_pred = string_utils.naive_decode(logits)

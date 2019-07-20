@@ -21,12 +21,13 @@ def beam(out):
     lookup(output, out_seq_len)
 
 def lookup(output, output_lengths, indexToCharacter):
-    string = u""
+
     # Loop through batches
     for batch in range(output.size[0]):
-        if label[i] == 0:
-            if asRaw:
-                string += spaceChar
+        line = output[batch][:output_lengths[batch]]
+        string = u""
+        for char in line:
+
             else:
                 break
         else:
