@@ -18,7 +18,21 @@ def beam(out):
     print(f"timesteps {timesteps}")
     print(f"out_seq_len {out_seq_len}")
     print(pred[0][1])
+    lookup(output, out_seq_len)
 
+def lookup(output, output_lengths, indexToCharacter):
+    string = u""
+    # Loop through batches
+    for batch in range(output.size[0]):
+        if label[i] == 0:
+            if asRaw:
+                string += spaceChar
+            else:
+                break
+        else:
+            val = label[i]
+            string += indexToCharacter[val]
+    return string
 
 beam(output)
 

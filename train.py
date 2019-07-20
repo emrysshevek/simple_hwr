@@ -240,13 +240,14 @@ def main():
         criterion = CTCLoss()
 
     # Decoder
+    config["calc_cer_training"] = calculate_cer
     if config["decoder"] == "beam":
         from ctcdecode import CTCBeamDecoder
         labels = config["char_to_idx"].keys()
         decoder = CTCBeamDecoder(labels=labels, blank_id=0, beam_width=50, num_processes=6, log_probs_input=True)
-        config["calc_cer"] = lambda x: decoder.decode(x)
+        config["calc_cer_test"] = lambda x: decoder.decode(x)
     else:
-        config["calc_cer"] = calculate_cer
+        config["calc_cer_test"] = calculate_cer
 
     # Create classifier
     if config["style_encoder"] == "basic_encoder":

@@ -389,7 +389,8 @@ class TrainerBaseline(json.JSONEncoder):
         self.ctc_criterion = ctc_criterion
         self.idx_to_char = self.config["idx_to_char"]
         self.train_decoder = string_utils.naive_decode
-        self.calculate_cer = config["calc_cer"]
+        self.calculate_cer_training = config["calc_cer_training"]
+        self.calculate_cer_test = config["calc_cer_test"]
 
     def default(self, o):
         return None
@@ -404,7 +405,6 @@ class TrainerBaseline(json.JSONEncoder):
         preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
 
         output_batch = pred_text.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-        out = output_batch.data.cpu().numpy() # uncollapsed, predictions
 
         # Get losses
         self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
@@ -419,7 +419,7 @@ class TrainerBaseline(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
-        err, weight, pred_str = self.calculate_cer(out, gt, self.idx_to_char, decoder=self.train_decoder)
+        err, weight, pred_str = self.calculate_cer_training(output_batch, gt, self.idx_to_char)
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_str
@@ -453,7 +453,7 @@ class TrainerBaseline(json.JSONEncoder):
         if nudger:
             return rnn_input
         else:
-            err, weight, pred_str = self.calculate_cer(output_batch.data, gt, self.idx_to_char)
+            err, weight, pred_str = self.calculate_cer_test(output_batch, gt, self.idx_to_char)
             self.config["stats"]["Test Error Rate"].accumulate(err, weight)
             loss = -1 # not calculating test loss here
             return loss, err, pred_str
@@ -470,8 +470,8 @@ class TrainerNudger(json.JSONEncoder):
         self.nudger = config["nudger"]
         self.recognizer_rnn = self.model.rnn
         self.train_baseline = train_baseline
-        self.train_decoder = string_utils.naive_decode
-        self.calculate_cer = config["calc_cer"]
+        self.calculate_cer_training = config["calc_cer_training"]
+        self.calculate_cer_test = config["calc_cer_test"]
 
     def default(self, o):
         return None
@@ -489,7 +489,6 @@ class TrainerNudger(json.JSONEncoder):
         pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
         preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
         output_batch = pred_text_nudged.permute(1, 0, 2)
-        out = output_batch.data.cpu().numpy()  # uncollapsed, predictions
 
         self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
         loss_recognizer_nudged = self.ctc_criterion(pred_text_nudged, labels, preds_size, label_lengths)
@@ -507,7 +506,7 @@ class TrainerNudger(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight, pred_str = self.calculate_cer(out, gt, self.idx_to_char, decoder=self.train_decoder)
+        err, weight, pred_str = self.calculate_cer_training(output_batch, gt, self.idx_to_char)
         self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_str
@@ -519,9 +518,8 @@ class TrainerNudger(json.JSONEncoder):
         pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
         # preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
         output_batch = pred_text_nudged.permute(1, 0, 2)
-        out = output_batch.data.cpu().numpy()  # uncollapsed, predictions
 
-        err, weight, pred_str = self.calculate_cer(out, gt, self.idx_to_char)
+        err, weight, pred_str = self.calculate_cer_test(output_batch, gt, self.idx_to_char)
         self.config["stats"]["Nudged Test Error Rate"].accumulate(err, weight)
         loss = -1
 
