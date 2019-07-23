@@ -241,7 +241,6 @@ def main():
     # Decoder
     config["calc_cer_training"] = calculate_cer
     use_beam = config["decoder_type"] == "beam"
-    print(config["decoder_type"])
     config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
 
     # Create classifier
