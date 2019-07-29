@@ -1,5 +1,7 @@
 ### TESTING
 TESTING: false # Load as little as possible for fast prototyping
+SMALL_TRAINING: false
+plot_freq: 50
 
 ## Things that shouldn't matter much:
 # Random shuffling
@@ -13,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: baseline
-name: warp_augmented
+name: true_baseline
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -26,9 +28,9 @@ debug: off
 # Training data
 training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: ../simple_hwr/data
-training_shuffle: false
-training_warp: true
-online_augmentation: true
+training_shuffle: true
+training_warp: false
+online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
@@ -36,14 +38,14 @@ testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
 testing_warp: false
-output_predictions: true                    # Output incorrect test predictions
+output_predictions: false                    # Output incorrect test predictions
 
 #Network
-style_encoder: False                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
-batch_size: 8                                # Batch size
+style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
-num_of_channels: 3                           # Number of channels in input image
+num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
 
 # Recognizer parameters
@@ -57,6 +59,6 @@ mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer clas
 embedding_size: 32                           # The size of the embedding layer in the MLP
 
 # LR schedule
-learning_rate: 1e-4          # LR
-scheduler_step: 1500         # Every X steps, multiply LR by gamma
-scheduler_gamma: .9          # LR decay rate
+learning_rate: 5e-3          # LR
+scheduler_step: 5         # Every X steps, multiply LR by gamma
+scheduler_gamma: .95          # LR decay rate

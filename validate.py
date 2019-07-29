@@ -11,7 +11,6 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-from warpctc_pytorch import CTCLoss
 from train import *
 import error_rates
 import string_utils

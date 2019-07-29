@@ -1,18 +1,21 @@
 # Data
 *prepare*/
 *.pt
+*.lnk*
+*.slurm
 
 # results
 results/
 
 # Configs
-configs/
+# configs/
 
 # Data
 data/prepare_IAM_Lines/lines/
 data/prepare_online_data/cropped_images/
 
 # Passwords and cookies
+*.log
 password.txt
 username.txt
 log/

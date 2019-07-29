@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import warnings
 import json
-
+from crnn import Stat
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
 
@@ -100,36 +100,34 @@ class Plot(object):
             file.write(to_write + '\n')
         file.close()
 
-hwr_loss_title = "HWR Loss"
-writer_loss_title = "Writer Loss"
-total_loss_title = "Total Loss"
-
 def initialize_visdom(env_name, config):
     if not config["use_visdom"]:
         return
-    config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
-    config["visdom_manager"].register_plot(hwr_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot(writer_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot(total_loss_title, "Instances", "Loss")
-    config["visdom_manager"].register_plot("Test Error Rate", "Epoch", "Loss", ymax=.2)
-    return config["visdom_manager"]
+    try:
+        config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
+        return config["visdom_manager"]
+    except:
+        config["use_visdom"] = False
+        config["logger"].warning("Unable to initialize visdom, is the visdom server started?")
 
-def plot_loss(config, epoch, _hwr_loss, _writer_loss=None, _total_loss=None):
-    visdom_manager = config["visdom_manager"]
+def plot_all(config):
+    """
+    ADD SMOOTHING
+    Args:
+        config:
+
+    Returns:
+
+    """
     if not config["use_visdom"]:
         return
 
-    # Plot writer recognizer loss and total loss
-    if _writer_loss is None:
-        _writer_loss = 0
-    if _total_loss is None:
-        _total_loss = _hwr_loss
-
-    # Plot regular losses
-    visdom_manager.update_plot(hwr_loss_title, [epoch], _hwr_loss)
-    visdom_manager.update_plot(writer_loss_title, [epoch], _writer_loss)
-    visdom_manager.update_plot(total_loss_title, [epoch], _total_loss)
-
+    visdom_manager = config["visdom_manager"]
+    for title, stat in config["stats"].items():
+        if isinstance(stat, Stat) and stat.plot and stat.updated_since_plot:
+            #print("updating {}".format(stat.name), stat.x, stat.y)
+            visdom_manager.update_plot(stat.name, stat.x[-stat.plot_update_length:], stat.y[-stat.plot_update_length:])
+            stat.updated_since_plot = False
 
 if __name__=="__main__":
     plot = Plot("Test")

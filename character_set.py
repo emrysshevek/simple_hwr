@@ -38,6 +38,10 @@ def make_char_set(paths, root="./data"):
         out_char_to_idx2[c] = i + 1
         out_idx_to_char2[i + 1] = c
 
+    # Add empty
+    out_char_to_idx2["|"] = 0
+    out_idx_to_char2[0] = "|"
+
     return out_char_to_idx2, out_idx_to_char2, char_freq
 
 

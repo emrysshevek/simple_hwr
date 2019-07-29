@@ -8,7 +8,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: two_stage
-name: baseline
+name: real_baseline
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
@@ -45,6 +45,7 @@ rnn_dimension: 512                          # originally 512
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
 
 # Writer Classifier - LSTM + MLP (with embedding layer)
+# Not needed for 2 stage
 writer_dropout: 0.4                          # Probability of being "dropped out" in writer LSTM+MLP
 writer_rnn_dimension: 128                    # Dimension of LSTM state vector
 writer_rnn_output_size: 256                  # LSTM output dimension for writer classifier

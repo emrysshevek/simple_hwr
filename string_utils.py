@@ -34,7 +34,7 @@ def label2input(value, num_of_inputs, char_break_interval):
 
     return np.array(input_data)
 
-def label2str(label, indexToCharacter, asRaw, spaceChar = "~"):
+def label2str(label, indexToCharacter, asRaw=False, spaceChar = "|"):
     string = u""
     for i in range(len(label)):
         if label[i] == 0:
@@ -54,3 +54,4 @@ def naive_decode(output):
         if rawPredData[i] != 0 and not ( i > 0 and rawPredData[i] == rawPredData[i-1] ):
             predData.append(rawPredData[i])
     return predData, list(rawPredData)
+
