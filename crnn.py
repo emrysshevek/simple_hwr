@@ -4,6 +4,8 @@ from torch import nn
 from utils import *
 import os
 from torch.autograd import Variable
+#import torchvision
+from models import resnet
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
@@ -84,7 +86,7 @@ class BidirectionalRNN(nn.Module):
         return output
 
 class CNN(nn.Module):
-    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False):
+    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, type="default"):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
 
         The CNN learns some kind of sequential ordering because the maps are fed into the LSTM sequentially.
@@ -94,8 +96,14 @@ class CNN(nn.Module):
             nc:
             leakyRelu:
         """
-
         super(CNN, self).__init__()
+        if type=="default":
+            self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)
+        elif type=="resnet":
+            #self.cnn = torchvision.models.resnet101(pretrained=False)
+            self.cnn = resnet.resnet18(pretrained=False, channels=nc)
+
+    def default_CNN(self, nc=3, leakyRelu=False):
 
         ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
         ps = [1, 1, 1, 1, 1, 1, 0] # padding
@@ -130,10 +138,11 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
         convRelu(6, True)  # 512x1x16 = channels, height, width
-        self.cnn = cnn
+        return cnn
 
     def post_process(self, conv):
-        b, c, h, w = conv.size()
+        b, c, h, w = conv.size() # something like 16, 512, 2, 406
+        print(conv.size())
         conv = conv.view(b, -1, w)  # batch, Height * Channels, Width
 
         # Width effectively becomes the "time" seq2seq variable
@@ -311,13 +320,13 @@ class CRNN_UNet(nn.Module):
 class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False, rnn_constructor=nn.LSTM):
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False, rnn_constructor=nn.LSTM, cnn_type="default"):
         super(basic_CRNN, self).__init__()
         self.softmax = nn.LogSoftmax()
         self.dropout = recognizer_dropout
         rnn_expansion_dimension = 1 if online_augmentation else 0
         rnn_in_dim = cnnOutSize + rnn_expansion_dimension
-        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
         self.rnn = BidirectionalRNN(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers, rnn_constructor=rnn_constructor)
 
     def my_eval(self):
@@ -395,7 +404,8 @@ def create_CRNN(config):
     check_inputs(config)
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
     crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"], rnn_constructor=config["rnn_constructor"])
+                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
+                      rnn_constructor=config["rnn_constructor"], cnn_type=config["cnn"])
     return crnn
 
 def create_CRNNClassifier(config, use_writer_classifier=True):

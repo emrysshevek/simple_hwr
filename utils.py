@@ -129,7 +129,8 @@ def load_config(config_path):
                 "nudger_rnn_dimension": 512,
                 "improve_image": False,
                 "decoder_type" : "naive",
-                "rnn_type": "lstm"
+                "rnn_type": "lstm",
+                "cnn": "default"
                 }
 
 
