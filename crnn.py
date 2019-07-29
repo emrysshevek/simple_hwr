@@ -132,15 +132,22 @@ class CNN(nn.Module):
         convRelu(6, True)  # 512x1x16 = channels, height, width
         self.cnn = cnn
 
-    def forward(self, input):
-        # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
-        conv = self.cnn(input)
+    def post_process(self, conv):
         b, c, h, w = conv.size()
-        conv = conv.view(b, -1, w) # batch, Height * Channels, Width
+        conv = conv.view(b, -1, w)  # batch, Height * Channels, Width
 
         # Width effectively becomes the "time" seq2seq variable
         output = conv.permute(2, 0, 1)  # [w, b, c], first time: [404, 8, 1024] ; second time: 213, 8, 1024
         return output
+
+    def forward(self, input, intermediate_level=None):
+        # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
+        if intermediate_level is None:
+            return self.post_process(self.cnn(input))
+        else:
+            conv = self.cnn[0:intermediate_level](input)
+            conv2 = self.cnn[intermediate_level:](conv)
+            return self.post_process(conv2), self.post_process(conv)
 
 class CRNN(nn.Module):
     """ Original CRNN
@@ -247,6 +254,57 @@ class CRNN_2Stage(nn.Module):
         #print(conv.shape)
         #print(cnn_rnn_concat.shape)
 
+        return recognizer_output, rnn_input
+
+class CRNN_UNet(nn.Module):
+    """ CRNN with writer classifier
+    """
+
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False,
+                 recognizer_dropout=.5, online_augmentation=False, rnn_constructor=nn.LSTM):
+        super(basic_CRNN, self).__init__()
+        self.softmax = nn.LogSoftmax()
+        self.dropout = recognizer_dropout
+        rnn_expansion_dimension = 1 if online_augmentation else 0
+        rnn_in_dim = cnnOutSize + rnn_expansion_dimension
+        self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
+        self.rnn = BidirectionalRNN(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout,
+                                    num_layers=rnn_layers, rnn_constructor=rnn_constructor)
+
+    def my_eval(self):
+        self.rnn.rnn.dropout = 0
+
+    def my_train(self):
+        self.rnn.rnn.dropout = self.dropout
+
+    def freeze(self):
+        for p in self.parameters():
+            p.requires_grad = False
+        self.my_eval()
+
+    def unfreeze(self):
+        for p in self.parameters():
+            p.requires_grad = True
+        self.my_train()
+
+    def forward(self, input, online=None, classifier_output=None):
+        """
+
+        Args:
+            input:
+            online:
+            classifier_output:
+
+        Returns:
+            tuple: normal prediction, refined prediction, normal CNN encoding, nudged CNN encoding
+
+        """
+        conv = self.cnn(input)
+        rnn_input = conv  # [width/time, batch, feature_maps]
+
+        if online is not None:
+            rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
+        recognizer_output = self.rnn(rnn_input)
         return recognizer_output, rnn_input
 
 
