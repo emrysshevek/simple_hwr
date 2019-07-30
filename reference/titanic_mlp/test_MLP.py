@@ -13,8 +13,6 @@ import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
 import error_rates
 import string_utils
 from torch.nn import CrossEntropyLoss

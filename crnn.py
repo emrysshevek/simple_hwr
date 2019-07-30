@@ -7,7 +7,6 @@ from torch.autograd import Variable
 #import torchvision
 from models import resnet
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
 # Increase LSTM dropout
 
@@ -85,6 +84,17 @@ class BidirectionalRNN(nn.Module):
 
         return output
 
+
+class PrintLayer(nn.Module):
+    def __init__(self, name=None):
+        super(PrintLayer, self).__init__()
+        self.name = name
+
+    def forward(self, x):
+        # Do your print / debug stuff here
+        print(x.size(), self.name)
+        return x
+
 class CNN(nn.Module):
     def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, type="default"):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
@@ -124,20 +134,22 @@ class CNN(nn.Module):
                                nn.LeakyReLU(0.2, inplace=True))
             else:
                 cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
+            #cnn.add_module(f"printAfter{i}", PrintLayer(name=f"printAfter{i}"))
 
-        convRelu(0)
-        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 64x16x64
-        convRelu(1)
-        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 128x8x32
-        convRelu(2, True)
-        convRelu(3)
+        # input: 16, 1, 60, 256; batch, channels, height, width
+        convRelu(0) # 16, 64, 60, 1802
+        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 16, 64, 30, 901
+        convRelu(1) # 16, 128, 30, 901
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16, 128, 15, 450
+        convRelu(2, True) # 16, 256, 15, 450
+        convRelu(3) # 16, 256, 15, 450
         cnn.add_module('pooling{0}'.format(2),
-                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 256x4x16
-        convRelu(4, True)
-        convRelu(5)
+                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 256, 7, 451 # kernel_size, stride, padding
+        convRelu(4, True) # 16, 512, 7, 451
+        convRelu(5) # 16, 512, 7, 451
         cnn.add_module('pooling{0}'.format(3),
-                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 512x2x16
-        convRelu(6, True)  # 512x1x16 = channels, height, width
+                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
+        convRelu(6, True)  # 16, 512, 2, 451
         return cnn
 
     def post_process(self, conv):
@@ -152,7 +164,8 @@ class CNN(nn.Module):
     def forward(self, input, intermediate_level=None):
         # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
         if intermediate_level is None:
-            return self.post_process(self.cnn(input))
+            x = self.post_process(self.cnn(input))
+            return x
         else:
             conv = self.cnn[0:intermediate_level](input)
             conv2 = self.cnn[intermediate_level:](conv)

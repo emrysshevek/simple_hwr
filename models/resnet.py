@@ -97,16 +97,16 @@ class Bottleneck(nn.Module):
 
 
 class ResNet(nn.Module):
-
+    # 16, 64, 60, 1802 -> 16, 512, 2, 451; pool over height
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, channels=3):
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.conv1 = nn.Conv2d(channels, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.relu = nn.ReLU(inplace=True) # 101 - blocks: 3, 4, 23, 3
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,4), padding=1)
+        self.layer1 = self._make_layer(block=block, planes=64, blocks=layers[0])
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
@@ -134,11 +134,12 @@ class ResNet(nn.Module):
 
     def _make_layer(self, block, planes, blocks, stride=1):
         downsample = None
-        if stride != 1 or self.inplanes != planes * block.expansion:
-            downsample = nn.Sequential(
-                conv1x1(self.inplanes, planes * block.expansion, stride),
-                nn.BatchNorm2d(planes * block.expansion),
-            )
+        if False:
+            if stride != 1 or self.inplanes != planes * block.expansion:
+                downsample = nn.Sequential(
+                    conv1x1(self.inplanes, planes * block.expansion, stride),
+                    nn.BatchNorm2d(planes * block.expansion),
+                )
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample))
@@ -149,18 +150,26 @@ class ResNet(nn.Module):
         return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
-
-        x = self.layer1(x)
+        print(x.size()) # torch.Size([16, 1, 60, 1567])
+        x = self.conv1(x) # torch.Size([16, 64, 30, 784])
+        print(x.size())
+        x = self.bn1(x) # torch.Size([16, 64, 30, 784])
+        print(x.size())
+        x = self.relu(x) # torch.Size([16, 64, 30, 784])
+        print(x.size())
+        x = self.maxpool(x) # torch.Size([16, 64, 15, 392])
+        print(x.size())
+        x = self.layer1(x) # ERROR: 196 must match 392 at dimension 3
+        print(x.size())
         x = self.layer2(x)
+        print(x.size())
         x = self.layer3(x)
+        print(x.size())
         x = self.layer4(x)
-
+        print(x.size())
         x = self.avgpool(x) # something like 16, 512, 1, 1
                             #                 b, feature_maps, channels?, ?
+        print(x.size())
         # x = x.view(x.size(0), -1)
         # x = self.fc(x)
 
@@ -225,3 +234,13 @@ def resnet152(pretrained=False, **kwargs):
     if pretrained:
         model.load_state_dict(model_zoo.load_url(model_urls['resnet152']))
     return model
+
+class PrintLayer(nn.Module):
+    def __init__(self, name=None):
+        super(PrintLayer, self).__init__()
+        self.name = name
+
+    def forward(self, x):
+        # Do your print / debug stuff here
+        print(x.size(), self.name)
+        return x

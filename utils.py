@@ -244,11 +244,21 @@ def symlink(target, link_location):
 def get_computer():
     return socket.gethostname()
 
+def choose_optimal_gpu(priority="memory"):
+    import GPUtil
+    if priority == "memory":
+        best_gpu = [(x.memoryFree, -x.load, i) for i,x in enumerate(GPUtil.getGPUs())]
+    else: # utilization
+        best_gpu = [(-x.load, x.memoryFree, i) for i, x in enumerate(GPUtil.getGPUs())]
+
+    best_gpu.sort(reverse=True)
+    best_gpu = best_gpu[0][2]
+    os.environ['CUDA_VISIBLE_DEVICES'] = str(best_gpu)
+    return best_gpu
+
 def wait_for_gpu():
     if get_computer() != "Galois":
         return
-
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
     ## Wait until GPU is available -- only on Galois
     import GPUtil
@@ -364,6 +374,7 @@ def load_model(config):
             config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
         except:
             warnings.warn("Unable to load from visdom.json; does the file exist?")
+            config["use_visdom"] = False
             ## RECREAT VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
 

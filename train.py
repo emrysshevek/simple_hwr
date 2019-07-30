@@ -213,6 +213,10 @@ def check_gpu(config):
 
 def main():
     global config, LOGGER
+
+    # Set GPU
+    choose_optimal_gpu()
+
     opts = parse_args()
     config = load_config(opts.config)
     LOGGER = config["logger"]
