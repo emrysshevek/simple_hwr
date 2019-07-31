@@ -1,4 +1,4 @@
-name: hw2
+#name: hw2
 channels:
   - pytorch
   - conda-forge
@@ -170,5 +170,7 @@ dependencies:
     - torch==1.1.0
     - torchfile==0.1.0
     - torchvision==0.2.2.post3
+prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr4_env
+
 #prefix: /home/taylor/anaconda3/envs/hw2
 
