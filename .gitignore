@@ -3,7 +3,8 @@
 *.pt
 *.lnk*
 *.slurm
-*.sh
+~archive/
+
 # results
 results/
 
