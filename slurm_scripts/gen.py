@@ -73,8 +73,7 @@ def gen(sh_path, log_path, env, command, hardware_dict, cd_path=None):
     mkdir(sh_path, parent=True)
     print(f"Writing {sh_path}")
     with open(f"{sh_path}", "w") as f:
-            f.write(f"""
-#!/bin/bash
+            f.write(f"""#!/bin/bash
 #SBATCH --gres=gpu:1
 #SBATCH -C 'rhel7&pascal'
 #SBATCH --mem {mem}
@@ -104,9 +103,10 @@ def loop_configs(config_root, script_root, ext=".yaml"):
         # Define paths
         subfolders = config_path.relative_to(p)  # = 'c/d'
         sh_path = Path(script_root / subfolders.parent / config_path.with_suffix('.sh').name)
-        log_path = Path(sh_path.parent / config_path.parent / ('log_'+ config_path.with_suffix('.slurm').name))
+        #log_path = Path(sh_path.parent / config_path.parent / ('log_'+ config_path.with_suffix('.slurm').name))
+        log_path = Path(script_root / subfolders.parent / ('log_' + config_path.with_suffix('.slurm').name))
         cd_path = src_dir
-        command = f"python - u train.py --config {config_path.name}"
+        command = f"python -u train.py --config '{config_path}'"
         #print(f"sh:{sh_path} log:{log_path} cd: {cd_path}")
         if socket.gethostname() == "Galois":
             log_path = sh_proj_dir / log_path.relative_to(proj_dir)

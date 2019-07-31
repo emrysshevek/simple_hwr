@@ -4,11 +4,8 @@ from torch import nn
 from utils import *
 import os
 from torch.autograd import Variable
-#import torchvision
+#from torchvision.models import resnet
 from models import resnet
-
-# Use ResNet?
-# Increase LSTM dropout
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -154,7 +151,7 @@ class CNN(nn.Module):
 
     def post_process(self, conv):
         b, c, h, w = conv.size() # something like 16, 512, 2, 406
-        print(conv.size())
+        #print(conv.size())
         conv = conv.view(b, -1, w)  # batch, Height * Channels, Width
 
         # Width effectively becomes the "time" seq2seq variable

@@ -53,7 +53,6 @@ rnn_layers: 2
 rnn_type: lstm                               # gru, lstm
 cnn: resnet                                  # default, resnet, intermediates
 
-
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
 
