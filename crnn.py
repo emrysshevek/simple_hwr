@@ -2,10 +2,10 @@ import warnings
 import torch
 from torch import nn
 from utils import *
+from grid_distortion import warp_image
 import os
 from torch.autograd import Variable
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
 # Increase LSTM dropout
 
@@ -487,8 +487,7 @@ class TrainerBaseline(json.JSONEncoder):
 
         return loss, err, pred_strs
 
-
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False, n_warp=10):
         """
 
         Args:
@@ -501,19 +500,53 @@ class TrainerBaseline(json.JSONEncoder):
         Returns:
 
         """
-
         if force_training:
             self.model.train()
         else:
             self.model.eval()
+        with torch.set_grad_enabled(False):
+            rnn_input = []
+            pred_strs = []
 
-        pred_tup = self.model(line_imgs, online)
-        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+            if n_warp:
+                device = line_imgs.device
+                for single_img, single_online in zip(line_imgs, online[0]):
+                    warped_imgs = []
+                    for j in range(n_warp):
+                        img = (single_img.cpu().permute(1, 2, 0).numpy() + 1) * 128.0
+                        img = warp_image(img)
+                        # Add channel dimension, since resize and warp only keep non-trivial channel axis
+                        if single_img.shape[0] == 1:
+                            img = img[:, :, np.newaxis]
 
-        output_batch = pred_text.permute(1, 0, 2)
-        pred_strs = self.decoder.decode_test(output_batch)
+                        img = img.astype(np.float32)
+                        img = img / 128.0 - 1.0
+                        warped_imgs.append(img.transpose(2, 0, 1))
 
-        # Error Rate
+                    warped_online = single_online.expand(n_warp, -1).view(1, -1, 1)
+                    warped_imgs = torch.from_numpy(np.array(warped_imgs)).to(device)
+
+                    warped_pred_tup = self.model(warped_imgs, warped_online)
+                    warped_pred_text, warped_rnn_input, *_ = warped_pred_tup[0].cpu(), warped_pred_tup[1], warped_pred_tup[2:]
+
+                    warped_output_batch = warped_pred_text.permute(1, 0, 2)
+                    warped_pred_strs = list(self.decoder.decode_test(warped_output_batch))
+
+                    preds, counts = np.unique(warped_pred_strs, return_counts=True)
+                    best_idx = np.argmax(counts)
+
+                    pred_strs.append(preds[best_idx])
+                    rnn_input.append(warped_rnn_input[:, best_idx])
+
+                rnn_input = torch.stack(rnn_input, dim=1)
+                print(pred_strs)
+            else:
+                pred_tup = self.model(line_imgs, online)
+                pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+                output_batch = pred_text.permute(1, 0, 2)
+                pred_strs = self.decoder.decode_test(output_batch)
+
+            # Error Rate
         if nudger:
             return rnn_input
         else:

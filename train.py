@@ -427,13 +427,6 @@ def main():
             config["train_cer"].append(training_cer)
 
         # CER plot
-        if config['testing_augmentation']:
-            test_cer = test_with_augmentations(hw, test_dataloader, config["idx_to_char"], dtype, config)
-        else:
-            test_cer = test(hw, test_dataloader, config["idx_to_char"], dtype, config)
-        log_print("Test CER", test_cer)
-        config["test_losses"].append(test_cer)
-
         test_cer = test(hw, test_dataloader, config["idx_to_char"], device, config)
         LOGGER.info("Test CER: {}".format(test_cer))
         config["test_cer"].append(test_cer)

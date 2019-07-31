@@ -37,7 +37,6 @@ def print_tensor(tensor):
     print(tensor, tensor.shape)
 
 def read_config(config):
-    print(config)
     if config[-5:].lower() == ".json":
         with open(config) as f:
             return json.load(f)
@@ -197,7 +196,11 @@ def load_config(config_path):
     old_link = "./RECENT.lnk2"
     if os.path.exists(old_link):
         os.remove(old_link)
-    os.rename(link, old_link)
+    try:
+        os.rename(link, old_link)
+    except FileNotFoundError:
+        pass
+
     symlink(config['results_dir'], link)
 
     # Save images
