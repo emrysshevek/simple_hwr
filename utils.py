@@ -93,6 +93,9 @@ def parse_args():
 
 def find_config(config_name):
     # Correct config paths
+    if os.path.isfile(config_name):
+        return config_name
+
     found_paths = []
     for d,s,fs in os.walk("./configs"):
         for f in fs:
@@ -113,7 +116,9 @@ def load_config(config_path):
 
     if chld[-5:].lower() != ".yaml":
         chld = chld + ".yaml"
-    config_path = find_config(chld)
+
+    if not os.path.isfile(config_path):
+        config_path = find_config(chld)
 
     config = read_config(config_path)
 
