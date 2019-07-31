@@ -18,4 +18,5 @@ module load cudnn/7.6
 
 export PATH="/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr4_env:$PATH"
 cd "/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/taylor_simple_hwr"
-python -u train.py --config /media/data/GitHub/simple_hwr/configs/two_stage.yaml
+which python
+python -u train.py --config '/media/data/GitHub/simple_hwr/configs/two_stage.yaml'

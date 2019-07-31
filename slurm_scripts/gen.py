@@ -93,6 +93,7 @@ module load cudnn/7.6
 
 export PATH="{env}:$PATH"
 cd "{cd_path}"
+which python
 {command}
 """)
 
