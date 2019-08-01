@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: cnn
-name: baseline
+name: resnet101
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -44,14 +44,14 @@ output_predictions: false                    # Output incorrect test predictions
 
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
-batch_size: 16                               # Batch size
+batch_size: 8                                # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
-cnn_out_size: 1024                           # Output dimension of CNN
+cnn_out_size: 4096                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
 rnn_layers: 2
 rnn_type: lstm                               # gru, lstm
-cnn: default                                 # default, resnet, intermediates
+cnn: resnet101                                  # default, resnet, intermediates
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
@@ -64,9 +64,9 @@ mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer clas
 embedding_size: 32                           # The size of the embedding layer in the MLP
 
 # LR schedule
-learning_rate: 2e-4          # LR
+learning_rate: 1.5e-4          # LR
 scheduler_step: 10           # Every X steps, multiply LR by gamma
-scheduler_gamma: .95          # LR decay rate
+scheduler_gamma: .96          # LR decay rate
 
 #learning_rate: 5e-4          # LR
 #scheduler_step: 2         # Every X steps, multiply LR by gamma

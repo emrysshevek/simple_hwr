@@ -99,12 +99,15 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
     # 16, 64, 60, 1802 -> 16, 512, 2, 451; pool over height
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, channels=3):
+        # layers101: 3, 4, 23, 3
+        # layers18: 3, 4, 6, 3
+
         super(ResNet, self).__init__()
         self.inplanes = 64
         self.conv1 = nn.Conv2d(channels, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
-        self.relu = nn.ReLU(inplace=True) # 101 - blocks: 3, 4, 23, 3
+        self.relu = nn.ReLU(inplace=True)
         #self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(2,4), padding=1)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
         self.layer1 = self._make_layer(block=block, planes=64, blocks=layers[0])

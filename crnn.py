@@ -104,11 +104,17 @@ class CNN(nn.Module):
             leakyRelu:
         """
         super(CNN, self).__init__()
+        self.cnnOutSize = cnnOutSize
         if type=="default":
             self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)
         elif type=="resnet":
             #self.cnn = torchvision.models.resnet101(pretrained=False)
             self.cnn = resnet.resnet18(pretrained=False, channels=nc)
+        elif type=="resnet34":
+            self.cnn = resnet.resnet34(pretrained=False, channels=nc)
+        elif type=="resnet101":
+            self.cnn = resnet.resnet101(pretrained=False, channels=nc)
+
 
     def default_CNN(self, nc=3, leakyRelu=False):
 

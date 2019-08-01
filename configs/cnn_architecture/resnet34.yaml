@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: cnn
-name: baseline
+name: resnet
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -51,7 +51,7 @@ num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
 rnn_layers: 2
 rnn_type: lstm                               # gru, lstm
-cnn: default                                 # default, resnet, intermediates
+cnn: resnet34                                # default, resnet, intermediates
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM

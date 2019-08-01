@@ -14,8 +14,8 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: baseline_cnn
-name: baseline
+experiment: cnn
+name: resnet
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
