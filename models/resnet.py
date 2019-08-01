@@ -95,7 +95,6 @@ class Bottleneck(nn.Module):
 
         return out
 
-
 class ResNet(nn.Module):
     # 16, 64, 60, 1802 -> 16, 512, 2, 451; pool over height
     def __init__(self, block, layers, num_classes=1000, zero_init_residual=False, channels=3):

@@ -49,7 +49,6 @@ from crnn import Stat
 
 faulthandler.enable()
 
-
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0

@@ -379,7 +379,6 @@ def load_model(config):
             config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
         except:
             warnings.warn("Unable to load from visdom.json; does the file exist?")
-            config["use_visdom"] = False
             ## RECREAT VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
 
@@ -455,8 +454,12 @@ def save_model(config, bsf=False):
 
     # Save visdom
     if config["use_visdom"]:
-        config["visdom_manager"].save_env(file_path=os.path.join(path, "visdom.json"))
-
+        try:
+            path = os.path.join(path, "visdom.json")
+            config["visdom_manager"].save_env(file_path=path)
+        except:
+            warnings.warn(f"Unable to save visdom to {path}; is it started?")
+            config["use_visdom"] = False
 
 def plt_loss(config):
     ## Plot with matplotlib

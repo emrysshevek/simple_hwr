@@ -105,7 +105,11 @@ class CNN(nn.Module):
         """
         super(CNN, self).__init__()
         self.cnnOutSize = cnnOutSize
-        if type=="default":
+        #self.average_pool = nn.AdaptiveAvgPool2d((512,2))
+        self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
+        self.intermediate_pass = 13 if type == "intermediates" else None
+
+        if type in ["default", "intermediates"]:
             self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)
         elif type=="resnet":
             #self.cnn = torchvision.models.resnet101(pretrained=False)
@@ -155,6 +159,30 @@ class CNN(nn.Module):
         convRelu(6, True)  # 16, 512, 2, 451
         return cnn
 
+    """
+    0 0 Conv2d(1, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    1 ReLU(inplace)
+    2 MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    3 1 Conv2d(64, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    4 ReLU(inplace)
+    5 MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+    6 2 Conv2d(128, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    7 BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    8 ReLU(inplace)
+    9 3 Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    10 ReLU(inplace)
+    11 MaxPool2d(kernel_size=(2, 2), stride=(2, 1), padding=(0, 1), dilation=1, ceil_mode=False)
+    12 4 Conv2d(256, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    13 BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    14 ReLU(inplace)
+    15 5 Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+    16 ReLU(inplace)
+    17 MaxPool2d(kernel_size=(2, 2), stride=(2, 1), padding=(0, 1), dilation=1, ceil_mode=False)
+    18 6 Conv2d(512, 512, kernel_size=(2, 2), stride=(1, 1))
+    19 BatchNorm2d(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    20 ReLU(inplace)
+    """
+
     def post_process(self, conv):
         b, c, h, w = conv.size() # something like 16, 512, 2, 406
         #print(conv.size())
@@ -164,15 +192,21 @@ class CNN(nn.Module):
         output = conv.permute(2, 0, 1)  # [w, b, c], first time: [404, 8, 1024] ; second time: 213, 8, 1024
         return output
 
-    def forward(self, input, intermediate_level=None):
+    def intermediate_process(self, final, intermediate):
+        new = self.post_process(self.pool(intermediate))
+        final = self.post_process(final)
+        return torch.cat([final, new], dim=2)
+
+    def forward(self, input):
         # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
-        if intermediate_level is None:
+        if self.intermediate_pass is None:
             x = self.post_process(self.cnn(input))
             return x
         else:
-            conv = self.cnn[0:intermediate_level](input)
-            conv2 = self.cnn[intermediate_level:](conv)
-            return self.post_process(conv2), self.post_process(conv)
+            conv = self.cnn[0:self.intermediate_pass](input)
+            conv2 = self.cnn[self.intermediate_pass:](conv)
+            final = self.intermediate_process(conv2, conv)
+            return final
 
 class CRNN(nn.Module):
     """ Original CRNN
