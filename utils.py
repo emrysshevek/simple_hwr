@@ -16,6 +16,7 @@ import numpy as np
 import warnings
 import string_utils
 import error_rates
+import glob
 
 def is_iterable(obj):
     try:
@@ -460,6 +461,11 @@ def save_model(config, bsf=False):
         except:
             warnings.warn(f"Unable to save visdom to {path}; is it started?")
             config["use_visdom"] = False
+
+    # Copy BSF stuff to main directory
+    if bsf:
+        for filename in glob.glob(path + r"/*"):
+            shutil.copy(filename, config["results_dir"])
 
 def plt_loss(config):
     ## Plot with matplotlib

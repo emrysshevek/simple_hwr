@@ -231,7 +231,6 @@ def main():
     # Prep data loaders
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
-
     # Prep optimizer
     if True:
         ctc = torch.nn.CTCLoss()
@@ -349,7 +348,6 @@ def main():
                 save_model(config, bsf=False)
 
             plt_loss(config)
-
 
 if __name__ == "__main__":
     try:
