@@ -421,7 +421,10 @@ def load_model(config):
 
 def mkdir(path):
     if path is not None and len(path) > 0 and not os.path.exists(path):
-        os.makedirs(path)
+        try:
+            mkdir(path)
+        except Exception as e:
+            print(e)
 
 def save_model(config, bsf=False):
     # Save the best model
