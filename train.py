@@ -56,7 +56,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     for x in dataloader:
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] else None
+        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config["online_flag"] else None
         config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
@@ -103,7 +103,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         # Add online/offline binary flag
         online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] else None
+            "online_augmentation"] and config["online_flag"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                     step=config["global_step"])
@@ -139,7 +139,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] else None
+            "online_augmentation"] and config["online_flag"] else None
 
         config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 

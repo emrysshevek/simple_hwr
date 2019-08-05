@@ -136,7 +136,8 @@ def load_config(config_path):
                 "improve_image": False,
                 "decoder_type" : "naive",
                 "rnn_type": "lstm",
-                "cnn": "default"
+                "cnn": "default",
+                "online_flag": True
                 }
 
 
@@ -164,7 +165,7 @@ def load_config(config_path):
     for data_path in config["training_jsons"]:
         if "online" in data_path and not config["online_augmentation"]:
             config["training_jsons"].remove(data_path)
-
+            config["online_flag"] = False # turn off flag if no online data provided
 
     # Main output folder
     output_root = os.path.join(config["output_folder"], config["experiment"])
