@@ -252,6 +252,7 @@ def get_computer():
 
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
+    print(GPUtil.getGPUs())
     if priority == "memory":
         best_gpu = [(x.memoryFree, -x.load, i) for i,x in enumerate(GPUtil.getGPUs())]
     else: # utilization
