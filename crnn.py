@@ -321,7 +321,7 @@ class CRNN_UNet(nn.Module):
 
     def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False,
                  recognizer_dropout=.5, online_augmentation=False, rnn_constructor=nn.LSTM):
-        super(basic_CRNN, self).__init__()
+        super(CRNN_UNet, self).__init__()
         self.softmax = nn.LogSoftmax()
         self.dropout = recognizer_dropout
         rnn_expansion_dimension = 1 if online_augmentation else 0
@@ -370,14 +370,12 @@ class CRNN_UNet(nn.Module):
 class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False, rnn_constructor=nn.LSTM, cnn_type="default"):
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, rnn_input_dimension=1024, rnn_constructor=nn.LSTM, cnn_type="default"):
         super(basic_CRNN, self).__init__()
         self.softmax = nn.LogSoftmax()
         self.dropout = recognizer_dropout
-        rnn_expansion_dimension = 1 if online_augmentation else 0
-        rnn_in_dim = cnnOutSize + rnn_expansion_dimension
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
-        self.rnn = BidirectionalRNN(rnn_in_dim, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers, rnn_constructor=rnn_constructor)
+        self.rnn = BidirectionalRNN(rnn_input_dimension, rnn_hidden_dim, alphabet_size, dropout=recognizer_dropout, num_layers=rnn_layers, rnn_constructor=rnn_constructor)
 
     def my_eval(self):
         self.rnn.rnn.dropout = 0
@@ -454,7 +452,7 @@ def create_CRNN(config):
     check_inputs(config)
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
     crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
+                recognizer_dropout=config["recognizer_dropout"], rnn_input_dimension=config["rnn_input_dimension"], rnn_layers=config["rnn_layers"],
                       rnn_constructor=config["rnn_constructor"], cnn_type=config["cnn"])
     return crnn
 
@@ -482,6 +480,7 @@ def check_inputs(config):
 
     # Setup RNN input dimension
     config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
+
     if config["online_augmentation"] and config["online_flag"]:
         config["rnn_input_dimension"] += 1
 

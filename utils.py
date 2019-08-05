@@ -17,6 +17,7 @@ import warnings
 import string_utils
 import error_rates
 import glob
+from pathlib import Path
 
 def is_iterable(obj):
     try:
@@ -425,11 +426,20 @@ def load_model(config):
 
 
 def mkdir(path):
-    if path is not None and len(path) > 0 and not os.path.exists(path):
+    if isinstance(path, str):
+        if path is not None and len(path) > 0 and not os.path.exists(path):
+            try:
+                os.makedirs(path)
+            except Exception as e:
+                print(e)
+    elif isinstance(path, Path):
         try:
-            mkdir(path)
+            path.mkdir(parents=True, exist_ok=True)
         except Exception as e:
             print(e)
+    else:
+        warnings.warn("Unknown path type, cannot create folder")
+
 
 def save_model(config, bsf=False):
     # Save the best model

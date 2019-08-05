@@ -17,8 +17,10 @@ def start_scripts():
     sh_root = Path(opts.root)
     for y in get_sh(sh_root):
         if opts.keyword in y.lower():
-            Popen(f'sbatch {y}', shell=True)
+            p = Popen(f'sbatch {y}', shell=True, close_fds=True)
             print(f'Launching {y}')
+    #p.communicate(input='\n')
+
 
 def sh_parser():
     parser = argparse.ArgumentParser()
