@@ -201,12 +201,17 @@ def load_config(config_path):
             os.makedirs(path)
 
     # Make a link to most recent run
-    link = "./RECENT.lnk"
-    old_link = "./RECENT.lnk2"
-    if os.path.exists(old_link):
-        os.remove(old_link)
-    os.rename(link, old_link)
-    symlink(config['results_dir'], link)
+    try:
+        link = "./RECENT.lnk"
+        old_link = "./RECENT.lnk2"
+        if os.path.exists(old_link):
+            os.remove(old_link)
+        if os.path.exists(link):
+            os.rename(link, old_link)
+        symlink(config['results_dir'], link)
+    except Exception as e:
+        print("Problem with RECENT link stuff: {}".format(e))
+
 
     # Save images
     if config["improve_image"]:
