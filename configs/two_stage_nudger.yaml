@@ -12,7 +12,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: two_stage
-name: nudger_online_warp
+name_deprecated: nudger_online_warp
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

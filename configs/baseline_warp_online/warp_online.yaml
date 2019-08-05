@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: warp_online
-name: warp_online
+name_deprecated: warp_online
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

@@ -123,7 +123,7 @@ def load_config(config_path):
         config_path = find_config(chld)
 
     config = read_config(config_path)
-
+    config["name"] = Path(config_path).stem
     defaults = {"load_path":False,
                 "training_suffle": False,
                 "testing_suffle": False,
@@ -140,7 +140,6 @@ def load_config(config_path):
                 "cnn": "default",
                 "online_flag": True
                 }
-
 
     for k in defaults.keys():
         if k not in config.keys():

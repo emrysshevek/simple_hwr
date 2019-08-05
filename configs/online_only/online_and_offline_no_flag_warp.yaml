@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: online
-name: online_offline_no_flag
+name: online_offline_no_flag_warp
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

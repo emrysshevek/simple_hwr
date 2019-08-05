@@ -16,7 +16,7 @@ test_only: true # Do not train
 
 # General
 experiment: warp_online
-name: warp_online_4layers
+name_deprecated:  warp_online_4layers
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

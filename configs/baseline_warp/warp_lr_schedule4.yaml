@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: warp_only
-name: warp
+name_deprecated: warp
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

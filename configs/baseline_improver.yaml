@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: baseline
-name: true_baseline
+name_deprecated: true_baseline
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
