@@ -1,7 +1,9 @@
 ### TESTING
-TESTING: false # Load as little as possible for fast prototyping
-SMALL_TRAINING: false
-plot_freq: 50
+TESTING: false        # Use batch size of 1, only do one batch per epoch
+SMALL_TRAINING: false # Load 1 batch
+GPU: true             # Use GPU if available
+TEST_FREQ: 1          # epoch frequency for running test set
+plot_freq: 50         # print updates, update plots every 50 batches
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false

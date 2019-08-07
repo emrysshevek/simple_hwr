@@ -7,7 +7,7 @@ main_path = Path(r"/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines")
 
 
 def denoise(path, grayscale=True):
-
+    plt.figure(dpi=1200)
     if grayscale:
         img = cv.imread(path,0)
         dst = cv.fastNlMeansDenoising(img,None,10,7,21)
@@ -21,6 +21,9 @@ def denoise(path, grayscale=True):
 
     plt.show()
     #plt.savefig(path, dpi=300)
+
+
+
 
 
 for p in main_path.rglob("*.png"):

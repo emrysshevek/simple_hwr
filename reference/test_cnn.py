@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-from utils import *
+from hwr_utils import *
 import os
 from torch.autograd import Variable
 #from torchvision.models import resnet

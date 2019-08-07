@@ -1,4 +1,6 @@
+import sys
 import pathlib
+import numbers
 import socket
 import argparse
 import matplotlib.pyplot as plt
@@ -49,11 +51,15 @@ def read_config(config):
     else:
         raise "Unknown Filetype {}".format(config)
 
-def setup_logging(folder, log_std_out=False):
+def setup_logging(folder, log_std_out=True):
+    import logging, datetime, sys
     global LOGGER
-    ## Set up logging
-    import logging
+    # Set up logging
 
+    format = '%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s'
+    format = {"fmt":'%(asctime)s %(levelname)s %(message)s', "datefmt":"%H:%M:%S"}
+
+    # Override Pycharm logging - otherwise, logging file may not be created
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
@@ -65,15 +71,21 @@ def setup_logging(folder, log_std_out=False):
         log_path = None
     logging.basicConfig(filename=log_path,
                             filemode='a',
-                            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                            datefmt='%H:%M:%S',
+                            format=format["fmt"],
+                            datefmt=format["datefmt"],
                             level=logging.INFO)
-    if not log_std_out:
-        logger.addHandler(logging.StreamHandler())
-        logger.setLevel("INFO")
+
+    # Send log messages to standard out
+    if log_std_out:
+        formatter = logging.Formatter(**format)
+        std_out = logging.StreamHandler(sys.stdout)
+        std_out.setLevel("INFO")
+        std_out.setFormatter(formatter)
+        logger.addHandler(std_out)
 
     LOGGER = logger
     return logger
+
 
 def log_print(*args, print_statements=True):
     if print_statements:
@@ -125,12 +137,16 @@ def load_config(config_path):
     config = read_config(config_path)
     config["name"] = Path(config_path).stem
     defaults = {"load_path":False,
-                "training_suffle": False,
-                "testing_suffle": False,
+                "training_shuffle": False,
+                "testing_shuffle": False,
                 "test_only": False,
                 "TESTING": False,
-                "plot_freq": 50,
+                "GPU": True,
+                "SKIP_TESTING": False,
+                "OVERFIT": False,
                 "SMALL_TRAINING": False,
+                "images_to_load": None,
+                "plot_freq": 50,
                 "rnn_layers": 2,
                 "nudger_rnn_layers": 2,
                 "nudger_rnn_dimension": 512,
@@ -138,12 +154,15 @@ def load_config(config_path):
                 "decoder_type" : "naive",
                 "rnn_type": "lstm",
                 "cnn": "default",
-                "online_flag": True
+                "online_flag": True,
+                "save_count": 0
                 }
 
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
+    if config["SMALL_TRAINING"] or config["TESTING"]:
+        config["images_to_load"] = config["batch_size"]
 
     if not config["TESTING"]:
         wait_for_gpu()
@@ -373,11 +392,20 @@ def load_model(config):
         old_state = torch.load(os.path.join(config["load_path"], "baseline_model.pt"))
         path = config["load_path"]
 
+    # Load the definition of the loaded model if it was saved
+    if "model_definition" in old_state.keys():
+        config["model"] = old_state['model_definition']
+
+    for key in ["idx_to_char", "char_to_idx"]:
+        if key in old_state.keys():
+            config[key] = old_state[key]
+
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
         config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
+        config["current_epoch"] = old_state["epoch"]
     else:
         config["model"].load_state_dict(old_state)
 
@@ -452,10 +480,14 @@ def save_model(config, bsf=False):
         'epoch': config["current_epoch"] + 1,
         'model': config["model"].state_dict(),
         'optimizer': config["optimizer"].state_dict(),
-        'global_step': config["global_step"]
+        'global_step': config["global_step"],
+        'model_definition': config["model"],
+        "idx_to_char": config["idx_to_char"],
+        "char_to_idx": config["char_to_idx"]
     }
 
-    torch.save(state_dict, os.path.join(path, "{}_model.pt".format(config['name'])))
+    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
+    torch.save(state_dict, config["main_model_path"])
 
     if "nudger" in config.keys():
         state_dict["model"] = config["nudger"].state_dict()
@@ -485,6 +517,23 @@ def save_model(config, bsf=False):
     if bsf:
         for filename in glob.glob(path + r"/*"):
             shutil.copy(filename, config["results_dir"])
+
+    if config["save_count"]==0:
+        create_resume_training(config)
+    config["save_count"] += 1
+
+def create_resume_training(config):
+    export_config = config.copy()
+    export_config["load_path"] = config["main_model_path"]
+
+    for key in config.keys():
+        item = config[key]
+        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list):
+            del export_config[key]
+
+    output = Path(config["results_dir"])
+    with open(Path(output / 'RESUME.yaml'), 'w') as outfile:
+        yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
 def plt_loss(config):
     ## Plot with matplotlib
@@ -516,14 +565,17 @@ class Decoder:
             self.beam_decoder = CTCBeamDecoder(labels=idx_to_char.values(), blank_id=0, beam_width=30, num_processes=3, log_probs_input=True)
             self.decode_test = self.decode_batch_beam
 
-    def decode_batch_naive(self, out):
+    def decode_batch_naive(self, out, as_string=True):
         out = out.data.cpu().numpy()
         for j in range(out.shape[0]):
             logits = out[j, ...]
             pred, raw_pred = string_utils.naive_decode(logits)
-            yield string_utils.label2str(pred, self.idx_to_char, False)
+            if as_string:
+                yield string_utils.label2str(pred, self.idx_to_char, False)
+            else:
+                yield pred
 
-    def decode_batch_beam(self, out):
+    def decode_batch_beam(self, out, as_string=True):
         pred, scores, timesteps, out_seq_len = self.beam_decoder.decode(out)
         pred = pred.data.int().numpy()
         output_lengths = out_seq_len.data.data.numpy()
@@ -533,9 +585,12 @@ class Decoder:
             line_length = output_lengths[batch][rank]
             line = pred[batch][rank][:line_length]
             string = u""
-            for char in line:
-                string += self.idx_to_char[char]
-            yield string
+            if as_string:
+                for char in line:
+                    string += self.idx_to_char[char]
+                yield string
+            else:
+                yield line
 
 def calculate_cer(pred_strs, gt):
     sum_loss = 0
@@ -660,6 +715,18 @@ def stat_prep(config):
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
         config["stats"][stat.name] = stat
+
+def plot_tensors(tensor):
+    for i in range(0, tensor.shape[0]):
+        plot_tensor(tensor[i,0])
+
+def plot_tensor(tensor):
+    print(tensor.shape)
+    t = tensor.cpu()
+    assert not np.isnan(t).any()
+    plt.figure(dpi=400)
+    plt.imshow(t, cmap='gray')
+    plt.show()
 
 
 if __name__=="__main__":

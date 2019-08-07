@@ -14,7 +14,7 @@ import random
 import string_utils
 
 import grid_distortion
-from utils import unpickle_it
+from hwr_utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -63,11 +63,13 @@ def collate(batch, device="cpu"):
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",)):
+    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
                 data.extend(json.load(fp))
+        if images_to_load:
+            data = data[:images_to_load]
 
         ## Read in all writer IDs
         writer_id_dict = {}

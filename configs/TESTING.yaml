@@ -1,7 +1,9 @@
 ### TESTING
-TESTING: false # Load as little as possible for fast prototyping
-SMALL_TRAINING: false
-plot_freq: 50
+TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
+SMALL_TRAINING: true  # Load 1 batch; will not save output
+GPU: false             # Use GPU if available
+TEST_FREQ: 100         # epoch frequency for running test set
+plot_freq: 50         # print updates, update plots every 50 batches
 
 ## Things that shouldn't matter much:
 # Random shuffling

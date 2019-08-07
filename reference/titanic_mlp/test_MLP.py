@@ -1,7 +1,7 @@
 from __future__ import print_function
 from builtins import range
 
-from utils import is_iterable
+from hwr_utils import is_iterable
 import json
 import character_set
 import sys

@@ -1,7 +1,7 @@
 from __future__ import print_function
 from builtins import range
 import faulthandler
-from utils import is_iterable
+from hwr_utils import is_iterable
 import json
 import character_set
 import sys
@@ -38,7 +38,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import time
-from utils import *
+from hwr_utils import *
 from torch.optim import lr_scheduler
 from crnn import Stat
 
@@ -68,7 +68,6 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
 
     LOGGER.debug(config["stats"])
     return test_cer
-
 
 def plot_images(line_imgs, name, text_str):
     # Save images
@@ -168,16 +167,16 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
+                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
+                                  num_workers=6, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=config["testing_warp"])
+                             warp=config["testing_warp"], images_to_load=config["images_to_load"])
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                 num_workers=6, collate_fn=lambda x:hw_dataset.collate(x,device=device))
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
@@ -199,29 +198,28 @@ def load_data(config):
 
 def check_gpu(config):
     # GPU stuff
-    use_gpu = torch.cuda.is_available() and not config["TESTING"]
+    use_gpu = torch.cuda.is_available() and config["GPU"]
     device = torch.device("cuda" if use_gpu else "cpu")
     dtype = torch.cuda.FloatTensor if use_gpu else torch.FloatTensor
     if use_gpu:
         log_print("Using GPU")
     elif not torch.cuda.is_available():
         log_print("No GPU found")
-    elif config["TESTING"]:
-        log_print("Testing, not using GPU")
+    elif not config["GPU"]:
+        log_print("GPU available, but not using per config")
     return device, dtype
 
-def main():
-    global config, LOGGER
+def build_model(opts=None):
+    if opts is None:
+        opts = parse_args()
 
+    global config, LOGGER
     # Set GPU
     choose_optimal_gpu()
-
-    opts = parse_args()
     config = load_config(opts.config)
     LOGGER = config["logger"]
     config["global_step"] = 0
     config["global_instances_counter"] = 0
-
     device, dtype = check_gpu(config)
 
     # Use small batch size when using CPU/testing
@@ -229,7 +227,27 @@ def main():
         config["batch_size"] = 1
 
     # Prep data loaders
+    LOGGER.info("Loading data...")
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
+
+
+
+
+    for x in train_dataloader:
+        print(x["labels"])
+        print(x["label_lengths"])
+        print(x['gt'])
+        print(x['paths'])
+    Stop
+
+
+
+
+
+    # Decoder
+    config["calc_cer_training"] = calculate_cer
+    use_beam = config["decoder_type"] == "beam"
+    config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
 
     # Prep optimizer
     if True:
@@ -240,11 +258,7 @@ def main():
         from warpctc_pytorch import CTCLoss
         criterion = CTCLoss()
 
-    # Decoder
-    config["calc_cer_training"] = calculate_cer
-    use_beam = config["decoder_type"] == "beam"
-    config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
-
+    LOGGER.info("Building model...")
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
         hw = crnn.create_CRNNClassifier(config)
@@ -264,14 +278,24 @@ def main():
         config["embedding_size"] = 0
         hw = crnn.create_CRNN(config)
 
+    LOGGER.info(f"Sending model to {device}...")
     hw.to(device)
 
     # Setup defaults
-    config["starting_epoch"] = 1
-    config["model"] = hw
-    config['lowest_loss'] = float('inf')
-    config["train_cer"] = []
-    config["test_cer"] = []
+    defaults = {"starting_epoch":1,
+                "model": hw,
+                'lowest_loss':float('inf'),
+                "train_cer":[],
+                "test_cer":[],
+                "criterion":criterion,
+                "device":device,
+                "dtype":dtype,
+                }
+    for k in defaults.keys():
+        if k not in config.keys():
+            config[k] = defaults[k]
+
+    config["current_epoch"] = config["starting_epoch"]
 
     # Launch visdom
     if config["use_visdom"]:
@@ -287,12 +311,15 @@ def main():
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
     config["scheduler"] = scheduler
 
+    LOGGER.info("Loading old model...")
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
         load_model(config)
         hw = config["model"].to(device)
         # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
 
+
+    LOGGER.info("Creating trainer...")
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
@@ -306,28 +333,36 @@ def main():
         config["secondary_criterion"] = CrossEntropyLoss()
     else:  # config["style_encoder"] = False
         config["secondary_criterion"] = None
+    return config, train_dataloader, test_dataloader, train_dataset, test_dataset
 
+def main():
+    global config, LOGGER
+    opts = parse_args()
+    config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts)
     for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
 
+        config["criterion"] = 5
+
         # Only test
         if config["improve_image"]:
-            training_cer = improver(hw, test_dataloader, criterion, optimizer, dtype, config)
+            training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
             break
 
         elif not config["test_only"]:
-            training_cer = run_epoch(hw, train_dataloader, criterion, optimizer, dtype, config)
+            training_cer = run_epoch(config["model"], train_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
 
-            scheduler.step()
+            config["scheduler"].step()
 
             LOGGER.info("Training CER: {}".format(training_cer))
             config["train_cer"].append(training_cer)
 
         # CER plot
-        test_cer = test(hw, test_dataloader, config["idx_to_char"], device, config)
-        LOGGER.info("Test CER: {}".format(test_cer))
-        config["test_cer"].append(test_cer)
+        if config["TEST_FREQ"] % config["current_epoch"]== 0:
+            test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config)
+            LOGGER.info("Test CER: {}".format(test_cer))
+            config["test_cer"].append(test_cer)
 
         if config["use_visdom"]:
             config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
@@ -335,7 +370,7 @@ def main():
         if config["test_only"]:
             break
 
-        if not config["results_dir"] is None:
+        if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
 
             # Save BSF
             if config['lowest_loss'] > test_cer:
@@ -349,6 +384,22 @@ def main():
 
             plt_loss(config)
 
+def recreate():
+    """ Simple function to load model and re-save it with some updates (e.g. model definition etc.)
+
+    Returns:
+
+    """
+    path = "./results/BEST/20190807_104745-smallv2/RESUME.yaml"
+    path = "./results/BEST/LARGE/LARGE.yaml"
+    import shlex
+    args = shlex.split(f"--config {path}")
+    sys.argv[1:] = args
+    print(sys.argv)
+    config, *_ = build_model()
+    save_model(config)
+
+
 if __name__ == "__main__":
     try:
         main()
@@ -357,5 +408,7 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         torch.cuda.empty_cache()
+
+
 
 # https://github.com/theevann/visdom-save/blob/master/vis.py
