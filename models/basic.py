@@ -60,12 +60,12 @@ class BidirectionalRNN(nn.Module):
         super(BidirectionalRNN, self).__init__()
         print(f"Creating {rnn_constructor.__name__}: in:{nIn} hidden:{nHidden} dropout:{dropout} layers:{num_layers} out:{nOut}")
         self.nIn = nIn
-        self.rnn =  rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
+        self.rnn = rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
-    def forward(self, input):
+    def forward(self, _input):
         # input [time size, batch size, output dimension], e.g. 404, 8, 1024
-        recurrent, _ = self.rnn(input)
+        recurrent, _ = self.rnn(_input)
         T, b, h = recurrent.size()
         t_rec = recurrent.view(T * b, h)
 
@@ -75,7 +75,43 @@ class BidirectionalRNN(nn.Module):
         return output
 
 
+class GeneralizedBRNN(nn.Module):
+
+    def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM, permute=False):
+        super(GeneralizedBRNN, self).__init__()
+        print(
+            f"Creating {rnn_constructor.__name__}: in:{nIn} hidden:{nHidden} dropout:{dropout} layers:{num_layers} out:{nOut}")
+        self.nIn = nIn
+        self.rnn = rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
+        self.embedding = nn.Linear(nHidden * 2, nOut)  # add dropout?
+        self.permute = permute
+
+    def forward(self, _input: torch.tensor):
+        # input [time size, batch size, output dimension], e.g. 404, 8, 1024
+
+        if self.permute:
+            b, *ch, T = _input.size()
+            reshaped_input = _input.permute(3,0,1,2).view(T,b,-1) # put T first, combine CHANNELs and HEIGHT
+            recurrent, _ = self.rnn(reshaped_input)
+            t_rec = recurrent.view(T * b, -1)
+            output = self.embedding(t_rec)  # [T * b, nOut]
+            output = output.view(T, b, *ch).permute(1,2,3,0) # change view back, then put T on the end
+        else:
+            recurrent, _ = self.rnn(_input)
+            T, b, h = recurrent.size()
+            t_rec = recurrent.view(T * b, h)
+            output = self.embedding(t_rec)  # [T * b, nOut]
+            output = output.view(T, b, -1)
+
+        return output
+
+
 class PrintLayer(nn.Module):
+    """ Print layer - add to a sequential, e.g.
+            nn.Sequential(
+            nn.Linear(1, 5),
+            PrintLayer(),
+    """
     def __init__(self, name=None):
         super(PrintLayer, self).__init__()
         self.name = name

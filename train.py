@@ -230,19 +230,12 @@ def build_model(opts=None):
     LOGGER.info("Loading data...")
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
-
-
-
-    for x in train_dataloader:
-        print(x["labels"])
-        print(x["label_lengths"])
-        print(x['gt'])
-        print(x['paths'])
-    Stop
-
-
-
-
+    # for x in train_dataloader:
+    #     print(x["labels"])
+    #     print(x["label_lengths"])
+    #     print(x['gt'])
+    #     print(x['paths'])
+    #     Stop
 
     # Decoder
     config["calc_cer_training"] = calculate_cer
@@ -311,9 +304,9 @@ def build_model(opts=None):
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
     config["scheduler"] = scheduler
 
-    LOGGER.info("Loading old model...")
     ## LOAD FROM OLD MODEL
     if config["load_path"]:
+        LOGGER.info("Loading old model...")
         load_model(config)
         hw = config["model"].to(device)
         # DOES NOT LOAD OPTIMIZER, SCHEDULER, ETC?
@@ -359,7 +352,7 @@ def main():
             config["train_cer"].append(training_cer)
 
         # CER plot
-        if config["TEST_FREQ"] % config["current_epoch"]== 0:
+        if config["current_epoch"] % config["TEST_FREQ"]== 0:
             test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config)
             LOGGER.info("Test CER: {}".format(test_cer))
             config["test_cer"].append(test_cer)

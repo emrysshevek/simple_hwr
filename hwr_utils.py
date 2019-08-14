@@ -255,7 +255,16 @@ def load_config(config_path):
 
     config["stats"] = {}
     config = computer_defaults(config)
+
+    make_lower(config)
     return config
+
+def make_lower(config):
+    exclusions=("experiment","name","output_folder","writer_id_pickles", "training_jsons",
+                "testing_jsons", "training_root", "testing_root", "results_dir", "log_dir")
+    for key,value in config.items():
+        if isinstance(config[key], str) and key not in exclusions:
+            config[key]=value.lower()
 
 def computer_defaults(config):
     if socket.gethostname() == "Galois":
