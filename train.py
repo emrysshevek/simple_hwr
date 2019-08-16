@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
 import torch
-
+import types
 
 ### TO DO:
 # Add ONLINE flag to regular CRNN
@@ -48,6 +48,10 @@ from crnn import Stat
 
 
 faulthandler.enable()
+#torch.set_num_threads(torch.get_num_threads())
+#print(torch.get_num_threads())
+threads = torch.get_num_threads()
+print(f"Threads: {threads}")
 
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
@@ -69,15 +73,33 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     LOGGER.debug(config["stats"])
     return test_cer
 
+def to_numpy(tensor):
+    if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
+        return tensor.detach().cpu().numpy()
+    else:
+        return tensor
+
+# Test plot
+#img = np.random.rand(3,3,3)
+#plot_images(img, "name", ["a","b","c"])
+
 def plot_images(line_imgs, name, text_str):
     # Save images
-    f, axarr = plt.subplots(len(line_imgs), 1)
+    plot_count = min(len(line_imgs), 8)
+    f, axarr = plt.subplots(plot_count, 1)
+
+    if isinstance(text_str, types.GeneratorType):
+        text_str = list(text_str)
+
     if len(line_imgs) > 1:
         for j, img in enumerate(line_imgs):
+            if j >= plot_count:
+                break
             axarr[j].set_xlabel(f"{text_str[j]}")
-            axarr[j].imshow(img.squeeze().detach().cpu().numpy(), cmap='gray')
+            axarr[j].imshow(to_numpy(img.squeeze()), cmap='gray')
+            # more than 8 images is too crowded
     else:
-        axarr.imshow(line_imgs.squeeze().detach().cpu().numpy(), cmap='gray')
+        axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
 
     # plt.show()
     path = os.path.join(config["image_dir"], '{}.png'.format(name))
@@ -140,7 +162,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
             "online_augmentation"] and config["online_flag"] else None
 
-        config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
+        loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
@@ -161,22 +183,28 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
     training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
     LOGGER.debug(config["stats"])
+
+    # Save images
+    plot_images(x['line_imgs'], f"{config['current_epoch']}_original", first_pred_str)
+
     return training_cer
 
 
 def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"])
+                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
+                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=6, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
+                                  num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
                              warp=config["testing_warp"], images_to_load=config["images_to_load"])
+
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=6, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                 num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 

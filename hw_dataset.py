@@ -63,7 +63,10 @@ def collate(batch, device="cpu"):
     }
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False, writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None):
+    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
+                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None, occlusion_size=None, occlusion_freq=None):
+        self.occlusion = ~(None in (occlusion_size, occlusion_freq))
+
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
@@ -137,6 +140,9 @@ class HwDataset(Dataset):
 
         if self.warp:
             img = grid_distortion.warp_image(img)
+
+        if self.occlusion:
+            img = grid_distortion.occlude(img)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:

@@ -155,7 +155,9 @@ def load_config(config_path):
                 "rnn_type": "lstm",
                 "cnn": "default",
                 "online_flag": True,
-                "save_count": 0
+                "save_count": 0,
+                "occlusion_size": None,
+                "occlusion_freq": None
                 }
 
     for k in defaults.keys():
@@ -213,9 +215,11 @@ def load_config(config_path):
         config['output_predictions']=False
     if "log_dir" not in config.keys():
         config["log_dir"]=os.path.join(output_root, train_suffix)
+    if "image_dir" not in config.keys():
+        config["image_dir"] = os.path.join(config['results_dir'], "imgs")
 
     # Create paths
-    for path in (output_root, config["results_dir"], config["log_dir"]):
+    for path in (output_root, config["results_dir"], config["log_dir"], config["image_dir"]):
         if path is not None and len(path) > 0 and not os.path.exists(path):
             os.makedirs(path)
 
@@ -256,14 +260,14 @@ def load_config(config_path):
     config["stats"] = {}
     config = computer_defaults(config)
 
-    make_lower(config)
+    #make_lower(config)
     return config
 
 def make_lower(config):
     exclusions=("experiment","name","output_folder","writer_id_pickles", "training_jsons",
-                "testing_jsons", "training_root", "testing_root", "results_dir", "log_dir")
+                "testing_jsons", "training_root", "testing_root", "results_dir", "log_dir", "img_dir")
     for key,value in config.items():
-        if isinstance(config[key], str) and key not in exclusions:
+        if isinstance(config[key], str) and key not in exclusions and "dir" not in key and "path" not in key:
             config[key]=value.lower()
 
 def computer_defaults(config):

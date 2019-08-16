@@ -8,6 +8,13 @@ INTERPOLATION = {
     "cubic": cv2.INTER_CUBIC
 }
 
+def occlude(img, occlusion_size=1, occlusion_freq=.5):
+    # Randomly choose occlusion frequency between 0 and specified occlusion
+    occlusion_freq = np.random.uniform(0, occlusion_freq)
+    binary_mask = np.random.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+    occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+    return occlusion
+
 def warp_image(img, random_state=None, **kwargs):
     if random_state is None:
         random_state = np.random.RandomState()
