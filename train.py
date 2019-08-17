@@ -50,8 +50,10 @@ from crnn import Stat
 faulthandler.enable()
 #torch.set_num_threads(torch.get_num_threads())
 #print(torch.get_num_threads())
-threads = torch.get_num_threads()
+threads = max(1, min(torch.get_num_threads()-2,6))
 print(f"Threads: {threads}")
+#threads = 1
+torch.set_num_threads(threads)
 
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
@@ -165,6 +167,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
+        LOGGER.debug("Finished with batch")
+
         # Update visdom every 50 instances
         if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
@@ -177,8 +181,12 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
 
-    accumulate_stats(config)
-    training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
+    training_cer_list = config["stats"][config["designated_training_cer"]].y
+
+    if not training_cer_list:
+        accumulate_stats(config)
+
+    training_cer = training_cer_list[-1]  # most recent training CER
     LOGGER.debug(config["stats"])
 
     # Save images
@@ -191,14 +199,14 @@ def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"])
+                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"], logger=config["logger"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
                                   num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=config["testing_warp"], images_to_load=config["images_to_load"])
+                             warp=config["testing_warp"], images_to_load=config["images_to_load"], logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
                                  num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))

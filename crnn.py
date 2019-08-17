@@ -161,6 +161,8 @@ class TrainerBaseline(json.JSONEncoder):
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
         self.config["logger"].debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
+
+        self.config["logger"].debug("Accumulating stats")
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_strs

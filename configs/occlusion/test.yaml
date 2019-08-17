@@ -8,7 +8,7 @@ TEST_FREQ: 1         # epoch frequency for running test set
 plot_freq: 50         # print updates, update plots every 50 batches
 images_to_load: 128  # use an integer to load e.g. first 16 images
 batch_size: 16                               # Batch size
-logging: debug
+logging: info
 
 ## Things that shouldn't matter much:
 # Random shuffling
@@ -79,5 +79,5 @@ scheduler_gamma: .95          # LR decay rate
 #scheduler_gamma: .95          # LR decay rate
 
 # Occlusion
-occlusion_size: null          # Square dimension in pixels of region to occlude
-occlusion_freq: null          # percent of pixels to occlude
+occlusion_size: 1           # Square dimension in pixels of region to occlude
+occlusion_freq: .5           # percent of pixels to occlude

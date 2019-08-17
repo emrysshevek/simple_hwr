@@ -64,8 +64,12 @@ def collate(batch, device="cpu"):
 
 class HwDataset(Dataset):
     def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
-                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None, occlusion_size=None, occlusion_freq=None):
-        self.occlusion = ~(None in (occlusion_size, occlusion_freq))
+                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
+                 occlusion_size=None, occlusion_freq=None, logger=None):
+        self.occlusion = not (None in (occlusion_size, occlusion_freq))
+        self.occlusion_freq = occlusion_freq
+        self.occlusion_size = occlusion_size
+        #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
 
         data = []
         for data_path in data_paths:
@@ -90,6 +94,7 @@ class HwDataset(Dataset):
         self.data = data
         self.warp = warp
         self.num_of_channels = num_of_channels
+        self.logger = logger
 
     def add_writer_ids(self, data, writer_dict):
         """
@@ -142,7 +147,8 @@ class HwDataset(Dataset):
             img = grid_distortion.warp_image(img)
 
         if self.occlusion:
-            img = grid_distortion.occlude(img)
+            img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
+                                          occlusion_size=self.occlusion_size)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
