@@ -51,7 +51,7 @@ def read_config(config):
     else:
         raise "Unknown Filetype {}".format(config)
 
-def setup_logging(folder, log_std_out=True):
+def setup_logging(folder, log_std_out=True, level="info"):
     import logging, datetime, sys
     global LOGGER
     # Set up logging
@@ -73,13 +73,13 @@ def setup_logging(folder, log_std_out=True):
                             filemode='a',
                             format=format["fmt"],
                             datefmt=format["datefmt"],
-                            level=logging.INFO)
+                            level=level)
 
     # Send log messages to standard out
     if log_std_out:
         formatter = logging.Formatter(**format)
         std_out = logging.StreamHandler(sys.stdout)
-        std_out.setLevel("INFO")
+        std_out.setLevel(level)
         std_out.setFormatter(formatter)
         logger.addHandler(std_out)
 
@@ -136,6 +136,7 @@ def load_config(config_path):
 
     config = read_config(config_path)
     config["name"] = Path(config_path).stem
+
     defaults = {"load_path":False,
                 "training_shuffle": False,
                 "testing_shuffle": False,
@@ -157,7 +158,8 @@ def load_config(config_path):
                 "online_flag": True,
                 "save_count": 0,
                 "occlusion_size": None,
-                "occlusion_freq": None
+                "occlusion_freq": None,
+                "logging": "info"
                 }
 
     for k in defaults.keys():
@@ -247,11 +249,8 @@ def load_config(config_path):
     #parent, child = os.path.split(config)
     shutil.copy(config_path, config['results_dir'])
 
-    logger = setup_logging(folder=config["log_dir"])
-
-    if config["debug"]:
-        logger.setLevel("DEBUG")
-
+    logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
+    log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
     log_print("Using config file", config_path)
     log_print(json.dumps(config, indent=2))
 
@@ -296,10 +295,13 @@ def choose_optimal_gpu(priority="memory"):
     else: # utilization
         best_gpu = [(-x.load, x.memoryFree, i) for i, x in enumerate(GPUtil.getGPUs())]
 
-    best_gpu.sort(reverse=True)
-    best_gpu = best_gpu[0][2]
-    os.environ['CUDA_VISIBLE_DEVICES'] = str(best_gpu)
-    return best_gpu
+    try:
+        best_gpu.sort(reverse=True)
+        best_gpu = best_gpu[0][2]
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(best_gpu)
+        return best_gpu
+    except:
+        return None
 
 def wait_for_gpu():
     if get_computer() != "Galois":
@@ -620,7 +622,7 @@ def accumulate_stats(config, freq=None):
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq:
             stat.reset_accumlator()
-            config["logger"].debug(stat.name, stat.y[-1])
+            config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
 class Stat:
     def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):

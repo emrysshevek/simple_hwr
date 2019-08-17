@@ -150,6 +150,7 @@ class TrainerBaseline(json.JSONEncoder):
         loss_recognizer = self.ctc_criterion(pred_text, labels, preds_size, label_lengths)
 
         # Backprop
+        self.config["logger"].debug("Backpropping: {}".format(step))
         self.optimizer.zero_grad()
         loss_recognizer.backward(retain_graph=retain_graph)
         self.optimizer.step()
@@ -158,6 +159,7 @@ class TrainerBaseline(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+        self.config["logger"].debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 

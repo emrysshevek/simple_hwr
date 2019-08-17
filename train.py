@@ -144,6 +144,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
+    LOGGER.debug(f"Switching model to train")
     model.train()
     config["stats"]["epochs"] += [config["current_epoch"]]
     plot_freq = config["plot_freq"]
@@ -165,7 +166,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
         # Update visdom every 50 instances
-        if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
+        if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
@@ -174,13 +175,9 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
-            config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [
-                config["current_epoch"] + i * config["batch_size"] / config['n_train_instances']]
-            LOGGER.info(f"updates: {config['global_step']}")
-            accumulate_stats(config)
             break
 
+    accumulate_stats(config)
     training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
     LOGGER.debug(config["stats"])
 
@@ -360,17 +357,15 @@ def main():
     global config, LOGGER
     opts = parse_args()
     config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts)
+
     for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
-
-        config["criterion"] = 5
 
         # Only test
         if config["improve_image"]:
             training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
             break
-
         elif not config["test_only"]:
             training_cer = run_epoch(config["model"], train_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
 

@@ -1,10 +1,14 @@
+# Use lowercase for everything (unless e.g. the path has uppercase)
+
 ### TESTING
 TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
 SMALL_TRAINING: false  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
 TEST_FREQ: 1         # epoch frequency for running test set
 plot_freq: 50         # print updates, update plots every 50 batches
-images_to_load: null  # use an integer to load e.g. first 16 images
+images_to_load: 128  # use an integer to load e.g. first 16 images
+batch_size: 16                               # Batch size
+logging: debug
 
 ## Things that shouldn't matter much:
 # Random shuffling
@@ -47,7 +51,6 @@ output_predictions: false                    # Output incorrect test predictions
 
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
-batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
@@ -76,5 +79,5 @@ scheduler_gamma: .95          # LR decay rate
 #scheduler_gamma: .95          # LR decay rate
 
 # Occlusion
-occlusion_size: 1          # Square dimension in pixels of region to occlude
-occlusion_freq: .5          # percent of pixels to occlude
+occlusion_size: null          # Square dimension in pixels of region to occlude
+occlusion_freq: null          # percent of pixels to occlude
