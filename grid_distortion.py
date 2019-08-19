@@ -7,11 +7,14 @@ INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,
     "cubic": cv2.INTER_CUBIC
 }
+cv2.setNumThreads(0)
 
-def occlude(img, occlusion_size=1, occlusion_freq=.5):
+def occlude(img, occlusion_size=1, occlusion_freq=.5, logger=None):
     # Randomly choose occlusion frequency between 0 and specified occlusion
-    occlusion_freq = np.random.uniform(0, occlusion_freq)
-    binary_mask = np.random.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+    random_state = np.random.RandomState()
+    occlusion_freq = random_state.uniform(0, occlusion_freq)
+    binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+    #logger.debug(binary_mask)
     occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
     return occlusion
 

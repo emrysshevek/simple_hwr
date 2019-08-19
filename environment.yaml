@@ -10,7 +10,7 @@ dependencies:
   - python>=3.7.3
   - scipy>=1.2.1
   - visdom>=0.1.8.8
-  - yaml>=0.1.7
+  - pyyaml
   - matplotlib
   - pip:
     - biopython==1.73

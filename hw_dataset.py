@@ -18,7 +18,14 @@ from hwr_utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
-def collate(batch, device="cpu"):
+def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None):
+    if n_warp_iterations:
+        print("USING COLLATE WITH REPETITION")
+        return collate_repetition(batch, device, n_warp_iterations, warp, occlusion_freq, occlusion_size)
+    else:
+        return collate_basic(batch, device)
+
+def collate_basic(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -62,10 +69,78 @@ def collate(batch, device="cpu"):
         "online": online
     }
 
+def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None):
+    batch = [b for b in batch if b is not None]
+    occlude = occlusion_size and occlusion_freq
+
+    # These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    # Duplicate items in batch
+    final_batch = []
+    for x in batch:
+        img = (np.float32(x['line_img'].transpose(1, 2, 0)) + 1) * 128.0
+        for i in range(n_warp_iterations):
+            if warp:
+                img = grid_distortion.warp_image(img)
+            if occlude:
+                img = grid_distortion.occlude(img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size)
+
+            # Add channel dimension, since resize and warp only keep non-trivial channel axis
+            if len(img.shape) == 2:
+                img = img[:, :, np.newaxis]
+
+            img = (img.astype(np.float32) / 128.0 - 1.0).transpose(2, 0, 1)
+            final_batch.append(img)
+
+    dim0 = batch[0]['line_img'].shape[0] # channel?
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # width
+    dim2 = batch[0]['line_img'].shape[2] # height
+
+    all_labels = []
+    label_lengths = []
+
+    final = np.full((len(final_batch), n_warp_iterations, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        final[i,:,:,:b_img.shape[1],:] = b_img
+
+        l = batch[i]['gt_label']
+        all_labels.append(l)
+        label_lengths.append(len(l))
+
+    all_labels = np.concatenate(all_labels)
+    label_lengths = np.array(label_lengths)
+
+    line_imgs = final.transpose([0,1,4,2,3]) # batch, repetitions, channel/h/w
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+    labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
+    label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
+    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "labels": labels,
+        "label_lengths": label_lengths,
+        "gt": [b['gt'] for b in batch],
+        "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
+        "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
+        "paths": [b["path"] for b in batch],
+        "online": online
+    }
+
+
 class HwDataset(Dataset):
     def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
-                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None, occlusion_size=None, occlusion_freq=None):
-        self.occlusion = ~(None in (occlusion_size, occlusion_freq))
+                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
+                 occlusion_size=None, occlusion_freq=None, logger=None):
+        self.occlusion = not (None in (occlusion_size, occlusion_freq))
+        self.occlusion_freq = occlusion_freq
+        self.occlusion_size = occlusion_size
+        #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
 
         data = []
         for data_path in data_paths:
@@ -90,6 +165,7 @@ class HwDataset(Dataset):
         self.data = data
         self.warp = warp
         self.num_of_channels = num_of_channels
+        self.logger = logger
 
     def add_writer_ids(self, data, writer_dict):
         """
@@ -142,7 +218,8 @@ class HwDataset(Dataset):
             img = grid_distortion.warp_image(img)
 
         if self.occlusion:
-            img = grid_distortion.occlude(img)
+            img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
+                                          occlusion_size=self.occlusion_size)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:

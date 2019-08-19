@@ -1,6 +1,8 @@
 from __future__ import print_function
 from builtins import range
 import faulthandler
+from typing import Tuple
+
 from hwr_utils import is_iterable
 import json
 import character_set
@@ -50,19 +52,23 @@ from crnn import Stat
 faulthandler.enable()
 #torch.set_num_threads(torch.get_num_threads())
 #print(torch.get_num_threads())
-threads = torch.get_num_threads()
-torch.set_num_threads(threads)
+
+threads = max(1, min(torch.get_num_threads()-2,6))
 print(f"Threads: {threads}")
+#threads = 1
+torch.set_num_threads(threads)
 
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
+
     for x in dataloader:
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config["online_flag"] else None
-        config["trainer"].test(line_imgs, online, gt)
+        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
+            "online_flag"] else None
+        loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
         if config["TESTING"]:
@@ -70,6 +76,9 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
 
     accumulate_stats(config)
     test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
+
+    plot_images(x['line_imgs'], f"{config['current_epoch']}_testing", pred_str)
+
 
     LOGGER.debug(config["stats"])
     return test_cer
@@ -86,21 +95,25 @@ def to_numpy(tensor):
 
 def plot_images(line_imgs, name, text_str):
     # Save images
-    plot_count = min(len(line_imgs), 8)
-    f, axarr = plt.subplots(plot_count, 1)
+    plot_count = max(1, int(min(len(line_imgs), 8)/2)*2) # must be even, capped at 8
+    columns = min(plot_count,2)
+    rows = int(plot_count/columns)
+    f, axarr = plt.subplots(rows, columns)
 
     if isinstance(text_str, types.GeneratorType):
         text_str = list(text_str)
 
     if len(line_imgs) > 1:
+
         for j, img in enumerate(line_imgs):
             if j >= plot_count:
                 break
-            axarr[j].set_xlabel(f"{text_str[j]}")
-            axarr[j].imshow(to_numpy(img.squeeze()), cmap='gray')
+            coords = (j % rows, int(j/rows))
+            axarr[coords].set_xlabel(f"{text_str[j]}")
+            axarr[coords].imshow(to_numpy(img.squeeze()), cmap='gray')
             # more than 8 images is too crowded
     else:
-        axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
+         axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
 
     # plt.show()
     path = os.path.join(config["image_dir"], '{}.png'.format(name))
@@ -145,6 +158,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
+    LOGGER.debug(f"Switching model to train")
     model.train()
     config["stats"]["epochs"] += [config["current_epoch"]]
     plot_freq = config["plot_freq"]
@@ -165,8 +179,10 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
+        LOGGER.debug("Finished with batch")
+
         # Update visdom every 50 instances
-        if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
+        if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
@@ -175,18 +191,18 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
-            config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [
-                config["current_epoch"] + i * config["batch_size"] / config['n_train_instances']]
-            LOGGER.info(f"updates: {config['global_step']}")
-            accumulate_stats(config)
             break
 
-    training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
+    training_cer_list = config["stats"][config["designated_training_cer"]].y
+
+    if not training_cer_list:
+        accumulate_stats(config)
+
+    training_cer = training_cer_list[-1]  # most recent training CER
     LOGGER.debug(config["stats"])
 
     # Save images
-    plot_images(x['line_imgs'], f"{config['current_epoch']}_original", first_pred_str)
+    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str)
 
     return training_cer
 
@@ -195,17 +211,21 @@ def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"])
+                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"], logger=config["logger"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
                                   num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
+    # Handle basic vs with warp iterations
+    collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], warp=config["testing_warp"], occlusion_freq=config["occlusion_freq"],
+                                             occlusion_size=config["occlusion_size"])
+
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=config["testing_warp"], images_to_load=config["images_to_load"])
+                             warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                 num_workers=threads, collate_fn=collate_fn)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
@@ -327,7 +347,16 @@ def build_model(opts=None):
     stat_prep(config)
 
     # Create optimizer
-    optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
+    if config["optimizer_type"].lower() == "adam":
+        optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
+    elif config["optimizer_type"].lower() == "sgd":
+        optimizer = torch.optim.SGD(hw.parameters(), lr=config['learning_rate'], nesterov=True, momentum=.9)
+    elif config["optimizer_type"].lower() == "adabound":
+        from models import adabound
+        optimizer = adabound.AdaBound(hw.parameters(), lr=config['learning_rate'])
+    else:
+        raise Exception("Unknown optimizer type")
+
     config["optimizer"] = optimizer
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
@@ -361,17 +390,15 @@ def main():
     global config, LOGGER
     opts = parse_args()
     config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts)
+
     for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
         LOGGER.info("Epoch: {}".format(epoch))
         config["current_epoch"] = epoch
-
-        config["criterion"] = 5
 
         # Only test
         if config["improve_image"]:
             training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
             break
-
         elif not config["test_only"]:
             training_cer = run_epoch(config["model"], train_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
 

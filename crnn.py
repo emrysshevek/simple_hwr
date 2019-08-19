@@ -130,6 +130,9 @@ class TrainerBaseline(json.JSONEncoder):
         self.train_decoder = string_utils.naive_decode
         self.decoder = config["decoder"]
 
+        if self.config["n_warp_iterations"]:
+            print("Using test warp")
+
     def default(self, o):
         return None
 
@@ -137,19 +140,20 @@ class TrainerBaseline(json.JSONEncoder):
         self.model.train()
 
         pred_tup = self.model(line_imgs, online)
-        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+        pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1)))
 
-        output_batch = pred_text.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         pred_strs = list(self.decoder.decode_training(output_batch))
 
         # Get losses
         self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
-        loss_recognizer = self.ctc_criterion(pred_text, labels, preds_size, label_lengths)
+        loss_recognizer = self.ctc_criterion(pred_logits, labels, preds_size, label_lengths)
 
         # Backprop
+        self.config["logger"].debug("Backpropping: {}".format(step))
         self.optimizer.zero_grad()
         loss_recognizer.backward(retain_graph=retain_graph)
         self.optimizer.step()
@@ -158,13 +162,22 @@ class TrainerBaseline(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+        self.config["logger"].debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
+
+        self.config["logger"].debug("Accumulating stats")
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_strs
 
 
     def test(self, line_imgs, online, gt, force_training=False, nudger=False):
+        if self.config["n_warp_iterations"]:
+            return self.test_warp(line_imgs, online, gt, force_training, nudger)
+        else:
+            return self.test_normal(line_imgs, online, gt, force_training, nudger)
+
+    def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False):
         """
 
         Args:
@@ -184,9 +197,9 @@ class TrainerBaseline(json.JSONEncoder):
             self.model.eval()
 
         pred_tup = self.model(line_imgs, online)
-        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+        pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
-        output_batch = pred_text.permute(1, 0, 2)
+        output_batch = pred_logits.permute(1, 0, 2)
         pred_strs = list(self.decoder.decode_test(output_batch))
 
         # Error Rate
@@ -198,6 +211,43 @@ class TrainerBaseline(json.JSONEncoder):
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
+    def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False):
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        #use_lm = config['testing_language_model']
+        #n_warp_iterations = config['n_warp_iterations']
+
+        compiled_preds = []
+        # Loop through identical images
+        # batch, repetitions, c/h/w
+        for n in range(0, line_imgs.shape[1]):
+            imgs = line_imgs[:,n,:,:,:]
+            pred_tup = self.model(imgs, online)
+            pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+            output_batch = pred_logits.permute(1, 0, 2)
+            pred_strs = list(self.decoder.decode_test(output_batch))
+            compiled_preds.append(pred_strs) # 20, 16
+
+        compiled_preds = np.array(compiled_preds).transpose((1,0)) # 16, 20
+
+        # Loop through batch items
+        best_preds = []
+        for b in range(0, compiled_preds.shape[0]):
+            preds, counts = np.unique(compiled_preds[b], return_counts=True)
+            best_pred = preds[np.argmax(counts)]
+            best_preds.append(best_pred)
+
+        # Error Rate
+        if nudger:
+            return rnn_input
+        else:
+            err, weight = calculate_cer(best_preds, gt)
+            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_strs
 
 class TrainerNudger(json.JSONEncoder):
     def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
@@ -225,13 +275,13 @@ class TrainerNudger(json.JSONEncoder):
         else:
             baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
 
-        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
-        output_batch = pred_text_nudged.permute(1, 0, 2)
+        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
+        output_batch = pred_logits_nudged.permute(1, 0, 2)
         pred_strs = list(self.decoder.decode_training(output_batch))
 
         self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-        loss_recognizer_nudged = self.ctc_criterion(pred_text_nudged, labels, preds_size, label_lengths)
+        loss_recognizer_nudged = self.ctc_criterion(pred_logits_nudged, labels, preds_size, label_lengths)
         loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
 
         # Backprop
@@ -255,9 +305,9 @@ class TrainerNudger(json.JSONEncoder):
         self.nudger.eval()
         rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
 
-        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        # preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
-        output_batch = pred_text_nudged.permute(1, 0, 2)
+        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        # preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
+        output_batch = pred_logits_nudged.permute(1, 0, 2)
         pred_strs = list(self.decoder.decode_test(output_batch))
         err, weight = calculate_cer(pred_strs, gt)
 

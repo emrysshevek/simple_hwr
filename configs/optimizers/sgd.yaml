@@ -1,10 +1,10 @@
 ### TESTING
 TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
-SMALL_TRAINING: true  # Load 1 batch; will not save output
+SMALL_TRAINING: false  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
-TEST_FREQ: 1          # epoch frequency for running test set
+TEST_FREQ: 1         # epoch frequency for running test set
 plot_freq: 50         # print updates, update plots every 50 batches
-images_to_load: 16    # use an integer to load e.g. first 16 images
+images_to_load: null  # use an integer to load e.g. first 16 images
 
 ## Things that shouldn't matter much:
 # Random shuffling
@@ -17,8 +17,8 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: testing
-name: testing
+experiment: optimizers
+name: sgd
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -43,9 +43,9 @@ writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/wri
 testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
-n_warp_iterations: 16
-testing_warp: true
-testing_occlude: true
+n_warp_iterations: 0
+testing_warp: false
+testing_occlude: false
 output_predictions: false                    # Output incorrect test predictions
 
 #Network
@@ -56,7 +56,7 @@ cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
 rnn_layers: 2
-rnn_type: lstm                                # gru, lstm
+rnn_type: lstm                               # gru, lstm
 cnn: default                                  # default, resnet, intermediates
 
 # Recognizer parameters
@@ -79,5 +79,5 @@ scheduler_gamma: .95          # LR decay rate
 #scheduler_gamma: .95          # LR decay rate
 
 # Occlusion
-occlusion_size: 1          # Square dimension in pixels of region to occlude
-occlusion_freq: .5          # percent of pixels to occlude
+occlusion_size: null          # Square dimension in pixels of region to occlude
+occlusion_freq: null          # percent of pixels to occlude
