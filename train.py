@@ -51,6 +51,7 @@ faulthandler.enable()
 #torch.set_num_threads(torch.get_num_threads())
 #print(torch.get_num_threads())
 threads = torch.get_num_threads()
+torch.set_num_threads(threads)
 print(f"Threads: {threads}")
 
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
