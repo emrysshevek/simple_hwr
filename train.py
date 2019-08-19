@@ -55,14 +55,50 @@ print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
+def test_warp(model, dataloader, idx_to_char, dtype, config):
+    use_aug = config['testing_augmentation']
+    use_lm = config['testing_language_model']
+    n_warp_iterations = config['n_warp_iterations']
+
+
+    online = torch.tensor([x['online'][i] for j in range(n_warp_iterations)]).type(dtype)
+    online = Variable(online, requires_grad=False).view(1, -1, 1) if config["online_augmentation"] else None
+    line_imgs = torch.from_numpy(np.array(line_imgs)).type(dtype)
+    line_imgs = Variable(line_imgs, requires_grad=False)
+
+
+
+    preds, *_ = model(line_imgs, online)
+
+    preds = preds.cpu()
+    output_batch = preds.permute(1, 0, 2)
+    out = output_batch.data.cpu().numpy()
+
+    preds = []
+    for logits in out:
+        pred, raw_pred = string_utils.naive_decode(logits)
+        pred_str = string_utils.label2str(pred, idx_to_char, False)
+        preds.append(pred_str)
+
+    preds, counts = np.unique(preds, return_counts=True)
+    best_pred = preds[np.argmax(counts)]
+    gt_line = x['gt'][i]
+
+    cer = error_rates.cer(gt_line, best_pred)
+
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
+
+    use_aug = config['testing_augmentation']
+    use_lm = config['testing_language_model']
+
     for x in dataloader:
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config["online_flag"] else None
+        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
+            "online_flag"] else None
         config["trainer"].test(line_imgs, online, gt)
 
         # Only do one test
@@ -204,12 +240,15 @@ def make_dataloaders(config, device="cpu"):
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
                                   num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
+    # Handle basic vs with warp iterations
+    collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], )
+
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=config["testing_warp"], images_to_load=config["images_to_load"], logger=config["logger"])
+                             warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                 num_workers=threads, collate_fn=collate_fn)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 

@@ -159,7 +159,10 @@ def load_config(config_path):
                 "save_count": 0,
                 "occlusion_size": None,
                 "occlusion_freq": None,
-                "logging": "info"
+                "logging": "info",
+                "n_warp_iterations": 0,
+                "testing_occlude": False,
+                "testing_warp": False
                 }
 
     for k in defaults.keys():
@@ -167,6 +170,10 @@ def load_config(config_path):
             config[k] = defaults[k]
     if config["SMALL_TRAINING"] or config["TESTING"]:
         config["images_to_load"] = config["batch_size"]
+
+    config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
+    if config["testing_occlude"] and config["testing_warp"]:
+        config["n_warp_iterations"] = 0
 
     if not config["TESTING"]:
         wait_for_gpu()
