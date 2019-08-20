@@ -77,7 +77,8 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     accumulate_stats(config)
     test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
 
-    plot_images(x['line_imgs'], f"{config['current_epoch']}_testing", pred_str)
+    imgs = x["line_imgs"][:,0,:,:,:] if config["n_warp_iterations"] else x['line_imgs']
+    plot_images(imgs, f"{config['current_epoch']}_testing", pred_str)
 
 
     LOGGER.debug(config["stats"])

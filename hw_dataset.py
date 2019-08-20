@@ -20,7 +20,7 @@ ONLINE_JSON_PATH = ''
 
 def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None):
     if n_warp_iterations:
-        print("USING COLLATE WITH REPETITION")
+        #print("USING COLLATE WITH REPETITION")
         return collate_repetition(batch, device, n_warp_iterations, warp, occlusion_freq, occlusion_size)
     else:
         return collate_basic(batch, device)
@@ -52,7 +52,7 @@ def collate_basic(batch, device="cpu"):
     all_labels = np.concatenate(all_labels)
     label_lengths = np.array(label_lengths)
 
-    line_imgs = input_batch.transpose([0,3,1,2])
+    line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
     labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
@@ -71,6 +71,7 @@ def collate_basic(batch, device="cpu"):
 
 def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None):
     batch = [b for b in batch if b is not None]
+    batch_size = len(batch)
     occlude = occlusion_size and occlusion_freq
 
     # These all should be the same size or error
@@ -79,43 +80,43 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
-    # Duplicate items in batch
-    final_batch = []
-    for x in batch:
-        img = (np.float32(x['line_img'].transpose(1, 2, 0)) + 1) * 128.0
-        for i in range(n_warp_iterations):
-            if warp:
-                img = grid_distortion.warp_image(img)
-            if occlude:
-                img = grid_distortion.occlude(img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size)
-
-            # Add channel dimension, since resize and warp only keep non-trivial channel axis
-            if len(img.shape) == 2:
-                img = img[:, :, np.newaxis]
-
-            img = (img.astype(np.float32) / 128.0 - 1.0).transpose(2, 0, 1)
-            final_batch.append(img)
-
-    dim0 = batch[0]['line_img'].shape[0] # channel?
+    dim0 = batch[0]['line_img'].shape[0] # height
     dim1 = max([b['line_img'].shape[1] for b in batch]) # width
-    dim2 = batch[0]['line_img'].shape[2] # height
+    dim2 = batch[0]['line_img'].shape[2] # channel
 
     all_labels = []
     label_lengths = []
+    final = np.full((batch_size, n_warp_iterations, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
 
-    final = np.full((len(final_batch), n_warp_iterations, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
-    for i in range(len(batch)):
-        b_img = batch[i]['line_img']
-        final[i,:,:,:b_img.shape[1],:] = b_img
+    # Duplicate items in batch
+    for b_i,x in enumerate(batch):
+        # H, W, C
+        img = (np.float32(x['line_img']) + 1) * 128.0
 
-        l = batch[i]['gt_label']
+        width = img.shape[1]
+        for r_i in range(n_warp_iterations):
+            new_img = img.copy()
+            if warp:
+                new_img = grid_distortion.warp_image(new_img)
+            if occlude:
+                new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size)
+
+
+            # Add channel dimension, since resize and warp only keep non-trivial channel axis
+            if len(new_img.shape) == 2:
+                new_img = new_img[:, :, np.newaxis]
+
+            new_img = (new_img.astype(np.float32) / 128.0 - 1.0) # H, W, C
+            final[b_i, r_i, :, :width, :] = new_img
+
+        l = batch[b_i]['gt_label']
         all_labels.append(l)
         label_lengths.append(len(l))
 
     all_labels = np.concatenate(all_labels)
     label_lengths = np.array(label_lengths)
 
-    line_imgs = final.transpose([0,1,4,2,3]) # batch, repetitions, channel/h/w
+    line_imgs = final.transpose([0,1,4,2,3]) # batch, repetitions, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
     labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)

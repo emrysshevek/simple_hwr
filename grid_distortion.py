@@ -11,6 +11,7 @@ cv2.setNumThreads(0)
 
 def occlude(img, occlusion_size=1, occlusion_freq=.5, logger=None):
     # Randomly choose occlusion frequency between 0 and specified occlusion
+    # H X W X Channel
     random_state = np.random.RandomState()
     occlusion_freq = random_state.uniform(0, occlusion_freq)
     binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
