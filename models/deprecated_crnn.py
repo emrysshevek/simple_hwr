@@ -3,7 +3,7 @@ from torch import nn
 from hwr_utils import *
 import os
 from torch.autograd import Variable
-from basic import BidirectionalRNN, GeneralizedBRNN, CNN
+from models.basic import BidirectionalRNN, GeneralizedBRNN, CNN
 
 class CRNN(nn.Module):
     """ Original CRNN
@@ -11,7 +11,7 @@ class CRNN(nn.Module):
     Modified to add some parameters to put it on even ground with the writer-classifier
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, nh, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, rnn_constructor=nn.LSTM):
-        super(CRNN, self).__init__()
+        super().__init__()
 
         self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu)
         self.rnn = BidirectionalRNN(cnnOutSize, nh, alphabet_size, dropout=recognizer_dropout, rnn_constructor=rnn_constructor)
@@ -30,7 +30,7 @@ class CRNN_with_writer_classifier(nn.Module):
     def __init__(self, rnn_input_dim, nc, alphabet_size, nh, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
                  embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
                  detach_embedding=True, online_augmentation=False, use_writer_classifier=True, rnn_constructor=nn.LSTM):
-        super(CRNN_with_writer_classifier, self).__init__()
+        super().__init__()
         self.cnn = CNN(cnnOutSize=1024, nc=nc, leakyRelu=leakyRelu)
         self.softmax = nn.LogSoftmax()
         self.use_writer_classifier = use_writer_classifier
@@ -86,7 +86,7 @@ class CRNN_2Stage(nn.Module):
     """
     def __init__(self, rnn_input_dim, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
                  first_rnn_out_dim=128, rnn_constructor=nn.LSTM):
-        super(CRNN_2Stage, self).__init__()
+        super().__init__()
         self.softmax = nn.LogSoftmax()
         self.cnn = CNN(1024, nc, leakyRelu=leakyRelu)
         self.first_rnn  = BidirectionalRNN(rnn_input_dim, rnn_hidden_dim, first_rnn_out_dim, dropout=recognizer_dropout, rnn_constructor=rnn_constructor)
@@ -127,7 +127,7 @@ class Nudger(nn.Module):
             leakyRelu:
         """
 
-        super(Nudger, self).__init__()
+        super().__init__()
         self.nudger_rnn = BidirectionalRNN(rnn_input_dim, rnn_hidden_dim, rnn_input_dim, dropout=rnn_dropout, num_layers=rnn_layers, rnn_constructor=rnn_constructor)
 
     def forward(self, feature_maps, recognizer_rnn, classifier_output=None):

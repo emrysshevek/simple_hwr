@@ -3,12 +3,10 @@ import torch
 from torch import nn
 from hwr_utils import *
 import os, sys
-sys.path.append("./models")
 from torch.autograd import Variable
 #from torchvision.models import resnet
-from basic import *
-from CRCR import CRCR
-from deprecated_crnn import *
+from models.CRCR import CRCR
+from models.deprecated_crnn import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -18,7 +16,7 @@ class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
     def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, rnn_input_dimension=1024, rnn_constructor=nn.LSTM, cnn_type="default"):
-        super(basic_CRNN, self).__init__()
+        super().__init__()
         self.softmax = nn.LogSoftmax()
         self.dropout = recognizer_dropout
         if cnn_type in ["default", "intermediates"] or "resnet" in cnn_type:
@@ -229,9 +227,9 @@ class TrainerBaseline(json.JSONEncoder):
             pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
             output_batch = pred_logits.permute(1, 0, 2)
             pred_strs = list(self.decoder.decode_test(output_batch))
-            compiled_preds.append(pred_strs) # 20, 16
+            compiled_preds.append(pred_strs) # reps, batch
 
-        compiled_preds = np.array(compiled_preds).transpose((1,0)) # 16, 20
+        compiled_preds = np.array(compiled_preds).transpose((1,0)) # batch, reps
 
         # Loop through batch items
         best_preds = []

@@ -9,15 +9,78 @@ INTERPOLATION = {
 }
 cv2.setNumThreads(0)
 
-def occlude(img, occlusion_size=1, occlusion_freq=.5, logger=None):
+def occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+    """
+        NOT IMPLEMENTED:
+        OTHER OPTIONS:
+            RANDOM OCCLUSION THRESHOLD
+            RANDOM OCCLUSION LEVEL (within range)
+            OCCLUSION SIZE
+    Args:
+        img:
+        occlusion_size:
+        occlusion_freq:
+        occlusion_level: just "dim" these pixels a random amount; 1 - white, 0 - original image
+        occlusion
+        logger:
+
+    Returns:
+
+    """
+
+
     # Randomly choose occlusion frequency between 0 and specified occlusion
     # H X W X Channel
     random_state = np.random.RandomState()
     occlusion_freq = random_state.uniform(0, occlusion_freq)
     binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
     #logger.debug(binary_mask)
-    occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+    if occlusion_level==1:
+        occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+    else:
+        random_mask = random_state.rand(*img.shape) * occlusion_level  # occlude between not-at-all and occlusion-level
+        if False: # randomly whiten to different levels
+            occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
+        else: # random noise
+            random_mask = np.minimum((random_mask - occlusion_level/2 + 1) * img, 255)
+            occlusion = np.where(binary_mask == 0, random_mask, img)
+
     return occlusion
+
+def noise(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+    """
+        NOT IMPLEMENTED:
+        OTHER OPTIONS:
+            RANDOM OCCLUSION THRESHOLD
+            RANDOM OCCLUSION LEVEL (within range)
+            OCCLUSION SIZE
+    Args:
+        img:
+        occlusion_size:
+        occlusion_freq:
+        occlusion_level: just "dim" these pixels a random amount; 1 - white, 0 - original image
+        occlusion
+        logger:
+
+    Returns:
+
+    """
+
+
+    # Randomly choose occlusion frequency between 0 and specified occlusion
+    # H X W X Channel
+    random_state = np.random.RandomState()
+    occlusion_freq = random_state.uniform(0, occlusion_freq)
+    binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+    #logger.debug(binary_mask)
+    if occlusion_level==1:
+        occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+    else:
+        random_mask = random_state.rand(*img.shape) * occlusion_level # occlude between not-at-all and occlusion-level
+        occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
+
+    return occlusion
+
 
 def warp_image(img, random_state=None, **kwargs):
     if random_state is None:

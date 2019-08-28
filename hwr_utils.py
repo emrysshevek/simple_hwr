@@ -105,13 +105,13 @@ def parse_args():
     # elif not config["name"] and opts.name:
     #     config["name"] = opts.name
 
-def find_config(config_name):
+def find_config(config_name, config_root="./configs"):
     # Correct config paths
     if os.path.isfile(config_name):
         return config_name
 
     found_paths = []
-    for d,s,fs in os.walk("./configs"):
+    for d,s,fs in os.walk(config_root):
         for f in fs:
             if config_name == f:
                 found_paths.append(os.path.join(d, f))
@@ -125,17 +125,25 @@ def find_config(config_name):
         raise Exception("{} config not found".format(config_name))
 
 def load_config(config_path):
-
     par, chld = os.path.split(config_path)
-
+    config_root = str(Path(os.path.realpath(__file__)).parent / "configs") # r"./configs"
     if chld[-5:].lower() != ".yaml":
         chld = chld + ".yaml"
 
     if not os.path.isfile(config_path):
-        config_path = find_config(chld)
+        config_path = find_config(chld, config_root)
+
+    # Main output folder
+    try:
+        experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
+    except:
+        experiment = "./new_experiment" # use current folder for experiment output
 
     config = read_config(config_path)
-    config["name"] = Path(config_path).stem
+    config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
+
+    # Use config folder to determine output folder
+    config["experiment"] = str(experiment)
 
     defaults = {"load_path":False,
                 "training_shuffle": False,
@@ -160,10 +168,11 @@ def load_config(config_path):
                 "occlusion_size": None,
                 "occlusion_freq": None,
                 "logging": "info",
-                "n_warp_iterations": 0,
+                "n_warp_iterations": 11,
                 "testing_occlude": False,
                 "testing_warp": False,
-                "optimizer_type": "adam"
+                "optimizer_type": "adam",
+                "occlusion_level": .4
                 }
 
     for k in defaults.keys():
@@ -175,6 +184,9 @@ def load_config(config_path):
     config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
     if not config["testing_occlude"] and not config["testing_warp"]:
         config["n_warp_iterations"] = 0
+    elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
+        config["n_warp_iterations"] = 7
+        print("n_warp_iterations set to 0, changing to 11")
 
     if not config["TESTING"]:
         wait_for_gpu()
@@ -198,18 +210,21 @@ def load_config(config_path):
             config["training_jsons"].remove(data_path)
             config["online_flag"] = False # turn off flag if no online data provided
 
-    # Main output folder
     output_root = os.path.join(config["output_folder"], config["experiment"])
 
-    hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
+    # hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
+    #      config["name"],
+    #      config["learning_rate"],
+    #      config["batch_size"],
+    #      config["training_warp"],
+    #      config["style_encoder"]
+    #  )
+
+    hyper_parameter_str='{}'.format(
          config["name"],
-         config["learning_rate"],
-         config["batch_size"],
-         config["training_warp"],
-         config["style_encoder"]
      )
 
-    train_suffix = '{}-{}'.format(    
+    train_suffix = '{}-{}'.format(
         time.strftime("%Y%m%d_%H%M%S"),
         hyper_parameter_str)
 
@@ -228,8 +243,11 @@ def load_config(config_path):
     if "image_dir" not in config.keys():
         config["image_dir"] = os.path.join(config['results_dir'], "imgs")
 
+    config["image_test_dir"] = os.path.join(config["image_dir"], "test")
+    config["image_train_dir"] = os.path.join(config["image_dir"], "train")
+
     # Create paths
-    for path in (output_root, config["results_dir"], config["log_dir"], config["image_dir"]):
+    for path in (output_root, config["results_dir"], config["log_dir"], config["image_dir"], config["image_train_dir"], config["image_test_dir"]):
         if path is not None and len(path) > 0 and not os.path.exists(path):
             os.makedirs(path)
 
@@ -366,7 +384,6 @@ def fix_scientific_notation(config):
 
 def get_last_index(my_list, value):
     return len(my_list) - 1 - my_list[::-1].index(value)
-
 
 def write_out(folder, fname, text):
     with open(os.path.join(folder, fname), "a") as f:
@@ -648,7 +665,7 @@ class Stat:
 
 
         """
-        super(Stat, self).__init__()
+        super().__init__()
         self.y = y
         self.x = x
         self.current_weight = 0

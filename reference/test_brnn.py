@@ -5,7 +5,7 @@ import os
 from torch.autograd import Variable
 #from torchvision.models import resnet
 from models import resnet
-from basic import GeneralizedBRNN
+from models.basic import GeneralizedBRNN
 
 if __name__ == "__main__":
     batch = 2

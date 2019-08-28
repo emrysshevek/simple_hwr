@@ -3,7 +3,7 @@ from torch import nn
 from hwr_utils import *
 import os
 from torch.autograd import Variable
-from basic import BidirectionalRNN, GeneralizedBRNN, PrintLayer
+from models.basic import BidirectionalRNN, GeneralizedBRNN, PrintLayer
 
 class CRCR(nn.Module):
     def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, type="default"):
@@ -16,7 +16,7 @@ class CRCR(nn.Module):
             nc:
             leakyRelu:
         """
-        super(CRCR, self).__init__()
+        super().__init__()
         self.cnnOutSize = cnnOutSize
         self.cnn = self.default_CRCR(nc=nc, leakyRelu=leakyRelu)
         print("Creating a CNN with Recurrent layer")

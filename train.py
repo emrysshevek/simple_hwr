@@ -58,17 +58,21 @@ print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
-def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
+def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
 
-    for x in dataloader:
+    for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
         online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
             "online_flag"] else None
         loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt)
+
+        if plot_all:
+            imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
+            plot_images(imgs, f"{config['current_epoch']}_{i}_testing", pred_str, config["image_test_dir"])
 
         # Only do one test
         if config["TESTING"]:
@@ -77,8 +81,9 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
     accumulate_stats(config)
     test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
 
-    imgs = x["line_imgs"][:,0,:,:,:] if config["n_warp_iterations"] else x['line_imgs']
-    plot_images(imgs, f"{config['current_epoch']}_testing", pred_str)
+    if not plot_all:
+        imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
+        plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"])
 
 
     LOGGER.debug(config["stats"])
@@ -94,7 +99,9 @@ def to_numpy(tensor):
 #img = np.random.rand(3,3,3)
 #plot_images(img, "name", ["a","b","c"])
 
-def plot_images(line_imgs, name, text_str):
+def plot_images(line_imgs, name, text_str, dir=None):
+    if dir is None:
+        dir = config["image_dir"]
     # Save images
     plot_count = max(1, int(min(len(line_imgs), 8)/2)*2) # must be even, capped at 8
     columns = min(plot_count,2)
@@ -117,7 +124,7 @@ def plot_images(line_imgs, name, text_str):
          axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
 
     # plt.show()
-    path = os.path.join(config["image_dir"], '{}.png'.format(name))
+    path = os.path.join(dir, '{}.png'.format(name))
     plt.savefig(path, dpi=300)
     plt.close('all')
 
@@ -203,7 +210,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     LOGGER.debug(config["stats"])
 
     # Save images
-    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str)
+    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"])
 
     return training_cer
 
@@ -212,14 +219,15 @@ def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"], logger=config["logger"])
+                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"],
+                              occlusion_level=config["occlusion_level"], logger=config["logger"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
                                   num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     # Handle basic vs with warp iterations
     collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], warp=config["testing_warp"], occlusion_freq=config["occlusion_freq"],
-                                             occlusion_size=config["occlusion_size"])
+                                             occlusion_size=config["occlusion_size"], occlusion_level=config["occlusion_level"])
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
@@ -433,6 +441,11 @@ def main():
                 save_model(config, bsf=False)
 
             plt_loss(config)
+
+    ## Do a final test WITH warping and plot all test images
+    config["testing_warp"] = True
+    test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True)
+    config["stats"][config["designated_test_cer"]].y[-1] *= -1 # shorthand
 
 def recreate():
     """ Simple function to load model and re-save it with some updates (e.g. model definition etc.)

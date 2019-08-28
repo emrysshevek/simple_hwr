@@ -18,10 +18,10 @@ from hwr_utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
-def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None):
+def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
     if n_warp_iterations:
         #print("USING COLLATE WITH REPETITION")
-        return collate_repetition(batch, device, n_warp_iterations, warp, occlusion_freq, occlusion_size)
+        return collate_repetition(batch, device, n_warp_iterations, warp, occlusion_freq, occlusion_size, occlusion_level=occlusion_level)
     else:
         return collate_basic(batch, device)
 
@@ -69,7 +69,7 @@ def collate_basic(batch, device="cpu"):
         "online": online
     }
 
-def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None):
+def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
     batch = [b for b in batch if b is not None]
     batch_size = len(batch)
     occlude = occlusion_size and occlusion_freq
@@ -99,7 +99,7 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
             if warp:
                 new_img = grid_distortion.warp_image(new_img)
             if occlude:
-                new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size)
+                new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size, occlusion_level=occlusion_level)
 
 
             # Add channel dimension, since resize and warp only keep non-trivial channel axis
@@ -137,10 +137,11 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 class HwDataset(Dataset):
     def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
                  writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
-                 occlusion_size=None, occlusion_freq=None, logger=None):
+                 occlusion_size=None, occlusion_freq=None, occlusion_level=1, logger=None):
         self.occlusion = not (None in (occlusion_size, occlusion_freq))
         self.occlusion_freq = occlusion_freq
         self.occlusion_size = occlusion_size
+        self.occlusion_level = occlusion_level
         #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
 
         data = []
@@ -220,7 +221,8 @@ class HwDataset(Dataset):
 
         if self.occlusion:
             img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
-                                          occlusion_size=self.occlusion_size)
+                                          occlusion_size=self.occlusion_size,
+                                          occlusion_level=self.occlusion_level)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:

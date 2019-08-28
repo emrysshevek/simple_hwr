@@ -81,3 +81,4 @@ scheduler_gamma: .95          # LR decay rate
 # Occlusion
 occlusion_size: null          # Square dimension in pixels of region to occlude
 occlusion_freq: null          # percent of pixels to occlude
+occlusion_level: null       # level of dimming; 1=white, 0=no change

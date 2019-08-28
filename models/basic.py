@@ -17,7 +17,7 @@ class MLP(nn.Module):
                 e.g. input-> 16 nodes -> 8 nodes [embedding] -> 16 nodes would be 1
         """
 
-        super(MLP, self).__init__()
+        super().__init__()
         classifier = nn.Sequential()
 
         def addLayer(i, input, output, use_nonlinearity=True):
@@ -57,7 +57,7 @@ class MLP(nn.Module):
 class BidirectionalRNN(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM):
-        super(BidirectionalRNN, self).__init__()
+        super().__init__()
         print(f"Creating {rnn_constructor.__name__}: in:{nIn} hidden:{nHidden} dropout:{dropout} layers:{num_layers} out:{nOut}")
         self.nIn = nIn
         self.rnn = rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
@@ -78,7 +78,7 @@ class BidirectionalRNN(nn.Module):
 class GeneralizedBRNN(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM, permute=False):
-        super(GeneralizedBRNN, self).__init__()
+        super().__init__()
         print(
             f"Creating {rnn_constructor.__name__}: in:{nIn} hidden:{nHidden} dropout:{dropout} layers:{num_layers} out:{nOut}")
         self.nIn = nIn
@@ -113,7 +113,7 @@ class PrintLayer(nn.Module):
             PrintLayer(),
     """
     def __init__(self, name=None):
-        super(PrintLayer, self).__init__()
+        super().__init__()
         self.name = name
 
     def forward(self, x):
@@ -132,7 +132,7 @@ class CNN(nn.Module):
             nc:
             leakyRelu:
         """
-        super(CNN, self).__init__()
+        super().__init__()
         self.cnnOutSize = cnnOutSize
         #self.average_pool = nn.AdaptiveAvgPool2d((512,2))
         self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
