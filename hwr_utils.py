@@ -153,6 +153,7 @@ def load_config(config_path):
                 "GPU": True,
                 "SKIP_TESTING": False,
                 "OVERFIT": False,
+                "TEST_FREQ": 1,
                 "SMALL_TRAINING": False,
                 "images_to_load": None,
                 "plot_freq": 50,
