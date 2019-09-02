@@ -117,7 +117,7 @@ def plot_images(line_imgs, name, text_str, dir=None):
             if j >= plot_count:
                 break
             coords = (j % rows, int(j/rows))
-            axarr[coords].set_xlabel(f"{text_str[j]}")
+            axarr[coords].set_xlabel(f"{text_str[j]}", fontsize=12)
             axarr[coords].imshow(to_numpy(img.squeeze()), cmap='gray')
             # more than 8 images is too crowded
     else:
