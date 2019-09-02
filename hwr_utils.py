@@ -204,7 +204,6 @@ def load_config(config_path):
     if config["SMALL_TRAINING"]:
         config["plot_freq"] = 1
 
-
     # Removing online jsons if not using online
     for data_path in config["training_jsons"]:
         if "online" in data_path and not config["online_augmentation"]:
@@ -274,7 +273,10 @@ def load_config(config_path):
 
     # Copy config to output folder
     #parent, child = os.path.split(config)
-    shutil.copy(config_path, config['results_dir'])
+    try:
+        shutil.copy(config_path, config['results_dir'])
+    except Exception as e:
+        log_print(f"Could not copy config file: {e}")
 
     logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
