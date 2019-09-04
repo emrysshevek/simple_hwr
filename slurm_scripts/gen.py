@@ -37,6 +37,8 @@ def get_sh(path, ext=".sh"):
         for f in fs:
             if f[-len(ext):] == ext:
                 yield os.path.join(ds,f)
+
+
 def is_iterable(object, string_is_iterable=True):
     """Returns whether object is an iterable. Strings are considered iterables by default.
 
@@ -118,7 +120,12 @@ def loop_exp(config_folder):
     # Loop over all experiment variations
     pass
 
+def delete_old_sh(path="."):
+    for sh in get_sh(path):
+        os.remove(sh)
+
 if __name__=="__main__":
+    delete_old_sh()
     loop_configs(config_root, sh_root)
 
     # Make scripts executable                            

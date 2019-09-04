@@ -55,5 +55,4 @@ scheduler_step: 10
 scheduler_gamma: 0.95
 occlusion_size: 1
 occlusion_freq: 0
-occlusion_level: 0
-
+occlusion_level: 1

@@ -19,7 +19,7 @@ training_jsons:
 - prepare_IAM_Lines/raw_gts/lines/txt/training.json
 training_root: ../simple_hwr/data
 training_shuffle: true
-training_warp: false
+training_warp: true
 online_augmentation: true
 exclude_offline: true
 online_flag: false
@@ -56,4 +56,3 @@ scheduler_gamma: 0.95
 occlusion_size: 1
 occlusion_freq: 0
 occlusion_level: 0
-

@@ -173,7 +173,8 @@ def load_config(config_path):
                 "testing_occlude": False,
                 "testing_warp": False,
                 "optimizer_type": "adam",
-                "occlusion_level": .4
+                "occlusion_level": .4,
+                "exclude_offline": False
                 }
 
     for k in defaults.keys():
@@ -188,6 +189,11 @@ def load_config(config_path):
     elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
         config["n_warp_iterations"] = 7
         print("n_warp_iterations set to 0, changing to 11")
+
+    if config["exclude_offline"]:
+        training_data = "prepare_IAM_Lines/raw_gts/lines/txt/training.json"
+        if training_data in config["training_jsons"]:
+            config["training_jsons"].remove(training_data)
 
     if not config["TESTING"]:
         wait_for_gpu()
@@ -249,7 +255,7 @@ def load_config(config_path):
     # Create paths
     for path in (output_root, config["results_dir"], config["log_dir"], config["image_dir"], config["image_train_dir"], config["image_test_dir"]):
         if path is not None and len(path) > 0 and not os.path.exists(path):
-            os.makedirs(path)
+            Path(path).mkdir(parents=True, exist_ok=True)
 
     # Make a link to most recent run
     try:

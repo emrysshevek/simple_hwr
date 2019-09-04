@@ -20,8 +20,7 @@ training_jsons:
 training_root: ../simple_hwr/data
 training_shuffle: true
 training_warp: false
-online_augmentation: true
-exclude_offline: true
+online_augmentation: false
 online_flag: false
 writer_id_pickles:
 - prepare_IAM_Lines/writer_IDs.pickle
@@ -55,5 +54,4 @@ scheduler_step: 10
 scheduler_gamma: 0.95
 occlusion_size: 1
 occlusion_freq: 0
-occlusion_level: 0
-
+occlusion_level: 0.1
