@@ -1,9 +1,8 @@
-from utils import pickle_it, unpickle_it
+from utils.utils import pickle_it
 import os
-import json
 from xml.dom import minidom
 from collections import defaultdict
-import pickle
+
 xml_obj = None
 def get_writers_offline(xml_obj, path):
     parent, child = os.path.split(path)

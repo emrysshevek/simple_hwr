@@ -1,10 +1,9 @@
 import os
 from visdom import Visdom
 import numpy as np
-import torch
 import warnings
 import json
-from crnn import Stat
+from models.crnn import Stat
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
 

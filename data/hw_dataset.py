@@ -3,20 +3,63 @@ import json
 
 import torch
 from torch.utils.data import Dataset
-from torch.autograd import Variable
 
-from collections import defaultdict
 import os
 import cv2
 import numpy as np
 
-import random
-import string_utils
+from utils import grid_distortion, string_utils
+from utils.utils import unpickle_it
+from utils.character_set import PAD_IDX
 
-import grid_distortion
-from utils import unpickle_it
-PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
+
+
+def seq2seq_collate(batch, sos, eos, pad, device='cpu'):
+    batch = [b for b in batch if b is not None]
+    # These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    dim0 = batch[0]['line_img'].shape[0]
+    dim1 = max([b['line_img'].shape[1] for b in batch])
+    dim2 = batch[0]['line_img'].shape[2]
+
+    all_labels = []
+    label_lengths = []
+    img_pad_value = 0
+    input_batch = np.full((len(batch), dim0, dim1, dim2), img_pad_value).astype(np.float32)
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        input_batch[i, :, :b_img.shape[1], :] = b_img
+
+        l = batch[i]['gt_label']
+        all_labels.append(np.pad(l, 1, mode='constant', constant_values=(sos, eos)))
+        label_lengths.append(len(l))
+
+    max_label_len = max(len(label) for label in all_labels)
+    all_labels = [np.pad(label, (0, max_label_len-len(label)), mode='constant', constant_values=pad) for label in all_labels]
+    all_labels = np.stack(all_labels)
+    label_lengths = np.array(label_lengths)
+
+    line_imgs = input_batch.transpose([0, 3, 1, 2])
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+    labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
+    label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
+    online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "labels": labels,
+        "label_lengths": label_lengths,
+        "gt": [b['gt'] for b in batch],
+        "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
+        "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
+        "paths": [b["path"] for b in batch],
+        "online": online
+    }
 
 def collate(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
@@ -32,8 +75,8 @@ def collate(batch, device="cpu"):
 
     all_labels = []
     label_lengths = []
-
-    input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+    pad_value = 0
+    input_batch = np.full((len(batch), dim0, dim1, dim2), pad_value).astype(np.float32)
     for i in range(len(batch)):
         b_img = batch[i]['line_img']
         input_batch[i,:,:b_img.shape[1],:] = b_img

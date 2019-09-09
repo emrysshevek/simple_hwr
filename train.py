@@ -1,20 +1,14 @@
 from __future__ import print_function
 from builtins import range
 import faulthandler
-from utils import is_iterable
-import json
-import character_set
-import sys
-import hw_dataset
-from hw_dataset import HwDataset
-import crnn
-import os
-import torch
+from utils import character_set
+from data import hw_dataset
+from data.hw_dataset import HwDataset
+from models import crnn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
-import torch
-
+from torch import nn
 
 ### TO DO:
 # Add ONLINE flag to regular CRNN
@@ -27,20 +21,13 @@ import torch
 # Deepwriting - clean up generated images?
 # Dropout schedule
 
-import error_rates
-import string_utils
 from torch.nn import CrossEntropyLoss
 import traceback
 
 import visualize
-import matplotlib
 # matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-import numpy as np
-import time
-from utils import *
+from utils.utils import *
 from torch.optim import lr_scheduler
-from crnn import Stat
 
 ## Notes on usage
 # conda activate hw2
@@ -167,26 +154,32 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
+    if config['style_encoder'] == 'seq2seq':
+        collate_fct = lambda x: hw_dataset.seq2seq_collate(x, config['sos_idx'], config['eos_idx'], config['pad_idx'], device=device)
+    else:
+        collate_fct = lambda x: hw_dataset.collate(x, device=device)
+
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
                               warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
 
     train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
+                                  num_workers=0, collate_fn=collate_fct, pin_memory=device == "cpu", drop_last=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
                              warp=config["testing_warp"])
+
     test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=0, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                 num_workers=0, collate_fn=collate_fct, drop_last=True)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
 
 def load_data(config):
     # Load characters and prep datasets
-    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(
-        config['training_jsons'], root=config["training_root"])
+    config["char_to_idx"], config["idx_to_char"], config["char_freq"], config['sos_idx'], config['eos_idx'], \
+        config['pad_idx'] = character_set.make_char_set(config['training_jsons'], root=config["training_root"])
 
     train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
 
@@ -200,7 +193,7 @@ def load_data(config):
 
 def check_gpu(config):
     # GPU stuff
-    use_gpu = torch.cuda.is_available() and not config["TESTING"]
+    use_gpu = torch.cuda.is_available() and not config["TESTING"] and config['use_gpu']
     device = torch.device("cuda" if use_gpu else "cpu")
     dtype = torch.cuda.FloatTensor if use_gpu else torch.FloatTensor
     if use_gpu:
@@ -228,7 +221,6 @@ def main():
     # Prep data loaders
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
 
-
     # Prep optimizer
     if True:
         ctc = torch.nn.CTCLoss()
@@ -242,7 +234,7 @@ def main():
     config["calc_cer_training"] = calculate_cer
     use_beam = config["decoder_type"] == "beam"
     config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
-
+    # print(config['rnn_constructor'])
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
         hw = crnn.create_CRNNClassifier(config)
@@ -251,13 +243,13 @@ def main():
     elif config["style_encoder"] == "2Stage":
         hw = crnn.create_2Stage(config)
         config["embedding_size"] = 0
-
     elif config["style_encoder"] == "2StageNudger":
         hw = crnn.create_CRNN(config)
         config["nudger"] = crnn.create_Nudger(config).to(device)
         config["embedding_size"] = 0
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
-
+    elif config['style_encoder'] == "seq2seq":
+        hw = crnn.create_seq2seq_recognizer(config)
     else:  # basic HWR
         config["embedding_size"] = 0
         hw = crnn.create_CRNN(config)
@@ -296,6 +288,8 @@ def main():
         train_baseline = False if config["load_path"] else True
         config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
                                                train_baseline=train_baseline)
+    elif config['style_encoder'] == 'seq2seq':
+        config['trainer'] = crnn.TrainerSeq2Seq(hw, optimizer, config, criterion)
     else:
         config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
 

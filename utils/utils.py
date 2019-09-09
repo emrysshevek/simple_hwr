@@ -1,4 +1,3 @@
-import pathlib
 import socket
 import argparse
 import matplotlib.pyplot as plt
@@ -14,8 +13,7 @@ import datetime
 from Bio import pairwise2
 import numpy as np
 import warnings
-import string_utils
-import error_rates
+from utils import error_rates, string_utils
 
 def is_iterable(obj):
     try:
@@ -81,7 +79,7 @@ def log_print(*args, print_statements=True):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default="./configs/taylor.yaml", help='Path to the config file.')
+    parser.add_argument('--config', type=str, default="./configs/seq2seq.yaml", help='Path to the config file.')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
 
     opts = parser.parse_args()

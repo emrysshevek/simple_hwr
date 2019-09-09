@@ -1,23 +1,10 @@
 from __future__ import print_function
-from builtins import range
 
-import json
-import character_set
 import sys
-import hw_dataset
-from hw_dataset import HwDataset
-import crnn
-import os
-import torch
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
 from train import *
-import error_rates
-import string_utils
 
 import matplotlib
 matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 
 VALIDATION_PATH = 'prepare_online_data/test_augmentation.json'
 

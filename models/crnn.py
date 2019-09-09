@@ -1,11 +1,15 @@
-import warnings
-import torch
 from torch import nn
-from utils import *
+from torch.nn import functional as F
+from utils.utils import *
+from utils.character_set import PAD_IDX
 import os
 from torch.autograd import Variable
 
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+from models.attention import Attention
+from models.decoder import Decoder
+from models.seq2seq import Seq2Seq
+
+# os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 # Use ResNet?
 # Increase LSTM dropout
 
@@ -69,7 +73,7 @@ class BidirectionalRNN(nn.Module):
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM):
         super(BidirectionalRNN, self).__init__()
         print(f"Creating {rnn_constructor.__name__}: in:{nIn} hidden:{nHidden} dropout:{dropout} layers:{num_layers} out:{nOut}")
-        self.rnn =  rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
+        self.rnn = rnn_constructor(nIn, nHidden, bidirectional=True, dropout=dropout, num_layers=num_layers)
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
     def forward(self, input):
@@ -398,6 +402,18 @@ def create_CRNN(config):
                 recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"], rnn_constructor=config["rnn_constructor"])
     return crnn
 
+def create_seq2seq_recognizer(config):
+    check_inputs(config)
+    encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
+                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
+                      recognizer_dropout=config["recognizer_dropout"],
+                      online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
+                      rnn_constructor=config["rnn_constructor"])
+    attention = Attention(embed_dim=config['alphabet_size'])
+    decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
+                      context_dim=config['alphabet_size'], n_layers=5, hidden_dim=config['alphabet_size'])
+    return Seq2Seq(encoder, attention, decoder, output_max_len=200, vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
+
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier
     check_inputs(config)
@@ -443,6 +459,93 @@ def create_Nudger(config):
     crnn = Nudger(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], rnn_hidden_dim=config["rnn_dimension"],
                             rnn_layers=config["nudger_rnn_layers"], leakyRelu=False, rnn_dropout=config["recognizer_dropout"], rnn_constructor=config["rnn_constructor"])
     return crnn
+
+class TrainerSeq2Seq(json.JSONEncoder):
+    def __init__(self, model, optimizer, config, criterion):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.criterion = nn.CrossEntropyLoss()
+
+        self.idx_to_char = self.config["idx_to_char"]
+
+    def default(self, o):
+        return None
+
+    def format_sequences(self, pred, label):
+        pred_len = pred.shape[-1]
+
+    def stringify(self, pred_sequences):
+        sos, eos, pad = self.config['sos_idx'], self.config['eos_idx'], self.config['pad_idx']
+        pred_sequences = pred_sequences.argmax(dim=-1).detach().cpu().numpy()
+        cleaned_seqs = []
+        for seq in pred_sequences:
+            cleaned_seqs.append(seq[(seq!=sos) & (seq!=eos) & (seq!=pad)])
+        pred_strs = [string_utils.label2str(seq, self.config['idx_to_char']) for seq in cleaned_seqs]
+        return pred_strs
+
+    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
+        print('---------------------------\n')
+        self.model.train()
+
+        text_sequence = self.model(line_imgs, online)
+        batch_size, seq_len, vocab_size = text_sequence.shape
+        pred_strs = self.stringify(text_sequence)
+
+        labels = F.pad(labels, pad=(0, seq_len - labels.shape[-1]), value=self.config['pad_idx']).to(torch.long).to(text_sequence.device)
+        assert np.array_equal((batch_size, seq_len), labels.shape)
+
+        self.config["logger"].debug("Calculating Loss: {}".format(step))
+        loss = self.criterion(text_sequence.view(-1, vocab_size), labels.view(-1))
+
+        self.optimizer.zero_grad()
+        loss.backward(retain_graph=retain_graph)
+        self.optimizer.step()
+
+        loss = loss.item()
+        # Error Rate
+        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
+        err, weight = calculate_cer(pred_strs, gt)
+        self.config["stats"]["Training Error Rate"].accumulate(err, weight)
+        for pred, label in zip(pred_strs, gt):
+            print(pred)
+            print(label)
+            print(f'CER: {err}')
+            print(f'loss: {loss}')
+            print()
+        print('---------------------------')
+
+        return loss, err, pred_strs
+
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
+        """
+
+        Args:
+            line_imgs:
+            online:
+            gt:
+            force_training: Run test in .train() as opposed to .eval() mode
+            update_stats:
+
+        Returns:
+
+        """
+
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        pred_seqs = self.model(line_imgs, online)
+        pred_strs = self.stringify(pred_seqs)
+
+        # Error Rate
+        err, weight = calculate_cer(pred_strs, gt)
+        self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+        loss = -1  # not calculating test loss here
+
+        return loss, err, pred_strs
+
 
 class TrainerBaseline(json.JSONEncoder):
     def __init__(self, model, optimizer, config, ctc_criterion):

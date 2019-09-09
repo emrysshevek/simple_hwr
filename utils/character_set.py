@@ -3,6 +3,14 @@ import json
 import os
 from collections import defaultdict
 
+PAD_TOKEN = '<pad>'
+PAD_IDX = None
+SOS_TOKEN = '<sos>'
+SOS_IDX = None
+EOS_TOKEN = '<eos>'
+EOS_IDX = None
+
+
 def load_char_set(char_set_path):
     with open(char_set_path) as f:
         char_set = json.load(f)
@@ -14,7 +22,7 @@ def load_char_set(char_set_path):
     return idx_to_char, char_set['char_to_idx']
 
 
-def make_char_set(paths, root="./data"):
+def make_char_set(paths, root="./data", seq2seq=False):
     out_char_to_idx = {}
     out_idx_to_char = {}
     char_freq = defaultdict(int)
@@ -42,7 +50,22 @@ def make_char_set(paths, root="./data"):
     out_char_to_idx2["|"] = 0
     out_idx_to_char2[0] = "|"
 
-    return out_char_to_idx2, out_idx_to_char2, char_freq
+    # If using seq2seq model, add <pad>, <sos> and <eos> tags
+    # if seq2seq:
+    n_chars = len(out_char_to_idx2)
+    sos_token, eos_token, pad_token = '<SOS>', '<EOS>', '<PAD>'
+    sos_idx, eos_idx, pad_idx = n_chars, n_chars + 1, n_chars + 2
+
+    out_char_to_idx2[sos_token] = sos_idx
+    out_idx_to_char2[sos_idx] = sos_token
+
+    out_char_to_idx2[eos_token] = eos_idx
+    out_idx_to_char2[eos_idx] = eos_token
+
+    out_char_to_idx2[pad_token] = pad_idx
+    out_idx_to_char2[pad_idx] = pad_token
+
+    return out_char_to_idx2, out_idx_to_char2, char_freq, sos_idx, eos_idx, pad_idx
 
 
 if __name__ == "__main__":
