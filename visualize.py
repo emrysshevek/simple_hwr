@@ -146,13 +146,14 @@ def close_all_env(plotter):
     for env in plotter.viz.get_env_list():
         plotter.viz.delete_env(env)
 
-def load_all(path, key='test_cer', clear=True):
+def load_all(path, key='test_cer', clear=True, keyword=""):
     # python -m visdom.server -p 8080
     plotter = Plot("NewEnv")
     close_all_env(plotter)
 
     for p in Path(path).rglob("losses.json"):
-        if "BSF" not in p.as_uri():
+        if "BSF" not in p.as_uri() and keyword in p.as_uri():
+            print(p)
             name = p.parent.name.replace("-", "_").split("_")
             name = "_".join((name[0],name[2],name[3],name[4], name[1]))
             print(name)
@@ -169,4 +170,5 @@ def load_all(path, key='test_cer', clear=True):
 if __name__=="__main__":
     path = r"/media/data/GitHub/simple_hwr/results/occlusion/online_or_offline_only/variants/"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
-    load_all(path)
+    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
+    load_all(path, keyword="20190909")
