@@ -15,7 +15,7 @@ from utils.character_set import PAD_IDX
 ONLINE_JSON_PATH = ''
 
 
-def seq2seq_collate(batch, sos, eos, pad, device='cpu'):
+def seq2seq_collate(batch, sos, eos, pad, max_seq_len, device='cpu'):
     batch = [b for b in batch if b is not None]
     # These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -36,7 +36,9 @@ def seq2seq_collate(batch, sos, eos, pad, device='cpu'):
         input_batch[i, :, :b_img.shape[1], :] = b_img
 
         l = batch[i]['gt_label']
-        all_labels.append(np.pad(l, 1, mode='constant', constant_values=(sos, eos)))
+        l = np.pad(l, 1, mode='constant', constant_values=(sos, eos))
+        l = np.pad(l, (0, max_seq_len-l.shape[-1]), mode='constant', constant_values=pad)
+        all_labels.append(l)
         label_lengths.append(len(l))
 
     max_label_len = max(len(label) for label in all_labels)
@@ -46,7 +48,7 @@ def seq2seq_collate(batch, sos, eos, pad, device='cpu'):
 
     line_imgs = input_batch.transpose([0, 3, 1, 2])
     line_imgs = torch.from_numpy(line_imgs).to(device)
-    labels = torch.from_numpy(all_labels.astype(np.int32)).to(device)
+    labels = torch.from_numpy(all_labels.astype(np.int32)).to(device).to(torch.long)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
     online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
 

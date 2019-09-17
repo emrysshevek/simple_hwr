@@ -37,19 +37,23 @@ from torch.optim import lr_scheduler
 faulthandler.enable()
 
 
-def test(model, dataloader, idx_to_char, device, config, with_analysis=False):
+def test(model, dataloader, idx_to_char, device, configig, with_analysis=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
-    for x in dataloader:
+    for i, x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
-        gt = x['gt']  # actual string ground truth
+        gts = x['gt']  # actual string ground truth
         online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] else None
-        config["trainer"].test(line_imgs, online, gt)
+        loss, err, pred_strs = config["trainer"].test(line_imgs, online, gts)
 
         # Only do one test
         if config["TESTING"]:
             break
+
+        if i == len(dataloader) - 1:
+            LOGGER.info(f'\tPrediction:   [{pred_strs[0]}]')
+            LOGGER.info(f'\tGround Truth: [{gts[0]}]')
 
     accumulate_stats(config)
     test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
@@ -120,7 +124,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
         labels = Variable(x['labels'], requires_grad=False)  # numeric indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
-        gt = x['gt']  # actual string ground truth
+        gts = x['gt']  # actual string ground truth
         config["global_step"] += 1
         config["global_instances_counter"] += line_imgs.shape[0]
         config["stats"]["instances"] += [config["global_instances_counter"]]
@@ -129,7 +133,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
             "online_augmentation"] else None
 
-        config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
+        loss, err, pred_strs = config["trainer"].train(line_imgs, online, labels, label_lengths, gts, step=config["global_step"])
 
         # Update visdom every 50 instances
         if config["global_step"] % plot_freq == 0 and config["global_step"] > 0:
@@ -139,6 +143,9 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             visualize.plot_all(config)
+
+            LOGGER.info(f'\tPrediction:   [{pred_strs[0]}]')
+            LOGGER.info(f'\tGround Truth: [{gts[0]}]')
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
@@ -155,7 +162,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 def make_dataloaders(config, device="cpu"):
     if config['style_encoder'] == 'seq2seq':
-        collate_fct = lambda x: hw_dataset.seq2seq_collate(x, config['sos_idx'], config['eos_idx'], config['pad_idx'], device=device)
+        collate_fct = lambda x: hw_dataset.seq2seq_collate(x, config['sos_idx'], config['eos_idx'], config['pad_idx'], config['max_seq_len'], device=device)
     else:
         collate_fct = lambda x: hw_dataset.collate(x, device=device)
 
@@ -250,6 +257,8 @@ def main():
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
     elif config['style_encoder'] == "seq2seq":
         hw = crnn.create_seq2seq_recognizer(config)
+        # pretrained_state_dict = torch.load(config['cnn_load_path'])
+        # hw.encoder = pretrained_state_dict['model']
     else:  # basic HWR
         config["embedding_size"] = 0
         hw = crnn.create_CRNN(config)
@@ -271,7 +280,11 @@ def main():
     stat_prep(config)
 
     # Create optimizer
-    optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
+    params = []
+    params.extend(hw.encoder.rnn.parameters())
+    params.extend(hw.attention.parameters())
+    params.extend(hw.decoder.parameters())
+    optimizer = torch.optim.Adam(params, lr=config['learning_rate'])
     config["optimizer"] = optimizer
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])

@@ -409,10 +409,12 @@ def create_seq2seq_recognizer(config):
                       recognizer_dropout=config["recognizer_dropout"],
                       online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
                       rnn_constructor=config["rnn_constructor"])
+    pretrained_state_dict = {name: val for name, val in torch.load(config['cnn_load_path']).items() if 'cnn' in name}
+    encoder.load_state_dict(pretrained_state_dict, strict=False)
     attention = Attention(embed_dim=config['alphabet_size'])
     decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
                       context_dim=config['alphabet_size'], n_layers=5, hidden_dim=config['alphabet_size'])
-    return Seq2Seq(encoder, attention, decoder, output_max_len=200, vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
+    return Seq2Seq(encoder, attention, decoder, output_max_len=config['max_seq_len'], vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
 
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier
@@ -460,14 +462,44 @@ def create_Nudger(config):
                             rnn_layers=config["nudger_rnn_layers"], leakyRelu=False, rnn_dropout=config["recognizer_dropout"], rnn_constructor=config["rnn_constructor"])
     return crnn
 
+
+class LabelSmoothing(torch.nn.Module):
+    "Implement label smoothing."
+    def __init__(self, size, padding_idx, smoothing=0.0):
+        super(LabelSmoothing, self).__init__()
+        self.criterion = torch.nn.KLDivLoss(size_average=False)
+        self.padding_idx = padding_idx
+        self.confidence = 1.0 - smoothing
+        self.smoothing = smoothing
+        self.size = size
+        self.true_dist = None
+
+    def forward(self, x, target):
+        assert x.size(1) == self.size
+        true_dist = x.data.clone()
+        true_dist.fill_(self.smoothing / (self.size - 2))
+        true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
+        true_dist[:, self.padding_idx] = 0
+        mask = torch.nonzero(target.data == self.padding_idx)
+        if mask.dim() > 0:
+            true_dist.index_fill_(0, mask.squeeze(), 0.0)
+        self.true_dist = true_dist
+        return self.criterion(x, Variable(true_dist, requires_grad=False))
+
+
 class TrainerSeq2Seq(json.JSONEncoder):
     def __init__(self, model, optimizer, config, criterion):
         self.model = model
         self.optimizer = optimizer
         self.config = config
-        self.criterion = nn.CrossEntropyLoss()
-
         self.idx_to_char = self.config["idx_to_char"]
+
+        weight = torch.ones(len(self.idx_to_char))
+        # weight[config['char_to_idx'][' ']] = .5
+        # self.criterion = LabelSmoothing(len(config['idx_to_char']), config['pad_idx'], 0.4)
+        # self.criterion = nn.CrossEntropyLoss(weight=weight)
+        self.criterion = nn.CrossEntropyLoss(ignore_index=config['pad_idx'], weight=weight)
+        # self.criterion = nn.CrossEntropyLoss()
 
     def default(self, o):
         return None
@@ -480,20 +512,23 @@ class TrainerSeq2Seq(json.JSONEncoder):
         pred_sequences = pred_sequences.argmax(dim=-1).detach().cpu().numpy()
         cleaned_seqs = []
         for seq in pred_sequences:
-            cleaned_seqs.append(seq[(seq!=sos) & (seq!=eos) & (seq!=pad)])
+            seq = seq.flatten()
+            eos_pos = np.argwhere(seq == eos)
+            eos_pos = None if len(eos_pos) == 0 else eos_pos.flatten()[0]
+            cleaned_seq = seq[:eos_pos]
+            cleaned_seq = cleaned_seq[(cleaned_seq != sos) & (cleaned_seq != pad)]
+            cleaned_seqs.append(cleaned_seq)
         pred_strs = [string_utils.label2str(seq, self.config['idx_to_char']) for seq in cleaned_seqs]
         return pred_strs
 
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        print('---------------------------\n')
+    def train(self, line_imgs, online, labels, label_lengths, gts, retain_graph=False, step=0):
         self.model.train()
 
-        text_sequence = self.model(line_imgs, online)
+        text_sequence = self.model(line_imgs, online, labels).cpu()
         batch_size, seq_len, vocab_size = text_sequence.shape
         pred_strs = self.stringify(text_sequence)
 
-        labels = F.pad(labels, pad=(0, seq_len - labels.shape[-1]), value=self.config['pad_idx']).to(torch.long).to(text_sequence.device)
-        assert np.array_equal((batch_size, seq_len), labels.shape)
+        assert np.array_equal(text_sequence.shape, (*labels.shape, len(self.idx_to_char)))
 
         self.config["logger"].debug("Calculating Loss: {}".format(step))
         loss = self.criterion(text_sequence.view(-1, vocab_size), labels.view(-1))
@@ -505,15 +540,8 @@ class TrainerSeq2Seq(json.JSONEncoder):
         loss = loss.item()
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight = calculate_cer(pred_strs, gt)
+        err, weight = calculate_cer(pred_strs, gts)
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
-        for pred, label in zip(pred_strs, gt):
-            print(pred)
-            print(label)
-            print(f'CER: {err}')
-            print(f'loss: {loss}')
-            print()
-        print('---------------------------')
 
         return loss, err, pred_strs
 

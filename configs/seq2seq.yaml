@@ -2,15 +2,15 @@
 TESTING: false # Load as little as possible for fast prototyping
 
 # Load model
-load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
+load_path: results/seq2seq/20190913_103617-seq2seq_lr_0.0001_bs_16_warp_True_arch_seq2seq/seq2seq_model.pt
 #load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
-test_only: false                             # Do not train
+test_only: true                             # Do not train
 
 # General
 experiment: seq2seq
 name: seq2seq # unknown_experiment
 output_folder: ./results
-epochs_to_run: 150
+epochs_to_run: 500
 save_freq: 5
 use_visdom: true
 debug: off
@@ -41,6 +41,8 @@ testing_profile_normalization: true
 
 #Network
 style_encoder: seq2seq                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+max_seq_len: 100
+cnn_load_path: ../taylor_simple_hwr/results/BEST/20190807_104745-smallv2/ONLY_THE_STATE.pt
 batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
