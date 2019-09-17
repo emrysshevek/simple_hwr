@@ -1,0 +1,11 @@
+output
+lines
+task
+xml
+*.pyc
+*.tgz
+lines.txt
+words.txt
+*.zip
+words
+raw_gts

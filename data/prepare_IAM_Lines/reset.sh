@@ -1,0 +1,12 @@
+rm -f largeWriterIndependentTextLineRecognitionTask.zip
+rm -rf processed
+rm -rf lines
+rm -f lines.txt*
+rm -f lines.tgz
+rm -rf words
+rm -f words.tgz
+rm -f words.txt*
+rm -rf raw_gts
+rm -rf xml
+rm -f xml.tgz
+rm -rf task

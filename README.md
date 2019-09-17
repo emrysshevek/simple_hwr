@@ -1,43 +1,46 @@
 # BYU ML Lab Deep Integration of LM into HWR
 
-## 
+## Prerequisites
 
+To work with this project effectively, supercomputer access is highly
+recommended.  Sign up [here](https://rc.byu.edu/account/create/).
 
-### Dependances
+Next, request group access from Taylor Archibald.
 
-numpy  
-opencv 3  
-pytorch  
-cffi  
-editdistance
+After logging in, install Anaconda 3:
+
+``` sh
+cd /tmp
+curl -O https://repo.anaconda.com/archive/Anaconda3-2019.03-Linux-x86_64.sh
+bash Anaconda3-5.2.0-Linux-x86_64.sh
+```
+
+## Environment
 
 Install this from the repo:
 https://github.com/SeanNaren/warp-ctc
 
+### Configuration
+
+The configuration files located in `config/` are used to create environments
+within which to 
+
+### Activating Environment
+
+``` sh
+conda env create -f environment.yaml
+conda activate hwr
+```
 
 ## Execution
 
-### Prepare Font Data
+### Downloading/Preparing Datasets
+
+Ensure that you have an IAM Database access account ([register](http://www.fki.inf.unibe.ch/DBs/iamDB/iLogin/index.php)), then:
 
 ``` bash
-git clone https://github.com/cwig/prepare_font_data  
-cd prepare_font_data  
-bash run.sh  
-cd ..  
-python character_set.py prepare_font_data/training.json prepare_font_data/char_set.json
-```
-
-### Prepare IAM Data
-
-After signing up for an IAM Database access account:
-
-``` bash
-git clone https://github.com/cwig/prepare_IAM_Lines   
-cd prepare_IAM_Lines
-sh download_IAM_data.sh  
-python extract_all_words_lines.py  
-cd ..  
-python character_set.py prepare_IAM_Lines/raw_gts/lines/txt/training.json prepare_IAM_Lines/char_set.json  
+cd data
+sh generate-all-datasets.sh
 ```
 
 ### Train
