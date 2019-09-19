@@ -11,3 +11,8 @@ bash run.sh
 
 cd ../prepare_online_data
 bash download.sh
+
+cd ..
+cd ..
+echo "Creating writer ID pickle objects..."
+python3 parse_writer_data.py
