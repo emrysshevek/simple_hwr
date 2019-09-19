@@ -27,6 +27,7 @@ data/prepare_online_data/lineImages*
 data/prepare_online_data/original-xml*
 data/prepare_online_data/writers.xml
 data/prepare_online_data/online_augmentation.json
+writer_IDs.pickle
 
 
 data/prepare_online_data/cropped_images/

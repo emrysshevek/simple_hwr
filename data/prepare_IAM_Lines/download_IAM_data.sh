@@ -11,3 +11,6 @@ tar -zxf xml.tgz -C xml
 wget http://www.fki.inf.unibe.ch/DBs/iamDB/tasks/largeWriterIndependentTextLineRecognitionTask.zip
 mkdir task
 unzip largeWriterIndependentTextLineRecognitionTask.zip -d task
+
+python3 extract_all_words_lines.py
+bash process_raw_gts.sh
