@@ -22,9 +22,6 @@ https://github.com/SeanNaren/warp-ctc
 
 ### Configuration
 
-The configuration files located in `config/` are used to create environments
-within which to 
-
 ### Activating Environment
 
 ``` sh
@@ -36,12 +33,14 @@ conda activate hwr
 
 ### Downloading/Preparing Datasets
 
-Ensure that you have an IAM Database access account ([register](http://www.fki.inf.unibe.ch/DBs/iamDB/iLogin/index.php)), then:
+Ensure that you have an IAM Handwriting Database access account ([register](http://www.fki.inf.unibe.ch/DBs/iamDB/iLogin/index.php)), and IAM On-Line Handwriting Database access account ([register](http://www.fki.inf.unibe.ch/DBs/iamOnDB/iLogin/index.php)), then:
 
 ``` bash
 cd data
 sh generate-all-datasets.sh
 ```
+
+For the first IAM prompt, use your username and password for IAM Handwriting DB, then for the second IAM prompt, use your username and password for IAM On-Line Handwriting DB.
 
 ### Train
 
