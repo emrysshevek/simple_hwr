@@ -22,7 +22,7 @@ https://github.com/SeanNaren/warp-ctc
 
 ### Configuration
 
-### Activating Environment
+### Creating and Activating Conda Environment
 
 ``` sh
 conda env create -f environment.yaml
@@ -37,21 +37,17 @@ Ensure that you have an IAM Handwriting Database access account ([register](http
 
 ``` bash
 cd data
-sh generate-all-datasets.sh
+./generate-all-datasets.sh
 ```
 
 For the first IAM prompt, use your username and password for IAM Handwriting DB, then for the second IAM prompt, use your username and password for IAM On-Line Handwriting DB.
 
 ### Train
 
-To train, run `train.py` with one of the configurations:
+To train, run `train.py` with one of the configurations found in the `configs` folder.  For example:
 
 ``` sh
-python train.py sample_config.json
-```
-or if you want to run a lot of epochs (kill whenever)
-``` sh
-python train.py sample_config_iam.json
+python train.py --config ./configs/baseline.yaml
 ```
 
 ### Recognize
