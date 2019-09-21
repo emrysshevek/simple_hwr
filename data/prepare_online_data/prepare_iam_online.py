@@ -23,7 +23,6 @@ for file in xml_files:
         gt = line.get('text')
         img_path = os.path.join('prepare_online_data', img_dir, line.get('id') + '.tif')
         if os.path.exists(os.path.join(os.getcwd(), img_dir, line.get('id') + '.tif')):
-            print(gt, img_path)
             img_json.append({'gt': gt, 'image_path': img_path, 'augmentation': True})
             char_set.update(gt)
 

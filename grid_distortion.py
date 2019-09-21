@@ -9,7 +9,15 @@ INTERPOLATION = {
 }
 cv2.setNumThreads(0)
 
-def occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+def occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None, noise_type=None):
+    if occlusion_freq:
+        return _occlude(img, occlusion_size, occlusion_freq, occlusion_level, logger)
+    else:
+        if noise_type is None:
+            noise_type = "gaussian"
+        return noise(img, occlusion_level=occlusion_level, logger=logger, noise_type=noise_type)
+
+def _occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
     """
         Occlusion frequency : between 0% and this number will be occluded
         Occlusion level: maximum occlusion change (multiplier); each pixel to be occluded has a random occlusion probability;
@@ -138,13 +146,13 @@ def warp_image(img, random_state=None, **kwargs):
 
     return warped
 
-def noise(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None, type="gaussian"):
-    if type == "gaussian":
-        return gaussian_noise(img, occlusion_size=occlusion_size, occlusion_freq=occlusion_freq, occlusion_level=occlusion_level, logger=None)
+def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
+    if noise_type == "gaussian":
+        return gaussian_noise(img, occlusion_level=occlusion_level, logger=logger)
     else:
         raise Exception("Not implemented")
 
-def gaussian_noise(img, occlusion_size=1, occlusion_freq=1, occlusion_level=1, logger=None):
+def gaussian_noise(img, occlusion_level=1, logger=None):
     """
         occlusion_level: .1 - light haze, 1 heavy
 
