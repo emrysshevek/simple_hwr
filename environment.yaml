@@ -19,6 +19,7 @@ dependencies:
     - pillow==6.0.0
     - protobuf==3.7.1
     - six==1.12.0
+    - tqdm==4.32.1
     - tensorboardx==1.6
     - torch==1.1.0
     - torchfile==0.1.0

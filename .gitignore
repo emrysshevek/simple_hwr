@@ -1,9 +1,10 @@
 # Data
-*prepare*/
 *.pt
 *.lnk*
 *.slurm
 ~archive/
+
+# Prepare_IAM (Handwriting Database)A
 
 # results
 results/
@@ -12,7 +13,23 @@ results/
 # configs/
 
 # Data
-data/prepare_IAM_Lines/lines/
+data/prepare_font_data/output/
+data/prepare_font_data/validation.*
+data/prepare_font_data/words.*
+data/prepare_font_data/training.*
+data/prepare_IAM_Lines/lines*
+data/prepare_IAM_Lines/words*
+data/prepare_IAM_Lines/task/
+data/prepare_IAM_Lines/processed/
+data/prepare_IAM_Lines/xml*
+data/prepare_IAM_Lines/raw_gts*
+data/prepare_online_data/lineImages*
+data/prepare_online_data/original-xml*
+data/prepare_online_data/writers.xml
+data/prepare_online_data/online_augmentation.json
+writer_IDs.pickle
+
+
 data/prepare_online_data/cropped_images/
 
 # Passwords and cookies

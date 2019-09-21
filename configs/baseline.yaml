@@ -17,7 +17,7 @@ test_only: false                             # Do not train
 experiment: baseline
 name_deprecated: true_baseline
 output_folder: ./results
-epochs_to_run: 200
+epochs_to_run: 2
 save_freq: 5
 use_visdom: true
 debug: off
@@ -26,16 +26,16 @@ debug: off
 # log_dir:
 
 # Training data
-training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
-training_root: ../simple_hwr/data
+training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+training_root: data
 training_shuffle: true
 training_warp: false
 online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
-testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
-testing_root: ../simple_hwr/data
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
+testing_root: data
 testing_shuffle: false
 testing_warp: false
 output_predictions: false                    # Output incorrect test predictions
