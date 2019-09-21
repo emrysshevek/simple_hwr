@@ -40,6 +40,9 @@ if __name__ == "__main__":
     XML_DIR = 'original-xml-all'
     img_json = []
 
+    if not exists(IMG_DIR) or not exists(XML_DIR):
+        raise Exception(f"Verify {prepend_cwd(IMG_DIR)} and {prepend_cwd(XML_DIR)} exist.")
+
     for file in tqdm(get_xml_files(XML_DIR)):
         root = ET.parse(file).getroot()
         transcription = root.find('Transcription')
@@ -51,11 +54,12 @@ if __name__ == "__main__":
             gt = clean_text(line.get('text'))
             img_id = line.get('id')
             img_path = get_image_path_from_id(img_id)
-            
             if exists(img_path):
                 full_img_path = prepend_cwd(img_path)
                 img_json.append({'gt': gt, 'image_path': img_path, 'augmentation': True})
     
-
-    with open('online_augmentation.json', 'w') as fp:
-        json.dump(img_json, fp, indent=2)
+    if img_json:
+        with open('online_augmentation.json', 'w') as fp:
+            json.dump(img_json, fp, indent=2)
+    else:
+        raise Exception("No images found!")
