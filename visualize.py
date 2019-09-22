@@ -154,8 +154,10 @@ def load_all(path, key='test_cer', clear=True, keyword=""):
     for p in Path(path).rglob("losses.json"):
         if "BSF" not in p.as_uri() and keyword in p.as_uri():
             print(p)
-            name = p.parent.name.replace("-", "_").split("_")
-            name = "_".join((name[0],name[2],name[3],name[4], name[1]))
+            name = p.parent.name.replace("-", "_")
+            name = name.split("_")
+            #name = "_".join((name[0],name[2],name[3],name[4], name[1]))
+            name = "_".join((name[2], name[3], name[0]))
             print(name)
             plotter = Plot(name)
             losses = json.loads(p.read_text())[key]
@@ -168,7 +170,9 @@ def load_all(path, key='test_cer', clear=True, keyword=""):
 
 
 if __name__=="__main__":
+    # python -m visdom.server -p 8080
     path = r"/media/data/GitHub/simple_hwr/results/occlusion/online_or_offline_only/variants/"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
-    load_all(path, keyword="20190909")
+    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion"
+    load_all(path, keyword="20190920")
