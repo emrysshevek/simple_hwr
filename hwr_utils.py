@@ -124,6 +124,19 @@ def find_config(config_name, config_root="./configs"):
     elif len(found_paths) < 1:
         raise Exception("{} config not found".format(config_name))
 
+def incrementer(root, base):
+    new_folder = Path(root / base)
+    increment = 0
+    increment_string = ""
+
+    while new_folder.exists():
+        increment += 1
+        increment_string = f"{increment:02d}" if increment > 0 else ""
+        new_folder = Path(root / base + increment_string)
+
+    new_folder.mkdir(parents=True, exist_ok=True)
+    return new_folder
+
 def load_config(config_path):
     par, chld = os.path.split(config_path)
     config_root = str(Path(os.path.realpath(__file__)).parent / "configs") # r"./configs"
@@ -133,17 +146,22 @@ def load_config(config_path):
     if not os.path.isfile(config_path):
         config_path = find_config(chld, config_root)
 
-    # Main output folder
-    try:
-        experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
-    except:
-        experiment = "./new_experiment" # use current folder for experiment output
-
     config = read_config(config_path)
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
 
+    # Main output folder
+    if config["load_path"]:
+        experiment = incrementer(Path(config_root), "new_experiment")
+    else:
+        try:
+            experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
+        except:
+            pass
+
     # Use config folder to determine output folder
     config["experiment"] = str(experiment)
+    print(experiment)
+    Stop
 
     defaults = {"load_path":False,
                 "training_shuffle": False,
@@ -593,6 +611,16 @@ def create_resume_training(config):
 
     output = Path(config["results_dir"])
     with open(Path(output / 'RESUME.yaml'), 'w') as outfile:
+        yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
+
+    with open(Path(output / 'TEST.yaml'), 'w') as outfile:
+        export_config["test_only"] = True
+        if export_config["training_warp"]:
+            export_config["testing_warp"] = True
+        if export_config["occlusion_level"]:
+            export_config["testing_occlude"] = True
+        if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
+            export_config["n_warp_iterations"] = 21
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
 def plt_loss(config):
