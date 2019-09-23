@@ -132,7 +132,7 @@ def incrementer(root, base):
     while new_folder.exists():
         increment += 1
         increment_string = f"{increment:02d}" if increment > 0 else ""
-        new_folder = Path(root / base + increment_string)
+        new_folder = Path(root / (base + increment_string))
 
     new_folder.mkdir(parents=True, exist_ok=True)
     return new_folder
@@ -148,20 +148,6 @@ def load_config(config_path):
 
     config = read_config(config_path)
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
-
-    # Main output folder
-    if config["load_path"]:
-        experiment = incrementer(Path(config_root), "new_experiment")
-    else:
-        try:
-            experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
-        except:
-            pass
-
-    # Use config folder to determine output folder
-    config["experiment"] = str(experiment)
-    print(experiment)
-    Stop
 
     defaults = {"load_path":False,
                 "training_shuffle": False,
@@ -199,7 +185,24 @@ def load_config(config_path):
         if k not in config.keys():
             config[k] = defaults[k]
 
-    output_root = os.path.join(config["output_folder"], config["experiment"])
+    # Main output folder
+    if config["load_path"]:
+        _output = incrementer(Path(config_root), "new_experiment") # if it has a load path, create a new experiment in that same folder!
+        experiment = _output.stem
+        output_root = _output.as_posix()
+    else:
+        try:
+            experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
+            if str(experiment) == ".": # if experiment is in root directory, use the experiment specified in the yaml
+                experiment = config["experiment"]
+            output_root = os.path.join(config["output_folder"], experiment)
+
+        except:
+            print(f"Failed to find relative path of config file {config_root} {config_path}")
+
+    # Use config folder to determine output folder
+    config["experiment"] = str(experiment)
+    print(f"Experiment: {experiment}, Results Directory: {output_root}")
 
     # hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
     #      config["name"],
