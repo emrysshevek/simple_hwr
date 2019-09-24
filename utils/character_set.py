@@ -1,6 +1,7 @@
 import sys
 import json
 import os
+import numpy as np
 from collections import defaultdict
 
 PAD_TOKEN = '<pad>'
@@ -25,7 +26,8 @@ def load_char_set(char_set_path):
 def make_char_set(paths, root="./data", seq2seq=False):
     out_char_to_idx = {}
     out_idx_to_char = {}
-    char_freq = defaultdict(int)
+    char_counts = defaultdict(int)
+    instance_count = 0
     for data_file in paths:
         with open(os.path.join(root, data_file)) as f:
             data = json.load(f)
@@ -37,7 +39,8 @@ def make_char_set(paths, root="./data", seq2seq=False):
                     out_char_to_idx[c] = cnt
                     out_idx_to_char[cnt] = c
                     cnt += 1
-                char_freq[c] += 1
+                char_counts[c] += 1
+            instance_count += 1
 
     out_char_to_idx2 = {}
     out_idx_to_char2 = {}
@@ -64,6 +67,13 @@ def make_char_set(paths, root="./data", seq2seq=False):
 
     out_char_to_idx2[pad_token] = pad_idx
     out_idx_to_char2[pad_idx] = pad_token
+
+    char_counts[eos_token] = instance_count
+    char_freq = np.zeros(len(out_char_to_idx2))
+    total_chars = sum(count for count in char_counts.values())
+    for c, count in char_counts.items():
+        char_freq[out_char_to_idx2[c]] = count/total_chars
+    # print(char_freq)
 
     return out_char_to_idx2, out_idx_to_char2, char_freq, sos_idx, eos_idx, pad_idx
 

@@ -4,13 +4,14 @@ import torch
 
 
 class Decoder(nn.Module):
-    def __init__(self, vocab_size, embed_dim, context_dim, n_layers, hidden_dim, dropout=0.01):
+    def __init__(self, vocab_size, embed_dim, context_dim, n_layers, hidden_dim, dropout=0.01, char_freq=None):
         super(Decoder, self).__init__()
         self.vocab_size = vocab_size
         self.embed_dim = embed_dim
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
         self.context_dim = context_dim
+        self.char_freq = char_freq
         self.rnn_input_dim = embed_dim + context_dim
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)
@@ -28,5 +29,8 @@ class Decoder(nn.Module):
         decoder_state, hidden = self.rnn(rnn_input, hidden)
 
         output = self.linear_proj(decoder_state).squeeze()
+
+        # if self.char_freq is not None:
+        #     output = output * self.char_freq
 
         return output, decoder_state, hidden

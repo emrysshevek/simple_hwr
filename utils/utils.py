@@ -127,7 +127,8 @@ def load_config(config_path):
                 "nudger_rnn_dimension": 512,
                 "improve_image": False,
                 "decoder_type" : "naive",
-                "rnn_type": "lstm"
+                "rnn_type": "lstm",
+                "seq2seq": False
                 }
 
 
@@ -348,7 +349,7 @@ def load_model(config):
         path = config["load_path"]
 
     if "model" in old_state.keys():
-        config["model"].load_state_dict(old_state["model"])
+        config["model"].load_state_dict(old_state["model"], strict=False)
         config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
@@ -471,10 +472,12 @@ class Decoder:
 
     def decode_batch_naive(self, out):
         out = out.data.cpu().numpy()
+        pred_strs = []
         for j in range(out.shape[0]):
             logits = out[j, ...]
             pred, raw_pred = string_utils.naive_decode(logits)
-            yield string_utils.label2str(pred, self.idx_to_char, False)
+            pred_strs.append(string_utils.label2str(pred, self.idx_to_char, False))
+        return pred_strs
 
     def decode_batch_beam(self, out):
         pred, scores, timesteps, out_seq_len = self.beam_decoder.decode(out)
@@ -482,13 +485,16 @@ class Decoder:
         output_lengths = out_seq_len.data.data.numpy()
         rank = 0 # get top ranked prediction
         # Loop through batches
+        pred_strs = []
         for batch in range(pred.shape[0]):
             line_length = output_lengths[batch][rank]
             line = pred[batch][rank][:line_length]
             string = u""
             for char in line:
                 string += self.idx_to_char[char]
-            yield string
+            pred_strs.append(string)
+        return pred_strs
+
 
 def calculate_cer(pred_strs, gt):
     sum_loss = 0

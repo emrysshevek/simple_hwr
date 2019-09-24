@@ -6,11 +6,12 @@ import numpy as np
 
 
 class Seq2Seq(nn.Module):
-    def __init__(self, encoder, attention, decoder, output_max_len, vocab_size, sos_token):
+    def __init__(self, encoder, attention, decoder, lm, output_max_len, vocab_size, sos_token):
         super(Seq2Seq, self).__init__()
         self.encoder = encoder
         self.attention = attention
         self.decoder = decoder
+        self.lm = lm
         self.output_max_len = output_max_len
         self.vocab_size = vocab_size
         self.sos_token = sos_token

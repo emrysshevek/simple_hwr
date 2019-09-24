@@ -7,6 +7,7 @@ from torch.autograd import Variable
 
 from models.attention import Attention
 from models.decoder import Decoder
+from models.language_model import DeepFusion
 from models.seq2seq import Seq2Seq
 
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -14,9 +15,10 @@ from models.seq2seq import Seq2Seq
 # Increase LSTM dropout
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
+
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
@@ -68,6 +70,7 @@ class MLP(nn.Module):
             embedding = self.classifier[0:self.embedding_idx](input)
             return embedding
 
+
 class BidirectionalRNN(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM):
@@ -86,6 +89,7 @@ class BidirectionalRNN(nn.Module):
         output = output.view(T, b, -1)
 
         return output
+
 
 class CNN(nn.Module):
     def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False):
@@ -153,6 +157,7 @@ class CNN(nn.Module):
             conv2 = self.cnn[intermediate_level:](conv)
             return self.post_process(conv2), self.post_process(conv)
 
+
 class CRNN(nn.Module):
     """ Original CRNN
 
@@ -169,6 +174,7 @@ class CRNN(nn.Module):
         conv = self.cnn(input)
         output = self.rnn(conv)
         return output,
+
 
 class CRNN2(nn.Module):
     """ CRNN with writer classifier
@@ -226,6 +232,7 @@ class CRNN2(nn.Module):
 
         return recognizer_output, classifier_output
 
+
 class CRNN_2Stage(nn.Module):
     """ CRNN with writer classifier
         nh: LSTM dimension
@@ -259,6 +266,7 @@ class CRNN_2Stage(nn.Module):
         #print(cnn_rnn_concat.shape)
 
         return recognizer_output, rnn_input
+
 
 class CRNN_UNet(nn.Module):
     """ CRNN with writer classifier
@@ -360,6 +368,7 @@ class basic_CRNN(nn.Module):
         recognizer_output = self.rnn(rnn_input)
         return recognizer_output, rnn_input
 
+
 class Nudger(nn.Module):
 
     def __init__(self, rnn_input_dim, nc, rnn_hidden_dim, rnn_layers=2, rnn_dropout=.5, leakyRelu=False):
@@ -395,73 +404,6 @@ class Nudger(nn.Module):
         recognizer_output_refined = recognizer_rnn(nudged_cnn_encoding)
         return recognizer_output_refined, nudged_cnn_encoding
 
-def create_CRNN(config):
-    check_inputs(config)
-    # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                recognizer_dropout=config["recognizer_dropout"], online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"], rnn_constructor=config["rnn_constructor"])
-    return crnn
-
-def create_seq2seq_recognizer(config):
-    check_inputs(config)
-    encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
-                      recognizer_dropout=config["recognizer_dropout"],
-                      online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
-                      rnn_constructor=config["rnn_constructor"])
-    pretrained_state_dict = {name: val for name, val in torch.load(config['cnn_load_path']).items() if 'cnn' in name}
-    encoder.load_state_dict(pretrained_state_dict, strict=False)
-    attention = Attention(embed_dim=config['alphabet_size'])
-    decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
-                      context_dim=config['alphabet_size'], n_layers=5, hidden_dim=config['alphabet_size'])
-    return Seq2Seq(encoder, attention, decoder, output_max_len=config['max_seq_len'], vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
-
-def create_CRNNClassifier(config, use_writer_classifier=True):
-    # Don't use writer classifier
-    check_inputs(config)
-    crnn = CRNN2(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], nh=config["rnn_dimension"],
-                 number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
-                 embedding_size=config["embedding_size"],
-                 writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
-                 writer_rnn_dimension=config["writer_rnn_dimension"],
-                 mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"],
-                 online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier, rnn_constructor=config["rnn_constructor"])
-    return crnn
-
-def check_inputs(config):
-    if not config["style_encoder"] or config["style_encoder"] in ["2StageNudger", "2Stage"]:
-        use_writer_classifier = False
-        config["embedding_size"] = 0
-        config["num_of_writers"] = 0
-        config['writer_rnn_output_size'] = 0
-        config["embedding_size"] = 0
-        config["writer_dropout"] = 0
-        config["mlp_layers"] = []
-
-    # Setup RNN input dimension
-    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
-    if config["online_augmentation"]:
-        config["rnn_input_dimension"] += 1
-
-    if config["rnn_type"].lower() == "gru":
-        config["rnn_constructor"]=nn.GRU
-    elif config["rnn_type"].lower() == "lstm" or True:
-        config["rnn_constructor"]=nn.LSTM
-    return config
-
-def create_2Stage(config):
-    check_inputs(config)
-    crnn = CRNN_2Stage(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                       n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
-                       online_augmentation=config["online_augmentation"], first_rnn_out_dim=128, rnn_constructor=config["rnn_constructor"])
-    return crnn
-
-def create_Nudger(config):
-    check_inputs(config)
-    crnn = Nudger(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], rnn_hidden_dim=config["rnn_dimension"],
-                            rnn_layers=config["nudger_rnn_layers"], leakyRelu=False, rnn_dropout=config["recognizer_dropout"], rnn_constructor=config["rnn_constructor"])
-    return crnn
-
 
 class LabelSmoothing(torch.nn.Module):
     "Implement label smoothing."
@@ -486,237 +428,3 @@ class LabelSmoothing(torch.nn.Module):
         self.true_dist = true_dist
         return self.criterion(x, Variable(true_dist, requires_grad=False))
 
-
-class TrainerSeq2Seq(json.JSONEncoder):
-    def __init__(self, model, optimizer, config, criterion):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.idx_to_char = self.config["idx_to_char"]
-
-        weight = torch.ones(len(self.idx_to_char))
-        # weight[config['char_to_idx'][' ']] = .5
-        # self.criterion = LabelSmoothing(len(config['idx_to_char']), config['pad_idx'], 0.4)
-        # self.criterion = nn.CrossEntropyLoss(weight=weight)
-        self.criterion = nn.CrossEntropyLoss(ignore_index=config['pad_idx'], weight=weight)
-        # self.criterion = nn.CrossEntropyLoss()
-
-    def default(self, o):
-        return None
-
-    def format_sequences(self, pred, label):
-        pred_len = pred.shape[-1]
-
-    def stringify(self, pred_sequences):
-        sos, eos, pad = self.config['sos_idx'], self.config['eos_idx'], self.config['pad_idx']
-        pred_sequences = pred_sequences.argmax(dim=-1).detach().cpu().numpy()
-        cleaned_seqs = []
-        for seq in pred_sequences:
-            seq = seq.flatten()
-            eos_pos = np.argwhere(seq == eos)
-            eos_pos = None if len(eos_pos) == 0 else eos_pos.flatten()[0]
-            cleaned_seq = seq[:eos_pos]
-            cleaned_seq = cleaned_seq[(cleaned_seq != sos) & (cleaned_seq != pad)]
-            cleaned_seqs.append(cleaned_seq)
-        pred_strs = [string_utils.label2str(seq, self.config['idx_to_char']) for seq in cleaned_seqs]
-        return pred_strs
-
-    def train(self, line_imgs, online, labels, label_lengths, gts, retain_graph=False, step=0):
-        self.model.train()
-
-        text_sequence = self.model(line_imgs, online, labels).cpu()
-        batch_size, seq_len, vocab_size = text_sequence.shape
-        pred_strs = self.stringify(text_sequence)
-
-        assert np.array_equal(text_sequence.shape, (*labels.shape, len(self.idx_to_char)))
-
-        self.config["logger"].debug("Calculating Loss: {}".format(step))
-        loss = self.criterion(text_sequence.view(-1, vocab_size), labels.view(-1))
-
-        self.optimizer.zero_grad()
-        loss.backward(retain_graph=retain_graph)
-        self.optimizer.step()
-
-        loss = loss.item()
-        # Error Rate
-        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight = calculate_cer(pred_strs, gts)
-        self.config["stats"]["Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_strs
-
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
-        """
-
-        Args:
-            line_imgs:
-            online:
-            gt:
-            force_training: Run test in .train() as opposed to .eval() mode
-            update_stats:
-
-        Returns:
-
-        """
-
-        if force_training:
-            self.model.train()
-        else:
-            self.model.eval()
-
-        pred_seqs = self.model(line_imgs, online)
-        pred_strs = self.stringify(pred_seqs)
-
-        # Error Rate
-        err, weight = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Test Error Rate"].accumulate(err, weight)
-        loss = -1  # not calculating test loss here
-
-        return loss, err, pred_strs
-
-
-class TrainerBaseline(json.JSONEncoder):
-    def __init__(self, model, optimizer, config, ctc_criterion):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.ctc_criterion = ctc_criterion
-        self.idx_to_char = self.config["idx_to_char"]
-        self.train_decoder = string_utils.naive_decode
-        self.decoder = config["decoder"]
-
-    def default(self, o):
-        return None
-
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        self.model.train()
-
-        pred_tup = self.model(line_imgs, online)
-        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
-
-        # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_text.size(0)] * pred_text.size(1)))
-
-        output_batch = pred_text.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-        pred_strs = self.decoder.decode_training(output_batch)
-
-        # Get losses
-        self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
-        loss_recognizer = self.ctc_criterion(pred_text, labels, preds_size, label_lengths)
-
-        # Backprop
-        self.optimizer.zero_grad()
-        loss_recognizer.backward(retain_graph=retain_graph)
-        self.optimizer.step()
-
-        loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
-
-        # Error Rate
-        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
-        err, weight = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_strs
-
-
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
-        """
-
-        Args:
-            line_imgs:
-            online:
-            gt:
-            force_training: Run test in .train() as opposed to .eval() mode
-            update_stats:
-
-        Returns:
-
-        """
-
-        if force_training:
-            self.model.train()
-        else:
-            self.model.eval()
-
-        pred_tup = self.model(line_imgs, online)
-        pred_text, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
-
-        output_batch = pred_text.permute(1, 0, 2)
-        pred_strs = self.decoder.decode_test(output_batch)
-
-        # Error Rate
-        if nudger:
-            return rnn_input
-        else:
-            err, weight = calculate_cer(pred_strs, gt)
-            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
-            loss = -1 # not calculating test loss here
-            return loss, err, pred_strs
-
-
-class TrainerNudger(json.JSONEncoder):
-    def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.ctc_criterion = ctc_criterion
-        self.idx_to_char = self.config["idx_to_char"]
-        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, ctc_criterion)
-        self.nudger = config["nudger"]
-        self.recognizer_rnn = self.model.rnn
-        self.train_baseline = train_baseline
-        self.decoder = config["decoder"]
-
-    def default(self, o):
-        return None
-
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        self.nudger.train()
-
-        # Train baseline at the same time
-        if self.train_baseline:
-            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
-            self.model.my_eval()
-        else:
-            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
-
-        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
-        output_batch = pred_text_nudged.permute(1, 0, 2)
-        pred_strs = self.decoder.decode_training(output_batch)
-
-        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-        loss_recognizer_nudged = self.ctc_criterion(pred_text_nudged, labels, preds_size, label_lengths)
-        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
-
-        # Backprop
-        self.optimizer.zero_grad()
-        loss_recognizer_nudged.backward()
-        self.optimizer.step()
-
-        ## ASSERT SOMETHING HAS CHANGED
-
-        if self.train_baseline:
-            self.model.my_train()
-
-        # Error Rate
-        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight, pred_str = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_str
-
-    def test(self, line_imgs, online, gt):
-        self.nudger.eval()
-        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
-
-        pred_text_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        # preds_size = Variable(torch.IntTensor([pred_text_nudged.size(0)] * pred_text_nudged.size(1)))
-        output_batch = pred_text_nudged.permute(1, 0, 2)
-        pred_strs = self.decoder.decode_test(output_batch)
-        err, weight = calculate_cer(pred_strs, gt)
-
-        self.config["stats"]["Nudged Test Error Rate"].accumulate(err, weight)
-        loss = -1
-
-        return loss, err, pred_strs

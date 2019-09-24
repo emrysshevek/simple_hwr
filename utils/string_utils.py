@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def str2label(value, characterToIndex={}, unknown_index=None):
     if unknown_index is None:
         unknown_index = len(characterToIndex)
@@ -10,6 +11,7 @@ def str2label(value, characterToIndex={}, unknown_index=None):
             continue
         label.append(characterToIndex[v])
     return np.array(label, np.uint32)
+
 
 def label2input(value, num_of_inputs, char_break_interval):
     idx1 = len(value) * (char_break_interval + 1) + char_break_interval
@@ -34,6 +36,7 @@ def label2input(value, num_of_inputs, char_break_interval):
 
     return np.array(input_data)
 
+
 def label2str(label, indexToCharacter, asRaw=False, spaceChar = "|"):
     string = u""
     for i in range(len(label)):
@@ -46,6 +49,7 @@ def label2str(label, indexToCharacter, asRaw=False, spaceChar = "|"):
             val = label[i]
             string += indexToCharacter[val]
     return string
+
 
 def naive_decode(output):
     rawPredData = np.argmax(output, axis=1)

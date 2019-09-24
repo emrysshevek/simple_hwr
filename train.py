@@ -5,6 +5,8 @@ from utils import character_set
 from data import hw_dataset
 from data.hw_dataset import HwDataset
 from models import crnn
+from models import model_builders as builder
+from models import trainers
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
@@ -161,7 +163,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
-    if config['style_encoder'] == 'seq2seq':
+    if config['seq2seq']:
         collate_fct = lambda x: hw_dataset.seq2seq_collate(x, config['sos_idx'], config['eos_idx'], config['pad_idx'], config['max_seq_len'], device=device)
     else:
         collate_fct = lambda x: hw_dataset.collate(x, device=device)
@@ -198,6 +200,7 @@ def load_data(config):
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
+
 def check_gpu(config):
     # GPU stuff
     use_gpu = torch.cuda.is_available() and not config["TESTING"] and config['use_gpu']
@@ -210,6 +213,7 @@ def check_gpu(config):
     elif config["TESTING"]:
         log_print("Testing, not using GPU")
     return device, dtype
+
 
 def main():
     global config, LOGGER
@@ -227,15 +231,17 @@ def main():
 
     # Prep data loaders
     train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
+    config['char_freq'] = torch.tensor(config['char_freq']).to(device).to(torch.float32)
 
     # Prep optimizer
-    if True:
+    if not config['seq2seq']:
         ctc = torch.nn.CTCLoss()
         log_softmax = torch.nn.LogSoftmax(dim=2).to(device)
         criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
+    elif config['label_smoothing']:
+        criterion = crnn.LabelSmoothing(len(config['idx_to_char']), config['pad_idx'], config['smoothing'])
     else:
-        from warpctc_pytorch import CTCLoss
-        criterion = CTCLoss()
+        criterion = nn.CrossEntropyLoss(ignore_index=config['pad_idx'])
 
     # Decoder
     config["calc_cer_training"] = calculate_cer
@@ -244,24 +250,24 @@ def main():
     # print(config['rnn_constructor'])
     # Create classifier
     if config["style_encoder"] == "basic_encoder":
-        hw = crnn.create_CRNNClassifier(config)
+        hw = builder.create_CRNNClassifier(config)
     elif config["style_encoder"] == "fake_encoder":
-        hw = crnn.create_CRNNClassifier(config)
+        hw = builder.create_CRNNClassifier(config)
     elif config["style_encoder"] == "2Stage":
-        hw = crnn.create_2Stage(config)
+        hw = builder.create_2Stage(config)
         config["embedding_size"] = 0
     elif config["style_encoder"] == "2StageNudger":
-        hw = crnn.create_CRNN(config)
-        config["nudger"] = crnn.create_Nudger(config).to(device)
+        hw = builder.create_CRNN(config)
+        config["nudger"] = builder.create_Nudger(config).to(device)
         config["embedding_size"] = 0
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
-    elif config['style_encoder'] == "seq2seq":
-        hw = crnn.create_seq2seq_recognizer(config)
+    elif config['seq2seq']:
+        hw = builder.create_seq2seq_recognizer(config)
         # pretrained_state_dict = torch.load(config['cnn_load_path'])
         # hw.encoder = pretrained_state_dict['model']
     else:  # basic HWR
         config["embedding_size"] = 0
-        hw = crnn.create_CRNN(config)
+        hw = builder.create_CRNN(config)
 
     hw.to(device)
 
@@ -280,11 +286,7 @@ def main():
     stat_prep(config)
 
     # Create optimizer
-    params = []
-    params.extend(hw.encoder.rnn.parameters())
-    params.extend(hw.attention.parameters())
-    params.extend(hw.decoder.parameters())
-    optimizer = torch.optim.Adam(params, lr=config['learning_rate'])
+    optimizer = torch.optim.Adam(hw.parameters(), lr=config['learning_rate'])
     config["optimizer"] = optimizer
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=config["scheduler_step"], gamma=config["scheduler_gamma"])
@@ -299,12 +301,12 @@ def main():
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
-        config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
+        config["trainer"] = trainers.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
                                                train_baseline=train_baseline)
-    elif config['style_encoder'] == 'seq2seq':
-        config['trainer'] = crnn.TrainerSeq2Seq(hw, optimizer, config, criterion)
+    elif config['seq2seq']:
+        config['trainer'] = trainers.TrainerSeq2Seq(hw, optimizer, config, criterion)
     else:
-        config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
+        config["trainer"] = trainers.TrainerBaseline(hw, optimizer, config, criterion)
 
     # Alternative Models
     if config["style_encoder"] == "basic_encoder":
