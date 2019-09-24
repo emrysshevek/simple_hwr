@@ -95,10 +95,6 @@ def to_numpy(tensor):
     else:
         return tensor
 
-# Test plot
-#img = np.random.rand(3,3,3)
-#plot_images(img, "name", ["a","b","c"])
-
 def plot_images(line_imgs, name, text_str, dir=None):
     if dir is None:
         dir = config["image_dir"]
@@ -182,8 +178,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] and config["online_flag"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
@@ -192,8 +187,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         # Update visdom every 50 instances
         if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [
-                config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
+            config["stats"]["epoch_decimal"] += [config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             visualize.plot_all(config)
@@ -216,25 +210,48 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
-    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
-                              num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"],
-                              occlusion_level=config["occlusion_level"], logger=config["logger"])
+    train_dataset = HwDataset(config["training_jsons"],
+                              config["char_to_idx"],
+                              img_height=config["input_height"],
+                              num_of_channels=config["num_of_channels"],
+                              root=config["training_root"],
+                              warp=config["training_warp"],
+                              writer_id_paths=config["writer_id_pickles"],
+                              images_to_load=config["images_to_load"],
+                              occlusion_size=config["occlusion_size"],
+                              occlusion_freq=config["occlusion_freq"],
+                              occlusion_level=config["occlusion_level"],
+                              logger=config["logger"])
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=config["batch_size"],
+                                  shuffle=config["training_shuffle"],
+                                  num_workers=threads,
+                                  collate_fn=lambda x:hw_dataset.collate(x,device=device),
+                                  pin_memory=device=="cpu")
 
     # Handle basic vs with warp iterations
-    collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], warp=config["testing_warp"], occlusion_freq=config["occlusion_freq"],
-                                             occlusion_size=config["occlusion_size"], occlusion_level=config["occlusion_level"])
+    collate_fn = lambda x:hw_dataset.collate(x,device=device,
+                                             n_warp_iterations=config['n_warp_iterations'],
+                                             warp=config["testing_warp"],
+                                             occlusion_freq=config["occlusion_freq"],
+                                             occlusion_size=config["occlusion_size"],
+                                             occlusion_level=config["occlusion_level"])
 
-    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
-                             num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
+    test_dataset = HwDataset(config["testing_jsons"],
+                             config["char_to_idx"],
+                             img_height=config["input_height"],
+                             num_of_channels=config["num_of_channels"],
+                             root=config["testing_root"],
+                             warp=False,
+                             images_to_load=config["images_to_load"],
+                             logger=config["logger"])
 
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=threads, collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset,
+                                 batch_size=config["batch_size"],
+                                 shuffle=config["testing_shuffle"],
+                                 num_workers=threads,
+                                 collate_fn=collate_fn)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
 
@@ -471,7 +488,5 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         torch.cuda.empty_cache()
-
-
 
 # https://github.com/theevann/visdom-save/blob/master/vis.py
