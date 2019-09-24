@@ -22,6 +22,8 @@ https://github.com/SeanNaren/warp-ctc
 
 ### Configuration
 
+All configurations are stored in the `config` folder as `.yaml` files.
+
 ### Creating and Activating Conda Environment
 
 ``` sh
