@@ -162,9 +162,8 @@ def random_distortions(img, sigma=6.0, noise_max=10.0):
     distorted = ndimage.map_coordinates(img, noise, order=1, mode="reflect")
     return distorted
 
-def blur(img, intensity=1.5, noise=0.1):
-    blurred = ndimage.gaussian_filter(img, intensity)
-    return blurred
+def blur(img, intensity=1.5):
+    return ndimage.gaussian_filter(img, intensity)
 
 def gaussian_noise(img, occlusion_size=1, occlusion_freq=1, occlusion_level=1, logger=None):
     """
