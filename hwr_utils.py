@@ -180,41 +180,6 @@ def load_config(config_path):
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
-    if config["SMALL_TRAINING"] or config["TESTING"]:
-        config["images_to_load"] = config["batch_size"]
-
-    config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
-    if not config["testing_occlude"] and not config["testing_warp"]:
-        config["n_warp_iterations"] = 0
-    elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
-        config["n_warp_iterations"] = 7
-        print("n_warp_iterations set to 0, changing to 11")
-
-    if config["exclude_offline"]:
-        training_data = "prepare_IAM_Lines/raw_gts/lines/txt/training.json"
-        if training_data in config["training_jsons"]:
-            config["training_jsons"].remove(training_data)
-
-    if not config["TESTING"]:
-        wait_for_gpu()
-
-    if config["style_encoder"] == "fake_encoder":
-        config["detach_embedding"] = True
-    else:
-        config["detach_embedding"] = False
-
-    if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
-        config["scheduler_step"] = 1
-        config["scheduler_gamma"] = 1
-
-    if config["SMALL_TRAINING"]:
-        config["plot_freq"] = 1
-
-    # Removing online jsons if not using online
-    for data_path in config["training_jsons"]:
-        if "online" in data_path and not config["online_augmentation"]:
-            config["training_jsons"].remove(data_path)
-            config["online_flag"] = False # turn off flag if no online data provided
 
     output_root = os.path.join(config["output_folder"], config["experiment"])
 
@@ -269,14 +234,6 @@ def load_config(config_path):
     except Exception as e:
         print("Problem with RECENT link stuff: {}".format(e))
 
-
-    # Save images
-    if config["improve_image"]:
-        config["save_improved_images"] = True
-        config["image_dir"] = os.path.join(config["results_dir"], "images")
-        mkdir(config["image_dir"])
-
-
     # Copy config to output folder
     #parent, child = os.path.split(config)
     try:
@@ -284,10 +241,12 @@ def load_config(config_path):
     except Exception as e:
         log_print(f"Could not copy config file: {e}")
 
+    config = make_config_consistent(config)
+
     logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
     log_print("Using config file", config_path)
-    log_print(json.dumps(config, indent=2))
+    #log_print(json.dumps(config, indent=2))
 
     config["logger"] = logger
 
@@ -295,6 +254,51 @@ def load_config(config_path):
     config = computer_defaults(config)
 
     #make_lower(config)
+    return config
+
+def make_config_consistent(config):
+    if config["SMALL_TRAINING"] or config["TESTING"]:
+        config["images_to_load"] = config["batch_size"]
+
+    config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
+    if not config["testing_occlude"] and not config["testing_warp"]:
+        config["n_warp_iterations"] = 0
+    elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
+        config["n_warp_iterations"] = 7
+        print("n_warp_iterations set to 0, changing to 11")
+
+    if config["exclude_offline"]:
+        training_data = "prepare_IAM_Lines/gts/lines/txt/training.json"
+        if training_data in config["training_jsons"]:
+            config["training_jsons"].remove(training_data)
+
+    if not config["TESTING"]:
+        wait_for_gpu()
+
+    if config["style_encoder"] == "fake_encoder":
+        config["detach_embedding"] = True
+    else:
+        config["detach_embedding"] = False
+
+    if "scheduler_step" not in config.keys() or "scheduler_gamma" not in config.keys():
+        config["scheduler_step"] = 1
+        config["scheduler_gamma"] = 1
+
+    if config["SMALL_TRAINING"]:
+        config["plot_freq"] = 1
+
+    # Removing online jsons if not using online
+    for data_path in config["training_jsons"]:
+        if "online" in data_path and not config["online_augmentation"]:
+            config["training_jsons"].remove(data_path)
+            config["online_flag"] = False # turn off flag if no online data provided
+
+    # Save images
+    if config["improve_image"]:
+        config["save_improved_images"] = True
+        config["image_dir"] = os.path.join(config["results_dir"], "images")
+        mkdir(config["image_dir"])
+
     return config
 
 def make_lower(config):
@@ -442,8 +446,8 @@ def load_model(config):
         path = config["load_path"]
 
     # Load the definition of the loaded model if it was saved
-    if "model_definition" in old_state.keys():
-        config["model"] = old_state['model_definition']
+    # if "model_definition" in old_state.keys():
+    #     config["model"] = old_state['model_definition']
 
     for key in ["idx_to_char", "char_to_idx"]:
         if key in old_state.keys():
@@ -518,6 +522,13 @@ def mkdir(path):
 
 
 def save_model(config, bsf=False):
+    # Can pickle everything in config except items below
+    # for x, y in config.items():
+    #     print(x)
+    #     if x in ("criterion", "visdom_manager", "trainer"):
+    #         continue
+    #     torch.save(y, "TEST.pt")
+
     # Save the best model
     if bsf:
         path = os.path.join(config["results_dir"], "BSF")
@@ -525,12 +536,12 @@ def save_model(config, bsf=False):
     else:
         path = config["results_dir"]
 
+    #    'model_definition': config["model"],
     state_dict = {
         'epoch': config["current_epoch"] + 1,
         'model': config["model"].state_dict(),
         'optimizer': config["optimizer"].state_dict(),
         'global_step': config["global_step"],
-        'model_definition': config["model"],
         "idx_to_char": config["idx_to_char"],
         "char_to_idx": config["char_to_idx"]
     }

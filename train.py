@@ -95,14 +95,17 @@ def to_numpy(tensor):
     else:
         return tensor
 
-def plot_images(line_imgs, name, text_str, dir=None):
+def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
     if dir is None:
         dir = config["image_dir"]
     # Save images
-    plot_count = max(1, int(min(len(line_imgs), 8)/2)*2) # must be even, capped at 8
-    columns = min(plot_count,2)
+    batch_size = len(line_imgs)
+    if plot_count is None or plot_count > batch_size:
+        plot_count = max(1, int(min(batch_size, 8)/2)*2) # must be even, capped at 8
+    columns = min(plot_count,1)
     rows = int(plot_count/columns)
     f, axarr = plt.subplots(rows, columns)
+    f.tight_layout()
 
     if isinstance(text_str, types.GeneratorType):
         text_str = list(text_str)
@@ -113,50 +116,75 @@ def plot_images(line_imgs, name, text_str, dir=None):
             if j >= plot_count:
                 break
             coords = (j % rows, int(j/rows))
-            axarr[coords].set_xlabel(f"{text_str[j]}", fontsize=12)
-            axarr[coords].imshow(to_numpy(img.squeeze()), cmap='gray')
+            if columns == 1:
+                coords = coords[0]
+            ax = axarr[coords]
+            ax.set_xlabel(f"{text_str[j]}", fontsize=8)
+
+            ax.set_xticklabels(labels=ax.get_xticklabels(), fontdict={"fontsize":6}) #label.set_fontsize(6)
+            ax.set_yticklabels(labels=ax.get_yticklabels(), fontdict={"fontsize": 6})  # label.set_fontsize(6)
+            ax.xaxis.set_ticklabels([])
+            ax.yaxis.set_ticklabels([])
+
+            ax.imshow(to_numpy(img.squeeze()), cmap='gray')
             # more than 8 images is too crowded
     else:
          axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
 
     # plt.show()
     path = os.path.join(dir, '{}.png'.format(name))
-    plt.savefig(path, dpi=300)
+    plt.savefig(path, dpi=400)
     plt.close('all')
 
 
-def improver(model, dataloader, ctc_criterion, optimizer, dtype, config):
+def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
+    """
+
+    Args:
+        model:
+        dataloader:
+        ctc_criterion:
+        optimizer:
+        dtype:
+        config:
+        mask_online_as_offline (bool): if mask_online_as_offline, then online flag is set to offline
+
+    Returns:
+
+    """
     model.train()  # make sure gradients are tracked
-    lr = .01
+    lr = .1
     model.my_eval()  # set dropout to 0
 
     for i, x in enumerate(dataloader):
         LOGGER.debug("Improving Iteration: {}".format(i))
-        line_imgs = tensor(x['line_imgs'].type(dtype)).clone().detach().requires_grad_(True)
+        line_imgs = x['line_imgs'].type(dtype).clone().detach().requires_grad_(True)
         params = [torch.nn.Parameter(line_imgs)]
-        config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0.9)
+        config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0)
 
-        labels = tensor(x['labels'], requires_grad=False)  # numeric indices version of ground truth
-        label_lengths = tensor(x['label_lengths'], requires_grad=False)
+        labels = x['labels'].requires_grad_(False)  # numeric indices version of ground truth
+        label_lengths = x['label_lengths'].requires_grad_(False)
         gt = x['gt']  # actual string ground truth
 
         # Add online/offline binary flag
-        online = tensor(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+        online_vector = np.zeros(x['online'].shape) if mask_online_as_offline else x['online']
+        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) if config[
             "online_augmentation"] and config["online_flag"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                     step=config["global_step"])
         # Nudge it X times
-        for ii in range(50):
+        for ii in range(iterations):
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                       step=config["global_step"])
             # print(torch.abs(x['line_imgs']-params[0]).sum())
             accumulate_stats(config)
             training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
-            LOGGER.info(f"{training_cer}")
+            if ii % 5 == 0:
+                LOGGER.info(f"{training_cer} {loss}")
 
-        plot_images(params[0], i, gt)
-        plot_images(x['line_imgs'], f"{i}_original", first_pred_str)
+        plot_images(params[0], i, final_pred_str, dir=config["image_dir"], plot_count=4)
+        plot_images(x['line_imgs'], f"{i}_original", first_pred_str, dir=config["image_dir"], plot_count=4)
 
     return training_cer
 
@@ -288,14 +316,11 @@ def check_gpu(config):
         log_print("GPU available, but not using per config")
     return device, dtype
 
-def build_model(opts=None):
-    if opts is None:
-        opts = parse_args()
-
+def build_model(config_path):
     global config, LOGGER
     # Set GPU
     choose_optimal_gpu()
-    config = load_config(opts.config)
+    config = load_config(config_path)
     LOGGER = config["logger"]
     config["global_step"] = 0
     config["global_instances_counter"] = 0
@@ -419,7 +444,7 @@ def build_model(opts=None):
 def main():
     global config, LOGGER
     opts = parse_args()
-    config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts)
+    config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts.config)
 
     for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
         LOGGER.info("Epoch: {}".format(epoch))
@@ -476,15 +501,18 @@ def recreate():
     """
     path = "./results/BEST/20190807_104745-smallv2/RESUME.yaml"
     path = "./results/BEST/LARGE/LARGE.yaml"
-    import shlex
-    args = shlex.split(f"--config {path}")
-    sys.argv[1:] = args
-    print(sys.argv)
-    config, *_ = build_model()
-    save_model(config)
+    # import shlex
+    # args = shlex.split(f"--config {path}")
+    # sys.argv[1:] = args
+    # print(sys.argv)
+    config, *_ = build_model(path)
+    globals().update(locals())
+
+    #save_model(config)
 
 
 if __name__ == "__main__":
+    #recreate()
     try:
         main()
     except Exception as e:
