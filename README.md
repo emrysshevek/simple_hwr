@@ -24,6 +24,13 @@ https://github.com/SeanNaren/warp-ctc
 
 All configurations are stored in the `config` folder as `.yaml` files.
 
+#### Adding a new configuration option
+
+1. Add option to a config file
+2. Modify `hw_dataset.py` class to accept new option
+3. Modify `train.py` to read option from config file and pass to `HwDataset` class
+4. Modify `hwr_utils.py` at `defaults` to include a default parameter in case a config file does not specify your new option.
+
 ### Creating and Activating Conda Environment
 
 ``` sh
