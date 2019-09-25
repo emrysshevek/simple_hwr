@@ -142,8 +142,8 @@ class HwDataset(Dataset):
                  num_of_channels=3,
                  root="./data",
                  warp=False,
-                 blur=False,
-                 random_distortions=False,
+                 blur=False, blur_level=1.5,
+                 random_distortions=False, distortion_sigma = 6.0,
                  writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",),
                  images_to_load=None,
                  occlusion_size=None, occlusion_freq=None, occlusion_level=1,
@@ -162,7 +162,9 @@ class HwDataset(Dataset):
         self.data = data
         self.warp = warp
         self.blur = blur
+        self.blur_level = blur_level
         self.random_distortions = random_distortions
+        self.distortion_sigma = distortion_sigma
         self.num_of_channels = num_of_channels
         self.occlusion = not (None in (occlusion_size, occlusion_freq))
         self.occlusion_freq = occlusion_freq
@@ -244,10 +246,10 @@ class HwDataset(Dataset):
                                           occlusion_level=self.occlusion_level)
 
         if self.blur:
-            img = grid_distortion.blur(img)
+            img = grid_distortion.blur(img, intensity = self.blur_level)
 
         if self.random_distortions:
-            img = grid_distortion.random_distortions(img)
+            img = grid_distortion.random_distortions(img, sigma = self.distortion_sigma)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
