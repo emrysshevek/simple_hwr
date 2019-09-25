@@ -20,7 +20,6 @@ output_folder: ./results
 epochs_to_run: 2
 save_freq: 5
 use_visdom: true
-GPU: false
 debug: off
 
 # results_dir:
@@ -32,9 +31,7 @@ training_root: data
 training_shuffle: true
 training_warp: false
 training_blur: false
-#training_blur_level: 1.5
 training_random_distortions: false
-#training_distortion_sigma: 6.0                # lower is more distorted
 online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
@@ -44,9 +41,7 @@ testing_root: data
 testing_shuffle: false
 testing_warp: false
 testing_blur: false
-#testing_blur_level: 1.5
 testing_random_distortions: false
-#testing_distortion_sigma: 6.0
 output_predictions: false                    # Output incorrect test predictions
 
 #Network
