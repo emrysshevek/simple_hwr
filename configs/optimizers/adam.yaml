@@ -40,7 +40,7 @@ online_flag: false                          # include a flag designating instanc
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
-testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
 n_warp_iterations: 0

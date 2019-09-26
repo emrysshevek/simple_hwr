@@ -178,7 +178,8 @@ def load_config(config_path):
                 "testing_warp": False,
                 "optimizer_type": "adam",
                 "occlusion_level": .4,
-                "exclude_offline": False
+                "exclude_offline": False,
+                "validation_jsons": [],
                 }
 
     for k in defaults.keys():
@@ -632,7 +633,9 @@ def plt_loss(config):
         x_axis = [(i + 1) * config["n_train_instances"] for i in range(len(config["train_cer"]))]
         plt.figure()
         plt.plot(x_axis, config["train_cer"], label='train')
-        plt.plot(x_axis, config["test_cer"], label='test')
+        plt.plot(x_axis, config["validation_cer"], label='validation')
+        if config["test_cer"]:
+            plt.plot(config["test_epochs"], config["test_cer"], label='validation')
         plt.legend()
         plt.ylim(top=.2)
         plt.ylabel("CER")
@@ -741,12 +744,15 @@ class Stat:
     def default(self, o):
         return o.__dict__
 
-    def accumulate(self, sum, weight):
+    def accumulate(self, sum, weight, step=None):
         self.current_sum += sum
         self.current_weight += weight
 
         if not self.accumlator_active:
             self.accumlator_active = True
+
+        if step:
+            self.x.append(step)
 
     def reset_accumlator(self):
         if self.accumlator_active:
@@ -787,9 +793,11 @@ def stat_prep(config):
     config_stats = []
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
     config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Validation Error Rate", ymax=.2))
     config["designated_training_cer"] = "Training Error Rate"
     config["designated_test_cer"] = "Test Error Rate"
+    config["designated_validation_cer"] = "Validation Error Rate"
 
     if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="Writer Style Loss"))
@@ -798,8 +806,10 @@ def stat_prep(config):
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss",name="Nudged Training Loss"))
         config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
         config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate", ymax=.2))
+        config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Validation Error Rate",ymax=.2))
         config["designated_training_cer"] = "Nudged Training Error Rate"
         config["designated_test_cer"] = "Nudged Test Error Rate"
+        config["designated_validation_cer"] = "Nudged Validation Error Rate"
 
         # Register plots, save in stats dictionary
     for stat in config_stats:
@@ -812,7 +822,7 @@ def plot_tensors(tensor):
         plot_tensor(tensor[i,0])
 
 def plot_tensor(tensor):
-    print(tensor.shape)
+    #print(tensor.shape)
     t = tensor.cpu()
     assert not np.isnan(t).any()
     plt.figure(dpi=400)

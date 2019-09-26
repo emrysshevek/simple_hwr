@@ -10,7 +10,7 @@ bash download_and_setup.sh
 cd ../prepare_IAM_Lines
 bash run.sh
 
-cd ./prepare_online_data
+cd ../prepare_online_data
 bash download.sh
 
 cd ..

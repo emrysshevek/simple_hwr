@@ -29,6 +29,7 @@ def collate_basic(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See hw_dataset.py")
         print(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
@@ -76,6 +77,7 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 
     # These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See collate_repetition in hw_dataset.py")
         print(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
@@ -143,13 +145,14 @@ class HwDataset(Dataset):
         self.occlusion_size = occlusion_size
         self.occlusion_level = occlusion_level
         #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
-
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
                 data.extend(json.load(fp))
         if images_to_load:
             data = data[:images_to_load]
+
+        #print(data_paths, data)
 
         ## Read in all writer IDs
         writer_id_dict = {}

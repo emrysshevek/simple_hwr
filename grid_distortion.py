@@ -163,7 +163,6 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     noise_mask = random_state.randn(*img.shape, ) * sd  # * 2 - occlusion_level # min -occlusion, max occlusion
     noise_mask = np.clip(noise_mask, -1, 1) * 255/2
     noisy_img = np.clip(img + noise_mask, 0, 255)
-    print(noisy_img)
     return noisy_img
 
     # elif noise_typ == "s&p":

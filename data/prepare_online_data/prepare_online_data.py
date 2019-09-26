@@ -56,7 +56,7 @@ if __name__ == "__main__":
             img_path = get_image_path_from_id(img_id)
             if exists(img_path):
                 full_img_path = prepend_cwd(img_path)
-                img_json.append({'gt': gt, 'image_path': img_path, 'augmentation': True})
+                img_json.append({'gt': gt, 'image_path': full_img_path, 'augmentation': True})
     
     if img_json:
         with open('online_augmentation.json', 'w') as fp:

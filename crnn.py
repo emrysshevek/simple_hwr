@@ -169,13 +169,13 @@ class TrainerBaseline(json.JSONEncoder):
         return loss, err, pred_strs
 
 
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         if self.config["n_warp_iterations"]:
-            return self.test_warp(line_imgs, online, gt, force_training, nudger)
+            return self.test_warp(line_imgs, online, gt, force_training, nudger, validation=validation)
         else:
-            return self.test_normal(line_imgs, online, gt, force_training, nudger)
+            return self.test_normal(line_imgs, online, gt, force_training, nudger, validation=validation)
 
-    def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False):
+    def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         """
 
         Args:
@@ -205,11 +205,17 @@ class TrainerBaseline(json.JSONEncoder):
             return rnn_input
         else:
             err, weight = calculate_cer(pred_strs, gt)
-            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+            self.update_test_cer(validation, err, weight)
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
-    def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False):
+    def update_test_cer(self, validation, err, weight, prefix=""):
+        if validation:
+            self.config["stats"][f"{prefix}Validation Error Rate"].accumulate(err, weight)
+        else:
+            self.config["stats"][f"{prefix}Test Error Rate"].accumulate(err, weight, self.config["current_epoch"])
+
+    def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         if force_training:
             self.model.train()
         else:
@@ -243,11 +249,12 @@ class TrainerBaseline(json.JSONEncoder):
             return rnn_input
         else:
             err, weight = calculate_cer(best_preds, gt)
-            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+            self.update_test_cer(validation, err, weight)
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
-class TrainerNudger(json.JSONEncoder):
+class TrainerNudger(TrainerBaseline):
+
     def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
         self.model = model
         self.optimizer = optimizer
@@ -299,7 +306,7 @@ class TrainerNudger(json.JSONEncoder):
 
         return loss, err, pred_str
 
-    def test(self, line_imgs, online, gt):
+    def test(self, line_imgs, online, gt, validation=True):
         self.nudger.eval()
         rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
 
@@ -309,7 +316,7 @@ class TrainerNudger(json.JSONEncoder):
         pred_strs = list(self.decoder.decode_test(output_batch))
         err, weight = calculate_cer(pred_strs, gt)
 
-        self.config["stats"]["Nudged Test Error Rate"].accumulate(err, weight)
+        self.update_test_cer(validation, err, weight, prefix="Nudged ")
         loss = -1
 
         return loss, err, pred_strs
