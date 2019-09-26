@@ -31,8 +31,6 @@ def make_configs(baseline_config, output_folder, params, title):
 
     i = 0
     padding = len(str(np.prod([len(x) for x in param_vals])))
-    print(len(param_combinations))
-    print(padding)
     for p in tqdm(param_combinations):
         for setting in zip(param_names, p):
             # Set the name/value in the yaml configuration for each setting in this combination
