@@ -37,7 +37,8 @@ def make_configs(baseline_config, output_folder, params, title):
             baseline[setting[0]] = setting[1]
 
         # Create output file name
-        output_fname = "{}/{}{}.yaml".format(output_folder, title, str(i).rjust(padding, '0'))
+        output_id = str(i).rjust(padding, '0')
+        output_fname = f"{output_folder}/{title}{output_id}.yaml"
 
         # Write output yaml configuration
         with open(output_fname, "w") as f:
