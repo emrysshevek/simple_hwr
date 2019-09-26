@@ -149,7 +149,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             LOGGER.info(f'\tPrediction:   [{pred_strs[0]}]')
             LOGGER.info(f'\tGround Truth: [{gts[0]}]')
 
-        if config["TESTING"] or config["SMALL_TRAINING"]:
+        if config["TESTING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] / config['n_train_instances']]
@@ -168,18 +168,27 @@ def make_dataloaders(config, device="cpu"):
     else:
         collate_fct = lambda x: hw_dataset.collate(x, device=device)
 
+    if config['SMALL_TRAINING']:
+        shuffle = False
+        train_size = config['SMALL_TRAINING'] * config['batch_size']
+        test_size = config['batch_size']
+    else:
+        shuffle = True
+        train_size = -1
+        test_size = -1
+
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"])
+                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], size=train_size)
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=shuffle,
                                   num_workers=0, collate_fn=collate_fct, pin_memory=device == "cpu", drop_last=True)
 
     test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=config["testing_warp"])
+                             warp=config["testing_warp"], size=test_size)
 
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=shuffle,
                                  num_workers=0, collate_fn=collate_fct, drop_last=True)
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset
@@ -269,6 +278,8 @@ def main():
         config["embedding_size"] = 0
         hw = builder.create_CRNN(config)
 
+    LOGGER.info(hw)
+
     hw.to(device)
 
     # Setup defaults
@@ -355,6 +366,8 @@ def main():
                 save_model(config, bsf=False)
 
             plt_loss(config)
+
+    return config['lowest_loss']
 
 
 if __name__ == "__main__":

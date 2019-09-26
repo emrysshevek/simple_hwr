@@ -46,8 +46,6 @@ class TrainerSeq2Seq(json.JSONEncoder):
         self.model.train()
 
         teacher_force_rate = self.teach_force_rate * (self.teacher_force_decay ** (step // self.teacher_step_size))
-        print(teacher_force_rate)
-
         text_sequence = self.model(line_imgs, online, labels, teacher_force_rate).cpu()
         batch_size, seq_len, vocab_size = text_sequence.shape
         pred_strs = self.stringify(text_sequence)

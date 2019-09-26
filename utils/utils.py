@@ -149,7 +149,7 @@ def load_config(config_path):
         config["scheduler_gamma"] = 1
 
     if config["SMALL_TRAINING"]:
-        config["plot_freq"] = 1
+        config["plot_freq"] = config['SMALL_TRAINING'] // 3
 
 
     # Removing online jsons if not using online
