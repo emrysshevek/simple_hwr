@@ -30,6 +30,8 @@ training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_d
 training_root: data
 training_shuffle: true
 training_warp: false
+training_blur: false
+training_random_distortions: false
 online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
@@ -41,6 +43,8 @@ testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
 testing_root: data
 testing_shuffle: false
 testing_warp: false
+testing_blur: false
+testing_random_distortions: false
 output_predictions: false                    # Output incorrect test predictions
 
 #Network

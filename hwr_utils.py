@@ -170,6 +170,14 @@ def load_config(config_path):
                 "cnn": "default",
                 "online_flag": True,
                 "save_count": 0,
+                "training_blur": False,
+                "training_blur_level": 1.5,
+                "training_random_distortions": False,
+                "training_distortion_sigma": 6.0,
+                "testing_blur": False,
+                "testing_blur_level": 1.5,
+                "testing_random_distortions": False,
+                "testing_distortion_sigma": 6.0,
                 "occlusion_size": None,
                 "occlusion_freq": None,
                 "logging": "info",
@@ -180,6 +188,7 @@ def load_config(config_path):
                 "occlusion_level": .4,
                 "exclude_offline": False,
                 "validation_jsons": [],
+                "elastic_transform": False
                 }
 
     for k in defaults.keys():
