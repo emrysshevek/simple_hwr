@@ -1,5 +1,4 @@
-read -p "IAM _Handwriting Database_ (not On-Line) username: " iam_username
-wget http://www.fki.inf.unibe.ch/DBs/iamDB/data/words/words.tgz http://www.fki.inf.unibe.ch/DBs/iamDB/data/ascii/words.txt http://www.fki.inf.unibe.ch/DBs/iamDB/data/lines/lines.tgz http://www.fki.inf.unibe.ch/DBs/iamDB/data/ascii/lines.txt http://www.fki.inf.unibe.ch/DBs/iamDB/data/xml/xml.tgz --user $iam_username --ask-password
+wget http://www.fki.inf.unibe.ch/DBs/iamDB/data/words/words.tgz http://www.fki.inf.unibe.ch/DBs/iamDB/data/ascii/words.txt http://www.fki.inf.unibe.ch/DBs/iamDB/data/lines/lines.tgz http://www.fki.inf.unibe.ch/DBs/iamDB/data/ascii/lines.txt http://www.fki.inf.unibe.ch/DBs/iamDB/data/xml/xml.tgz --user nnmllab --password datasets
 
 mkdir lines
 tar -zxf lines.tgz -C lines
@@ -11,6 +10,3 @@ tar -zxf xml.tgz -C xml
 wget http://www.fki.inf.unibe.ch/DBs/iamDB/tasks/largeWriterIndependentTextLineRecognitionTask.zip
 mkdir task
 unzip largeWriterIndependentTextLineRecognitionTask.zip -d task
-
-python3 extract_all_words_lines.py
-bash process_raw_gts.sh
