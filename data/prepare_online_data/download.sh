@@ -1,5 +1,7 @@
-read -p "IAM On-Line Handwriting DB username: " iam_username
-wget http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-all.tar.gz http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/lineImages-all.tar.gz http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/writers.xml http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/lineStrokes-all.tar.gz --user $iam_username --ask-password
+wget http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-all.tar.gz http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/lineImages-all.tar.gz http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/writers.xml http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/lineStrokes-all.tar.gz --user nnmllab --password datasets
+
+#--user $iam_username --ask-password
+#--user nnmllab --password datasets
 
 # http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/lineStrokes-all.tar.gz - has xml stroke information divided by lines
 # http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-part.tar.gz - has xml stroke information by page; writer-ids; transcriptions
