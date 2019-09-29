@@ -54,7 +54,7 @@ faulthandler.enable()
 #print(torch.get_num_threads())
 
 threads = max(1, min(torch.get_num_threads()-2,6))
-print(f"Threads: {threads}")
+log_print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
@@ -525,7 +525,7 @@ if __name__ == "__main__":
     try:
         main()
     except Exception as e:
-        print(e)
+        log_print(e)
         traceback.print_exc()
     finally:
         torch.cuda.empty_cache()

@@ -6,7 +6,7 @@ test_only: false
 experiment: baseline
 name_deprecated: true_baseline
 output_folder: ./results
-epochs_to_run: 2
+epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: false

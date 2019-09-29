@@ -38,10 +38,10 @@ def pickle_it(obj, path):
         dict = pickle.dump(obj, f)  # , encoding = 'latin-1'
 
 def print_tensor(tensor):
-    print(tensor, tensor.shape)
+    log_print(tensor, tensor.shape)
 
 def read_config(config):
-    print(config)
+    log_print(config)
     if config[-5:].lower() == ".json":
         with open(config) as f:
             return json.load(f)
@@ -208,11 +208,11 @@ def load_config(config_path):
             output_root = os.path.join(config["output_folder"], experiment)
 
         except:
-            print(f"Failed to find relative path of config file {config_root} {config_path}")
+            log_print(f"Failed to find relative path of config file {config_root} {config_path}")
 
     # Use config folder to determine output folder
     config["experiment"] = str(experiment)
-    print(f"Experiment: {experiment}, Results Directory: {output_root}")
+    log_print(f"Experiment: {experiment}, Results Directory: {output_root}")
 
     # hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
     #      config["name"],
@@ -263,7 +263,7 @@ def load_config(config_path):
             os.rename(link, old_link)
         symlink(config['results_dir'], link)
     except Exception as e:
-        print("Problem with RECENT link stuff: {}".format(e))
+        log_print("Problem with RECENT link stuff: {}".format(e))
 
     # Copy config to output folder
     #parent, child = os.path.split(config)
@@ -296,7 +296,7 @@ def make_config_consistent(config):
         config["n_warp_iterations"] = 0
     elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
         config["n_warp_iterations"] = 7
-        print("n_warp_iterations set to 0, changing to 11")
+        log_print("n_warp_iterations set to 0, changing to 11")
 
     if config["exclude_offline"]:
         training_data = "prepare_IAM_Lines/gts/lines/txt/training.json"
@@ -359,7 +359,7 @@ def get_computer():
 
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
-    print(GPUtil.getGPUs())
+    log_print(GPUtil.getGPUs())
     if priority == "memory":
         best_gpu = [(x.memoryFree, -x.load, i) for i,x in enumerate(GPUtil.getGPUs())]
     else: # utilization
@@ -383,12 +383,12 @@ def wait_for_gpu():
     GPUs = GPUtil.getGPUs()
     utilization = GPUs[0].load * 100  # memoryUtil
     memory_utilization = GPUs[0].memoryUtil * 100  #
-    print(utilization)
+    log_print(utilization)
     if memory_utilization > 40:
         warnings.warn("Memory utilization is high; close other GPU processes")
 
     while utilization > 45:
-        print("Waiting 30 minutes for GPU...")
+        log_print("Waiting 30 minutes for GPU...")
         time.sleep(1800)
         utilization = GPUtil.getGPUs()[0].load * 100  # memoryUtil
     torch.cuda.empty_cache()
@@ -664,7 +664,7 @@ class Decoder:
 
         if beam:
             from ctcdecode import CTCBeamDecoder
-            print("Using beam")
+            log_print("Using beam")
             self.beam_decoder = CTCBeamDecoder(labels=idx_to_char.values(), blank_id=0, beam_width=30, num_processes=3, log_probs_input=True)
             self.decode_test = self.decode_batch_beam
 
