@@ -162,10 +162,13 @@ class HwDataset(Dataset):
         ## Read in all writer IDs
         writer_id_dict = {}
         for writer_id_file in writer_id_paths:
-            path = os.path.join(root, writer_id_file)
-            # Add files to create super dicitonary
-            d = unpickle_it(path)
-            writer_id_dict = {**writer_id_dict, **d}
+            try:
+                path = os.path.join(root, writer_id_file)
+                # Add files to create super dicitonary
+                d = unpickle_it(path)
+                writer_id_dict = {**writer_id_dict, **d}
+            except:
+                print("Error with writer IDs")
 
         data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
 
