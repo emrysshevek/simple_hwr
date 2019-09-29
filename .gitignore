@@ -24,6 +24,7 @@ data/prepare_IAM_Lines/task/
 data/prepare_IAM_Lines/processed/
 data/prepare_IAM_Lines/xml*
 data/prepare_IAM_Lines/raw_gts*
+data/prepare_IAM_Lines/gts/
 data/prepare_online_data/lineImages*
 data/prepare_online_data/original-xml*
 data/prepare_online_data/writers.xml
@@ -153,3 +154,4 @@ venv2/
 .idea
 *.xml
 *.iml
+

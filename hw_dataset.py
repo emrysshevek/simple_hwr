@@ -268,12 +268,13 @@ class HwDataset(Dataset):
             img = grid_distortion.blur(img, intensity = self.blur_level)
 
         if self.random_distortions:
-            img = grid_distortion.random_distortions(img, sigma = self.distortion_sigma)
+            img = grid_distortion.random_distortions(img, sigma=self.distortion_sigma)
 
         if self.elastic_distortion:
             img = grid_distortion.elastic_transform(img, alpha=self.elastic_alpha, sigma=self.elastic_sigma)
 
         img = grid_distortion.crop(img) # trim leading/trailing whitespace
+
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
@@ -298,3 +299,7 @@ class HwDataset(Dataset):
             "path": image_path,
             "online": online
         }
+
+
+if __name__=="__main__":
+    pass

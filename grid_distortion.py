@@ -157,12 +157,20 @@ def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
     else:
         raise Exception("Not implemented")
 
-def crop(img, threshold=200):
+def crop(img, threshold=200, padding=10):
     all_ink = np.where(img < threshold)
-    first_ink = np.min(all_ink[1])
-    last_ink = np.max(all_ink[1])
-    #print(first_ink, last_ink)
-    return img[:, first_ink:last_ink]
+    try:
+        first_ink = max(0, np.min(all_ink[1]) - padding)
+        last_ink = min(np.max(all_ink[1])+padding, img.shape[1])
+
+        # Must be at least 50 pixels wide
+        if last_ink - first_ink > 50:
+            return img[:, first_ink:last_ink]
+        else:
+            return img
+    except:
+        return img
+
 
 def random_distortions(img, sigma=6.0, noise_max=10.0):
     n, m = img.shape
@@ -248,6 +256,7 @@ def elastic_transform(image, alpha, sigma, random_state=None):
 def get_test_image():
     input_image = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
     input_image = "data/sample_offline/a05-039-00.png"
+    input_image = "data/sample_online/0_6cfd6616717146a687391b52621340c1.tif"
     img = cv2.imread(input_image, 0)
     plt.imshow(img, cmap="gray")
     plt.title("Original image")

@@ -26,8 +26,8 @@ debug: off
 # log_dir:
 
 # Training data
-training_jsons: [prepare_online_data/online_augmentation.json, combinedImages/online_long.json]
-#training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+#training_jsons: [prepare_online_data/online_augmentation.json, combinedImages/online_long.json]
+training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: data
 training_shuffle: true
 training_warp: false
