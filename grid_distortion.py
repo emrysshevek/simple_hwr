@@ -1,7 +1,11 @@
 import cv2
 import numpy as np
 from scipy.interpolate import griddata
+from scipy import ndimage
 import sys
+from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage.filters import gaussian_filter
+import numpy as np
 
 INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,
@@ -152,6 +156,26 @@ def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
     else:
         raise Exception("Not implemented")
 
+def random_distortions(img, sigma=6.0, noise_max=10.0):
+    n, m = img.shape
+    noise = np.random.rand(2, n, m)
+    noise = ndimage.gaussian_filter(noise, (0, sigma, sigma))
+    noise -= np.amin(noise)
+    noise /= np.amax(noise)
+    noise = (2*noise-1) * noise_max
+
+    assert noise.shape[0] == 2
+    assert img.shape == noise.shape[1:], (img.shape, noise.shape)
+
+    xy = np.transpose(np.array(np.meshgrid(
+        range(n), range(m))), axes=[0, 2, 1])
+    noise += xy
+    distorted = ndimage.map_coordinates(img, noise, order=1, mode="reflect")
+    return distorted
+
+def blur(img, intensity=1.5):
+    return ndimage.gaussian_filter(img, intensity)
+
 def gaussian_noise(img, occlusion_level=1, logger=None):
     """
         occlusion_level: .1 - light haze, 1 heavy
@@ -194,6 +218,24 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     #     noisy = image + image * gauss
     #     return noisy
 
+def elastic_transform(image, alpha, sigma, random_state=None):
+    """Elastic deformation of images as described in [Simard2003]_.
+    .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
+       Convolutional Neural Networks applied to Visual Document Analysis", in
+       Proc. of the International Conference on Document Analysis and
+       Recognition, 2003.
+    """
+    if random_state is None:
+        random_state = np.random.RandomState(None)
+
+    shape = image.shape
+    dx = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+    dy = gaussian_filter((random_state.rand(*shape) * 2 - 1), sigma, mode="constant", cval=0) * alpha
+
+    x, y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
+    indices = np.reshape(y+dy, (-1, 1)), np.reshape(x+dx, (-1, 1))
+
+    return map_coordinates(image, indices, order=1, cval=255).reshape(shape)
 
 def test():
     import matplotlib.pylab as plt
@@ -203,10 +245,25 @@ def test():
         img = cv2.imread(input_image)
         cv2.imwrite(output_image, img)
     else:
-        input_imge = "/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
+        input_imge = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
         img = cv2.imread(input_imge,0)
-        img = noise(img, occlusion_level=.5)
         plt.imshow(img, cmap="gray")
+        plt.title("Original image")
+        plt.show()
+
+        noisy = noise(img, occlusion_level=.5)
+        plt.imshow(noisy, cmap="gray")
+        plt.title("With noise")
+        plt.show()
+
+        distorted = random_distortions(img)
+        plt.imshow(distorted, cmap="gray")
+        plt.title("With distortion")
+        plt.show()
+
+        blurred = blur(img)
+        plt.imshow(blurred, cmap="gray")
+        plt.title("With blur")
         plt.show()
 if __name__ == "__main__":
     test()

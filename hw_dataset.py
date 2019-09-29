@@ -137,29 +137,61 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
-                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
-                 occlusion_size=None, occlusion_freq=None, occlusion_level=1, logger=None):
+    def __init__(self,
+                 data_paths,
+                 char_to_idx,
+                 img_height=32,
+                 num_of_channels=3,
+                 root="./data",
+                 warp=False,
+                 blur=False, blur_level=1.5,
+                 random_distortions=False, distortion_sigma = 6.0,
+                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",),
+                 images_to_load=None,
+                 occlusion_size=None, occlusion_freq=None, occlusion_level=1,
+                 elastic_distortion=False, elastic_alpha=3, elastic_sigma=1.1,
+                 logger=None):
+
+        data = self.load_data(root, images_to_load, data_paths)
+
+        ## Read in all writer IDs
+        writer_id_dict = self.join_writer_ids(root, writer_id_paths)
+
+        data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
+
+        self.root = root
+        self.img_height = img_height
+        self.char_to_idx = char_to_idx
+        self.data = data
+        self.warp = warp
+        self.blur = blur
+        self.blur_level = blur_level
+        self.random_distortions = random_distortions
+        self.distortion_sigma = distortion_sigma
+        self.num_of_channels = num_of_channels
         self.occlusion = not (None in (occlusion_size, occlusion_freq))
         self.occlusion_freq = occlusion_freq
         self.occlusion_size = occlusion_size
         self.occlusion_level = occlusion_level
-        #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
+        self.elastic_distortion = elastic_distortion
+        self.elastic_alpha = elastic_alpha
+        self.elastic_sigma = elastic_sigma
+
+        self.logger = logger
+
+    def load_data(self, root, images_to_load, data_paths):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
                 new_data = json.load(fp)
-
                 if isinstance(new_data, dict):
                     new_data = [item for key, item in new_data.items()]
-
                 data.extend(new_data)
         if images_to_load:
             data = data[:images_to_load]
+        return data
 
-        #print(data_paths, data)
-
-        ## Read in all writer IDs
+    def join_writer_ids(self, root, writer_id_paths):
         writer_id_dict = {}
         for writer_id_file in writer_id_paths:
             try:
@@ -169,16 +201,7 @@ class HwDataset(Dataset):
                 writer_id_dict = {**writer_id_dict, **d}
             except:
                 print("Error with writer IDs")
-
-        data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
-
-        self.root = root
-        self.img_height = img_height
-        self.char_to_idx = char_to_idx
-        self.data = data
-        self.warp = warp
-        self.num_of_channels = num_of_channels
-        self.logger = logger
+        return writer_id_dict
 
     def add_writer_ids(self, data, writer_dict):
         """
@@ -239,6 +262,15 @@ class HwDataset(Dataset):
             img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
                                           occlusion_size=self.occlusion_size,
                                           occlusion_level=self.occlusion_level)
+
+        if self.blur:
+            img = grid_distortion.blur(img, intensity = self.blur_level)
+
+        if self.random_distortions:
+            img = grid_distortion.random_distortions(img, sigma = self.distortion_sigma)
+
+        if self.elastic_distortion:
+            img = grid_distortion.elastic_transform(img, alpha=self.elastic_alpha, sigma=self.elastic_sigma)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
