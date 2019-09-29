@@ -6,9 +6,18 @@ from itertools import product
 baseline_configs = "./occlusion/online_or_offline_only/warp/offline.yaml", "./occlusion/online_or_offline_only/warp/online.yaml"
 baseline_configs = "./occlusion/online_or_offline_only/offline.yaml", "./occlusion/online_or_offline_only/online.yaml"
 baseline_configs = "./occlusion/gaussian_noise/offline.yaml", "./occlusion/gaussian_noise/online.yaml"
+baseline_configs = "./MUNIT/iamlong.yaml", "./MUNIT/munit+iamlong.yaml", "./MUNIT/munit.yaml"
 
-variation_dict = {"occlusion_level": [.1,.5,1]} # randomly choose freq at most this; randomly choose level, at most this
-baseline_dict = {"occlusion_level": 0} # randomly choose freq at most this; randomly choose level, at most this
+
+# "training_blur_level": 1.5,
+#                 "training_random_distortions": False,
+#                 "training_distortion_sigma": 6.0,
+#                 "testing_blur": False,
+
+
+variation_dict = {"training_random_distortions": [True, False], "training_blur": [True, False]} # randomly choose freq at most this; randomly choose level, at most this
+baseline_dict = {"occlusion_level": 0}
+baseline_dict = False
 
 def cartesian_product(inp):
     return (dict(zip(inp.keys(), values)) for values in product(*inp.values()))

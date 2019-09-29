@@ -187,11 +187,16 @@ class HwDataset(Dataset):
 
         for i,item in enumerate(data):
             # Get writer ID from file
-            p,child = os.path.split(item["image_path"])
-            child = re.search("([a-z0-9]+-[0-9]+)", child).group(1)[0:7] # take the first 7 characters
-            item["actual_writer_id"] = actual_ids[child]
-            item["writer_id"] = writer_ids[child]
-            data[i] = item
+            try:
+                p,child = os.path.split(item["image_path"])
+                child = re.search("([a-z0-9]+-[0-9]+)", child).group(1)[0:7] # take the first 7 characters
+                item["actual_writer_id"] = actual_ids[child]
+                item["writer_id"] = writer_ids[child]
+                data[i] = item
+            except:
+                item["actual_writer_id"] = "UNK"
+                item["writer_id"] = "UNK"
+                data[i] = item
 
         return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
 
