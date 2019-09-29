@@ -13,6 +13,7 @@ results/
 # configs/
 
 # Data
+data/prepare_font_data/fonts
 data/prepare_font_data/output/
 data/prepare_font_data/validation.*
 data/prepare_font_data/words.*
