@@ -148,7 +148,12 @@ class HwDataset(Dataset):
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
-                data.extend(json.load(fp))
+                new_data = json.load(fp)
+
+                if isinstance(new_data, dict):
+                    new_data = [item for key, item in new_data.items()]
+
+                data.extend(new_data)
         if images_to_load:
             data = data[:images_to_load]
 
@@ -194,8 +199,8 @@ class HwDataset(Dataset):
                 item["writer_id"] = writer_ids[child]
                 data[i] = item
             except:
-                item["actual_writer_id"] = "UNK"
-                item["writer_id"] = "UNK"
+                item["actual_writer_id"] = -1
+                item["writer_id"] = -1
                 data[i] = item
 
         return data, len(set(writer_dict.keys())) # returns dictionary and number of writers

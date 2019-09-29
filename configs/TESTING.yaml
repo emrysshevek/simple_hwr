@@ -1,63 +1,71 @@
-# Validation
-validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
-#validation_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
-
-TESTING: false
+### TESTING
+TESTING: false # Load as little as possible for fast prototyping
 SMALL_TRAINING: false
-GPU: true
-TEST_FREQ: 1
 plot_freq: 50
-images_to_load: null
-load_path: false
-test_only: false
-experiment: occlusion
-name: offline_with_occlusion
+
+## Things that shouldn't matter much:
+# Random shuffling
+# Number of channels (3 vs 1)
+# Batch size 8 vs 16
+
+# Load model
+load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
+#load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
+test_only: false                             # Do not train
+
+# General
+experiment: baseline
+name_deprecated: true_baseline
 output_folder: ./results
-epochs_to_run: 200
+epochs_to_run: 2
 save_freq: 5
 use_visdom: true
-debug: false
-decoder_type: naive
-training_jsons:
-- prepare_online_data/online_augmentation.json
-- prepare_IAM_Lines/gts/lines/txt/training.json
-training_root: ../simple_hwr/data
+debug: off
+
+# results_dir:
+# log_dir:
+
+# Training data
+training_jsons: [munit/online_munit_v1.json]
+training_root: data
 training_shuffle: true
-training_warp: true
+training_warp: false
+training_blur: false
+training_random_distortions: false
 online_augmentation: true
-exclude_offline: true
-online_flag: false
-writer_id_pickles:
-- prepare_IAM_Lines/writer_IDs.pickle
-- prepare_online_data/writer_IDs.pickle
-testing_jsons:
-- prepare_IAM_Lines/gts/lines/txt/test.json
-testing_root: ../simple_hwr/data
+writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
+
+# Validation
+validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
+
+# Testing data
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
+testing_root: data
 testing_shuffle: false
 testing_warp: false
-output_predictions: false
-style_encoder: false
-batch_size: 16
-input_height: 60
-cnn_out_size: 1024
-num_of_channels: 1
-rnn_dimension: 512
-rnn_layers: 2
-rnn_type: lstm
-cnn: default
-recognizer_dropout: 0.5
-writer_dropout: 0.4
-writer_rnn_dimension: 128
-writer_rnn_output_size: 256
-mlp_layers:
-- 64
-- embedding
-- 64
-embedding_size: 32
-learning_rate: 0.0002
-scheduler_step: 10
-scheduler_gamma: 0.95
-occlusion_size: 1
-occlusion_freq: 0
-occlusion_level: 0
-training_random_distortions: true
+testing_blur: false
+testing_random_distortions: false
+output_predictions: false                    # Output incorrect test predictions
+
+#Network
+style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+batch_size: 16                               # Batch size
+input_height: 60                             # Input dimension of image (will be cropped by default?)
+cnn_out_size: 1024                           # Output dimension of CNN
+num_of_channels: 1                           # Number of channels in input image
+rnn_dimension: 512                           # originally 512
+
+# Recognizer parameters
+recognizer_dropout: .5                       # Dropout in recognizer LSTM
+
+# Writer Classifier - LSTM + MLP (with embedding layer)
+writer_dropout: 0.4                          # Probability of being "dropped out" in writer LSTM+MLP
+writer_rnn_dimension: 128                    # Dimension of LSTM state vector
+writer_rnn_output_size: 256                  # LSTM output dimension for writer classifier
+mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer classifier
+embedding_size: 32                           # The size of the embedding layer in the MLP
+
+# LR schedule
+learning_rate: 5e-3          # LR
+scheduler_step: 5         # Every X steps, multiply LR by gamma
+scheduler_gamma: .95          # LR decay rate

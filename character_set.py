@@ -21,6 +21,8 @@ def make_char_set(paths, root="./data"):
     for data_file in paths:
         with open(os.path.join(root, data_file)) as f:
             data = json.load(f)
+        if isinstance(data, dict):
+            data = [item for key,item in data.items()]
 
         cnt = 1  # this is important that this starts at 1 not 0
         for data_item in data:
