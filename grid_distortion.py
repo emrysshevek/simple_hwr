@@ -6,6 +6,7 @@ import sys
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 import numpy as np
+import matplotlib.pylab as plt
 
 INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,
@@ -156,6 +157,13 @@ def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
     else:
         raise Exception("Not implemented")
 
+def crop(img, threshold=200):
+    all_ink = np.where(img < threshold)
+    first_ink = np.min(all_ink[1])
+    last_ink = np.max(all_ink[1])
+    #print(first_ink, last_ink)
+    return img[:, first_ink:last_ink]
+
 def random_distortions(img, sigma=6.0, noise_max=10.0):
     n, m = img.shape
     noise = np.random.rand(2, n, m)
@@ -237,20 +245,23 @@ def elastic_transform(image, alpha, sigma, random_state=None):
 
     return map_coordinates(image, indices, order=1, cval=255).reshape(shape)
 
+def get_test_image():
+    input_image = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
+    input_image = "data/sample_offline/a05-039-00.png"
+    img = cv2.imread(input_image, 0)
+    plt.imshow(img, cmap="gray")
+    plt.title("Original image")
+    plt.show()
+    return img
+
 def test():
-    import matplotlib.pylab as plt
     if False:
         input_image = sys.argv[1]
         output_image = sys.argv[2]
         img = cv2.imread(input_image)
         cv2.imwrite(output_image, img)
     else:
-        input_imge = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
-        img = cv2.imread(input_imge,0)
-        plt.imshow(img, cmap="gray")
-        plt.title("Original image")
-        plt.show()
-
+        img = get_test_image()
         noisy = noise(img, occlusion_level=.5)
         plt.imshow(noisy, cmap="gray")
         plt.title("With noise")
@@ -265,7 +276,15 @@ def test():
         plt.imshow(blurred, cmap="gray")
         plt.title("With blur")
         plt.show()
+
+def test2():
+        img = get_test_image()
+        cropped = crop(img)
+        plt.imshow(cropped, cmap="gray")
+        plt.title("cropped")
+        plt.show()
+
 if __name__ == "__main__":
-    test()
+    test2()
 
 

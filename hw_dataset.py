@@ -186,6 +186,7 @@ class HwDataset(Dataset):
                 new_data = json.load(fp)
                 if isinstance(new_data, dict):
                     new_data = [item for key, item in new_data.items()]
+                #print(new_data[:100])
                 data.extend(new_data)
         if images_to_load:
             data = data[:images_to_load]
@@ -271,6 +272,8 @@ class HwDataset(Dataset):
 
         if self.elastic_distortion:
             img = grid_distortion.elastic_transform(img, alpha=self.elastic_alpha, sigma=self.elastic_sigma)
+
+        img = grid_distortion.crop(img) # trim leading/trailing whitespace
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:

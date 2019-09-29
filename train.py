@@ -100,7 +100,7 @@ def to_numpy(tensor):
 #img = np.random.rand(3,3,3)
 #plot_images(img, "name", ["a","b","c"])
 
-def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
+def plot_images(line_imgs, name, text_str, dir=None, plot_count=None, live=False):
     if dir is None:
         dir = config["image_dir"]
     # Save images
@@ -137,9 +137,12 @@ def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
          axarr.imshow(to_numpy(line_imgs.squeeze()), cmap='gray')
 
     # plt.show()
-    path = os.path.join(dir, '{}.png'.format(name))
-    plt.savefig(path, dpi=400)
-    plt.close('all')
+    if live:
+        plt.show()
+    else:
+        path = os.path.join(dir, '{}.png'.format(name))
+        plt.savefig(path, dpi=400)
+        plt.close('all')
 
 
 def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
@@ -209,6 +212,13 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["global_step"] += 1
         config["global_instances_counter"] += line_imgs.shape[0]
         config["stats"]["instances"] += [config["global_instances_counter"]]
+
+        # plot_images(x['line_imgs'], f"{config['current_epoch']}_training", gt, live=True)
+        # input()
+
+        # print(labels, label_lengths, gt)
+        # print(x['paths'])
+        # Stop
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
