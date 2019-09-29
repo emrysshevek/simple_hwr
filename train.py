@@ -72,7 +72,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
 
         if plot_all:
             imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
-            plot_images(imgs, f"{config['current_epoch']}_{i}_testing", pred_str, config["image_test_dir"])
+            plot_images(imgs, f"{config['current_epoch']}_{i}_testing", pred_str, config["image_test_dir"], plot_count=4)
 
         # Only do one test
         if config["TESTING"]:
@@ -85,7 +85,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
 
     if not plot_all:
         imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
-        plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"])
+        plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"], plot_count=4)
 
     LOGGER.debug(config["stats"])
     return cer
@@ -239,7 +239,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     LOGGER.debug(config["stats"])
 
     # Save images
-    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"])
+    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"], plot_count=4)
 
     return training_cer
 
