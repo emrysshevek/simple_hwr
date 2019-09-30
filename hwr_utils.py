@@ -304,6 +304,8 @@ def make_config_consistent(config):
         training_data = "prepare_IAM_Lines/gts/lines/txt/training.json"
         if training_data in config["training_jsons"]:
             config["training_jsons"].remove(training_data)
+            if not config.training_jsons:
+                raise Exception("No training data -- check exclude_offline flag")
 
     if not config["TESTING"]:
         wait_for_gpu()
@@ -815,10 +817,10 @@ def stat_prep(config):
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
     config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
     config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Validation Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Validation Error Rate", ymax=.2))
     config["designated_training_cer"] = "Training Error Rate"
     config["designated_test_cer"] = "Test Error Rate"
-    config["designated_validation_cer"] = "Validation Error Rate"
+    config["designated_validation_cer"] = "Validation Error Rate" if config["validation_jsons"] else "Test Error Rate"
 
     if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="Writer Style Loss"))
@@ -830,7 +832,7 @@ def stat_prep(config):
         config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Validation Error Rate",ymax=.2))
         config["designated_training_cer"] = "Nudged Training Error Rate"
         config["designated_test_cer"] = "Nudged Test Error Rate"
-        config["designated_validation_cer"] = "Nudged Validation Error Rate"
+        config["designated_validation_cer"] = "Nudged Validation Error Rate" if config["validation_jsons"] else "Nudged Test Error Rate"
 
         # Register plots, save in stats dictionary
     for stat in config_stats:

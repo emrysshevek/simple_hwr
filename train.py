@@ -58,17 +58,17 @@ log_print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
-def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True):
+def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True, with_iterations=False):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
-
+    i = 0
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
         online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
             "online_flag"] else None
-        loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt, validation=validation)
+        loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt, validation=validation, with_iterations=with_iterations)
 
         if plot_all:
             imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
@@ -78,17 +78,21 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         if config["TESTING"]:
             break
 
-    accumulate_stats(config)
+    if i > 0:
+        accumulate_stats(config)
 
-    stat = "validation" if validation else "test"
-    cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
+        stat = "validation" if validation else "test"
+        cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
-    if not plot_all:
-        imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
-        plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"], plot_count=4)
+        if not plot_all:
+            imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
+            plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"], plot_count=4)
 
-    LOGGER.debug(config["stats"])
-    return cer
+        LOGGER.debug(config["stats"])
+        return cer
+    else:
+        print("No test data")
+        return -1
 
 def to_numpy(tensor):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -213,12 +217,12 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["global_instances_counter"] += line_imgs.shape[0]
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
-        # plot_images(x['line_imgs'], f"{config['current_epoch']}_training", gt, live=True)
-        # input()
 
+        # GT testing
+        # plot_images(x['line_imgs'], f"{config['current_epoch']}_training", gt, live=True, plot_count=4)
         # print(labels, label_lengths, gt)
         # print(x['paths'])
-        # Stop
+        # input()
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
@@ -305,7 +309,7 @@ def make_dataloaders(config, device="cpu"):
                                  num_workers=threads,
                                  collate_fn=collate_fn)
 
-    if "validation_jsons" in config:
+    if "validation_jsons" in config and config.validation_jsons: # must be present and non-empty
         validation_dataset = HwDataset(config["validation_jsons"],
                                        config["char_to_idx"],
                                        img_height=config["input_height"],
@@ -346,6 +350,10 @@ def load_data(config):
 
     config['n_train_instances'] = len(train_dataloader.dataset)
     log_print("Number of training instances:", config['n_train_instances'])
+
+    if config["validation_jsons"]:
+        log_print("Number of validation instances:", len(validation_dataloader.dataset))
+
     assert config['n_train_instances'] > 0
 
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
@@ -518,7 +526,7 @@ def main():
 
             # CER plot
             if config["current_epoch"] % config["TEST_FREQ"]== 0:
-                validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True)
+                validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True, with_iterations=False)
                 LOGGER.info("Validation CER: {}".format(validation_cer))
                 config["validation_cer"].append(validation_cer)
 
@@ -529,7 +537,7 @@ def main():
             if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
                 if config['lowest_loss'] > validation_cer:
                     if config["validation_jsons"]:
-                        test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, validation=False)
+                        test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, validation=False, with_iterations=False)
                         log_print(f"Saving Best Loss! Test CER: {test_cer}")
                     else:
                         test_cer = validation_cer
@@ -549,7 +557,7 @@ def main():
 def final_test(config, test_dataloader):
     ## Do a final test WITH warping and plot all test images
     config["testing_warp"] = True
-    test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True, validation=False)
+    test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True, validation=False, with_iterations=True)
     config["stats"][config["designated_test_cer"]].y[-1] *= -1 # shorthand
 
 def recreate():

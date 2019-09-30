@@ -169,10 +169,12 @@ class TrainerBaseline(json.JSONEncoder):
         return loss, err, pred_strs
 
 
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
-        if self.config["n_warp_iterations"]:
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True, with_iterations=False):
+        if with_iterations:
+            self.config.logger.debug("Running test with iterations")
             return self.test_warp(line_imgs, online, gt, force_training, nudger, validation=validation)
         else:
+            self.config.logger.debug("Running normal test")
             return self.test_normal(line_imgs, online, gt, force_training, nudger, validation=validation)
 
     def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
@@ -211,9 +213,13 @@ class TrainerBaseline(json.JSONEncoder):
 
     def update_test_cer(self, validation, err, weight, prefix=""):
         if validation:
-            self.config["stats"][f"{prefix}Validation Error Rate"].accumulate(err, weight)
+            self.config.logger.debug("Updating validation!")
+            stat = self.config["designated_validation_cer"]
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["current_epoch"])
         else:
-            self.config["stats"][f"{prefix}Test Error Rate"].accumulate(err, weight, self.config["current_epoch"])
+            self.config.logger.debug("Updating test!")
+            stat = self.config["designated_test_cer"]
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["current_epoch"])
 
     def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         if force_training:
