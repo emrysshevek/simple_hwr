@@ -21,10 +21,10 @@ validation_jsons:
 training_jsons:
 - munit/online_munit_v1.json
 - combinedImages/online_long.json
-training_root: ../simple_hwr/data
+training_root: data
 training_shuffle: false
 training_warp: true
-online_augmentation: false
+online_augmentation: true
 online_flag: false
 writer_id_pickles:
 - prepare_IAM_Lines/writer_IDs.pickle

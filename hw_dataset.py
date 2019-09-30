@@ -188,8 +188,10 @@ class HwDataset(Dataset):
                     new_data = [item for key, item in new_data.items()]
                 #print(new_data[:100])
                 data.extend(new_data)
+
         if images_to_load:
             data = data[:images_to_load]
+
         return data
 
     def join_writer_ids(self, root, writer_id_paths):

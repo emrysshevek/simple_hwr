@@ -17,7 +17,7 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: CRCR
+experiment: default
 name: baseline
 output_folder: ./results
 epochs_to_run: 200
@@ -36,10 +36,10 @@ validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/
 # Training data
 # training_jsons: [munit/online_munit_v1.json, combinedImages/online_long.json]
 training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
-training_root: ../simple_hwr/data
+training_root: data
 training_shuffle: false
 training_warp: true
-online_augmentation: false                  # use online+offline data
+online_augmentation: true                  # use online+offline data
 online_flag: false                          # include a flag designating instance as online/offline
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 

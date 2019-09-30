@@ -323,8 +323,12 @@ def make_config_consistent(config):
     # Removing online jsons if not using online
     for data_path in config["training_jsons"]:
         if "online" in data_path and not config["online_augmentation"]:
+            log_print(f"Online flag not specified -- removing {data_path}")
             config["training_jsons"].remove(data_path)
             config["online_flag"] = False # turn off flag if no online data provided
+        if not config.training_jsons:
+            log_print("No training json files -- check online_augmentation flag")
+            raise Exception("No training json files -- check online_augmentation flag")
 
     # Save images
     if config["improve_image"]:

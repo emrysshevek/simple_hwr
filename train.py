@@ -255,7 +255,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
-    train_dataset = HwDataset(config["training_jsons"],
+    train_dataset = HwDataset(config.training_jsons,
                               config["char_to_idx"],
                               img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"],
@@ -330,8 +330,14 @@ def make_dataloaders(config, device="cpu"):
 
 def load_data(config):
     # Load characters and prep datasets
-    config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(
-        config['training_jsons'], root=config["training_root"])
+    out_char_to_idx2, out_idx_to_char2, char_freq = character_set.make_char_set(
+        config.training_jsons, root=config.training_root)
+    # Convert to a list to work with easydict
+    idx_to_char = []
+    for i in range(0,max(out_idx_to_char2.keys())):
+        idx_to_char.append(out_idx_to_char2[i])
+
+    config.char_to_idx, config.idx_to_char, config.char_freq = out_char_to_idx2, idx_to_char, char_freq
 
     train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = make_dataloaders(config=config)
 
@@ -340,6 +346,8 @@ def load_data(config):
 
     config['n_train_instances'] = len(train_dataloader.dataset)
     log_print("Number of training instances:", config['n_train_instances'])
+    assert config['n_train_instances'] > 0
+
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
     return train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
 
