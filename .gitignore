@@ -31,6 +31,7 @@ data/prepare_online_data/writers.xml
 data/prepare_online_data/online_augmentation.json
 writer_IDs.pickle
 
+slurm_scripts/scripts
 data/prepare_online_data/onlineCropped/
 data/prepare_online_data/cropped_images/
 data/prepare_online_data/combinedImages/

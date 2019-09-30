@@ -1,3 +1,4 @@
+import copy
 import sys
 import pathlib
 import numbers
@@ -20,6 +21,7 @@ import string_utils
 import error_rates
 import glob
 from pathlib import Path
+from easydict import EasyDict as edict
 
 def is_iterable(obj):
     try:
@@ -146,7 +148,7 @@ def load_config(config_path):
     if not os.path.isfile(config_path):
         config_path = find_config(chld, config_root)
 
-    config = read_config(config_path)
+    config = edict(read_config(config_path))
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
 
     defaults = {"load_path":False,
@@ -591,7 +593,7 @@ def save_model(config, bsf=False):
 
     # Save CER
     #results = {"training":config["stats"][config["designated_training_cer"]], "test":config["stats"][config["designated_test_cer"]]}
-    results = {"train_cer":config["train_cer"], "test_cer":config["test_cer"]}
+    results = {"train_cer":config["train_cer"], "validation_cer":config["validation_cer"], "test_cer":config["test_cer"]}
     with open(os.path.join(path, "losses.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -614,12 +616,18 @@ def save_model(config, bsf=False):
     config["save_count"] += 1
 
 def create_resume_training(config):
+    #export_config = copy.deepcopy(config)
     export_config = config.copy()
     export_config["load_path"] = config["main_model_path"]
 
     for key in config.keys():
         item = config[key]
-        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list):
+        # Only keep items that are numbers, strings, and lists
+        if not isinstance(item, str) \
+                and not isinstance(item, numbers.Number) \
+                and not isinstance(item, list) \
+                and item is not None \
+                and not isinstance(item, bool):
             del export_config[key]
 
     output = Path(config["results_dir"])

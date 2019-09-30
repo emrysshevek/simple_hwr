@@ -17,7 +17,7 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: default
+experiment: CRCR
 name: baseline
 output_folder: ./results
 epochs_to_run: 200
@@ -34,6 +34,7 @@ optimizer_type: adam
 validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
 
 # Training data
+# training_jsons: [munit/online_munit_v1.json, combinedImages/online_long.json]
 training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: ../simple_hwr/data
 training_shuffle: false
