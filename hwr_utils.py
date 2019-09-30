@@ -475,6 +475,12 @@ class CharAcc:
                 self.false_positive[self.char_to_idx[guess_char]] += 1
                 self.false_negative[self.char_to_idx[true_char]] += 1
 
+def dict_to_list(d):
+    idx_to_char = []
+    for i in range(0, max(d.keys())):
+        idx_to_char.append(d[i])
+    return idx_to_char
+
 def load_model(config):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
@@ -490,6 +496,8 @@ def load_model(config):
 
     for key in ["idx_to_char", "char_to_idx"]:
         if key in old_state.keys():
+            if key == "idx_to_char":
+                old_state[key] = dict_to_list(old_state[key])
             config[key] = old_state[key]
 
     if "model" in old_state.keys():

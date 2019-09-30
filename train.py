@@ -337,9 +337,7 @@ def load_data(config):
     out_char_to_idx2, out_idx_to_char2, char_freq = character_set.make_char_set(
         config.training_jsons, root=config.training_root)
     # Convert to a list to work with easydict
-    idx_to_char = []
-    for i in range(0,max(out_idx_to_char2.keys())):
-        idx_to_char.append(out_idx_to_char2[i])
+    idx_to_char = dict_to_list(out_idx_to_char2)
 
     config.char_to_idx, config.idx_to_char, config.char_freq = out_char_to_idx2, idx_to_char, char_freq
 
