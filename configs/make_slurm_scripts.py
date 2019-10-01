@@ -52,7 +52,8 @@ module purge
 module load cuda/10.1
 module load cudnn/7.6
 
-export PATH="{env}:$PATH"
+eval "$(conda shell.bash hook)"
+conda activate /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr4_env
 cd "{ROOT_DIR}"
 which python
 {command}"""
