@@ -29,6 +29,7 @@ def collate_basic(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See hw_dataset.py")
         print(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
@@ -76,6 +77,7 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 
     # These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See collate_repetition in hw_dataset.py")
         print(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
@@ -135,24 +137,30 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 
 
 class HwDataset(Dataset):
-    def __init__(self,
-                 data_paths,
-                 char_to_idx,
-                 img_height=32,
-                 num_of_channels=3,
-                 root="./data",
-                 warp=False,
-                 blur=False, blur_level=1.5,
-                 random_distortions=False, distortion_sigma = 6.0,
-                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",),
-                 images_to_load=None,
-                 occlusion_size=None, occlusion_freq=None, occlusion_level=1,
-                 logger=None):
+    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
+                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
+                 occlusion_size=None, occlusion_freq=None, occlusion_level=1, logger=None):
+        self.occlusion = not (None in (occlusion_size, occlusion_freq))
+        self.occlusion_freq = occlusion_freq
+        self.occlusion_size = occlusion_size
+        self.occlusion_level = occlusion_level
+        #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
+        data = []
+        for data_path in data_paths:
+            with open(os.path.join(root, data_path)) as fp:
+                data.extend(json.load(fp))
+        if images_to_load:
+            data = data[:images_to_load]
 
-        data = self.load_data(root, images_to_load, data_paths)
+        #print(data_paths, data)
 
         ## Read in all writer IDs
-        writer_id_dict = self.join_writer_ids(root, writer_id_paths)
+        writer_id_dict = {}
+        for writer_id_file in writer_id_paths:
+            path = os.path.join(root, writer_id_file)
+            # Add files to create super dicitonary
+            d = unpickle_it(path)
+            writer_id_dict = {**writer_id_dict, **d}
 
         data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
 
@@ -161,44 +169,18 @@ class HwDataset(Dataset):
         self.char_to_idx = char_to_idx
         self.data = data
         self.warp = warp
-        self.blur = blur
-        self.blur_level = blur_level
-        self.random_distortions = random_distortions
-        self.distortion_sigma = distortion_sigma
         self.num_of_channels = num_of_channels
-        self.occlusion = not (None in (occlusion_size, occlusion_freq))
-        self.occlusion_freq = occlusion_freq
-        self.occlusion_size = occlusion_size
-        self.occlusion_level = occlusion_level
         self.logger = logger
-
-    def load_data(self, root, images_to_load, data_paths):
-        data = []
-        for data_path in data_paths:
-            with open(os.path.join(root, data_path)) as fp:
-                data.extend(json.load(fp))
-        if images_to_load:
-            data = data[:images_to_load]
-        return data
-
-    def join_writer_ids(self, root, writer_id_paths):
-        writer_id_dict = {}
-        for writer_id_file in writer_id_paths:
-            path = os.path.join(root, writer_id_file)
-            # Add files to create super dicitonary
-            d = unpickle_it(path)
-            writer_id_dict = {**writer_id_dict, **d}
-        return writer_id_dict
 
     def add_writer_ids(self, data, writer_dict):
         """
 
         Args:
             data (json type thing): hw-dataset_
-            writer_dict (str): Path to pickle dictionary of form {Writer_ID: [file_path1,file_path2...] ... }
+            writer_id_path (str): Path to pickle dictionary of form {Writer_ID: [file_path1,file_path2...] ... }
 
         Returns:
-            tuple: updated data with ID, number of writers
+            tuple: updated data with ID, number of classes
         """
         actual_ids = dict([[v, k] for k, vs in writer_dict.items() for v in vs ]) # {Partial path : Writer ID}
         writer_ids = dict([[v, k] for k, (_, vs) in enumerate(writer_dict.items()) for v in vs])  # {Partial path : IDX}
@@ -211,7 +193,7 @@ class HwDataset(Dataset):
             item["writer_id"] = writer_ids[child]
             data[i] = item
 
-        return data, len(set(writer_dict.keys()))
+        return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
 
     def __len__(self):
         return len(self.data)
@@ -245,18 +227,13 @@ class HwDataset(Dataset):
                                           occlusion_size=self.occlusion_size,
                                           occlusion_level=self.occlusion_level)
 
-        if self.blur:
-            img = grid_distortion.blur(img, intensity = self.blur_level)
-
-        if self.random_distortions:
-            img = grid_distortion.random_distortions(img, sigma = self.distortion_sigma)
-
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
         if self.num_of_channels==1:
             img=img[:,:, np.newaxis]
 
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
+
 
         gt = item['gt'] # actual text
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text

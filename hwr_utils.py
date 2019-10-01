@@ -124,6 +124,19 @@ def find_config(config_name, config_root="./configs"):
     elif len(found_paths) < 1:
         raise Exception("{} config not found".format(config_name))
 
+def incrementer(root, base):
+    new_folder = Path(root / base)
+    increment = 0
+    increment_string = ""
+
+    while new_folder.exists():
+        increment += 1
+        increment_string = f"{increment:02d}" if increment > 0 else ""
+        new_folder = Path(root / (base + increment_string))
+
+    new_folder.mkdir(parents=True, exist_ok=True)
+    return new_folder
+
 def load_config(config_path):
     par, chld = os.path.split(config_path)
     config_root = str(Path(os.path.realpath(__file__)).parent / "configs") # r"./configs"
@@ -133,17 +146,8 @@ def load_config(config_path):
     if not os.path.isfile(config_path):
         config_path = find_config(chld, config_root)
 
-    # Main output folder
-    try:
-        experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
-    except:
-        experiment = "./new_experiment" # use current folder for experiment output
-
     config = read_config(config_path)
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
-
-    # Use config folder to determine output folder
-    config["experiment"] = str(experiment)
 
     defaults = {"load_path":False,
                 "training_shuffle": False,
@@ -182,14 +186,33 @@ def load_config(config_path):
                 "testing_warp": False,
                 "optimizer_type": "adam",
                 "occlusion_level": .4,
-                "exclude_offline": False
+                "exclude_offline": False,
+                "validation_jsons": [],
+                "elastic_transform": False
                 }
 
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
 
-    output_root = os.path.join(config["output_folder"], config["experiment"])
+    # Main output folder
+    if config["load_path"]:
+        _output = incrementer(Path(config_root), "new_experiment") # if it has a load path, create a new experiment in that same folder!
+        experiment = _output.stem
+        output_root = _output.as_posix()
+    else:
+        try:
+            experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
+            if str(experiment) == ".": # if experiment is in root directory, use the experiment specified in the yaml
+                experiment = config["experiment"]
+            output_root = os.path.join(config["output_folder"], experiment)
+
+        except:
+            print(f"Failed to find relative path of config file {config_root} {config_path}")
+
+    # Use config folder to determine output folder
+    config["experiment"] = str(experiment)
+    print(f"Experiment: {experiment}, Results Directory: {output_root}")
 
     # hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
     #      config["name"],
@@ -603,13 +626,25 @@ def create_resume_training(config):
     with open(Path(output / 'RESUME.yaml'), 'w') as outfile:
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
+    with open(Path(output / 'TEST.yaml'), 'w') as outfile:
+        export_config["test_only"] = True
+        if export_config["training_warp"]:
+            export_config["testing_warp"] = True
+        if export_config["occlusion_level"]:
+            export_config["testing_occlude"] = True
+        if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
+            export_config["n_warp_iterations"] = 21
+        yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
+
 def plt_loss(config):
     ## Plot with matplotlib
     try:
         x_axis = [(i + 1) * config["n_train_instances"] for i in range(len(config["train_cer"]))]
         plt.figure()
         plt.plot(x_axis, config["train_cer"], label='train')
-        plt.plot(x_axis, config["test_cer"], label='test')
+        plt.plot(x_axis, config["validation_cer"], label='validation')
+        if config["test_cer"]:
+            plt.plot(config["test_epochs"], config["test_cer"], label='validation')
         plt.legend()
         plt.ylim(top=.2)
         plt.ylabel("CER")
@@ -718,12 +753,15 @@ class Stat:
     def default(self, o):
         return o.__dict__
 
-    def accumulate(self, sum, weight):
+    def accumulate(self, sum, weight, step=None):
         self.current_sum += sum
         self.current_weight += weight
 
         if not self.accumlator_active:
             self.accumlator_active = True
+
+        if step:
+            self.x.append(step)
 
     def reset_accumlator(self):
         if self.accumlator_active:
@@ -764,9 +802,11 @@ def stat_prep(config):
     config_stats = []
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
     config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Validation Error Rate", ymax=.2))
     config["designated_training_cer"] = "Training Error Rate"
     config["designated_test_cer"] = "Test Error Rate"
+    config["designated_validation_cer"] = "Validation Error Rate"
 
     if config["style_encoder"] in ["basic_encoder", "fake_encoder"]:
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="Writer Style Loss"))
@@ -775,8 +815,10 @@ def stat_prep(config):
         config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss",name="Nudged Training Loss"))
         config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Nudged Training Error Rate"))
         config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Test Error Rate", ymax=.2))
+        config_stats.append(Stat(y=[], x=config["stats"]["epochs"], x_title="Epochs", y_title="CER", name="Nudged Validation Error Rate",ymax=.2))
         config["designated_training_cer"] = "Nudged Training Error Rate"
         config["designated_test_cer"] = "Nudged Test Error Rate"
+        config["designated_validation_cer"] = "Nudged Validation Error Rate"
 
         # Register plots, save in stats dictionary
     for stat in config_stats:
@@ -789,7 +831,7 @@ def plot_tensors(tensor):
         plot_tensor(tensor[i,0])
 
 def plot_tensor(tensor):
-    print(tensor.shape)
+    #print(tensor.shape)
     t = tensor.cpu()
     assert not np.isnan(t).any()
     plt.figure(dpi=400)

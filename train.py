@@ -58,7 +58,7 @@ print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
-def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False):
+def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True):
     sum_loss = 0.0
     steps = 0.0
     model.eval()
@@ -68,7 +68,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         gt = x['gt']  # actual string ground truth
         online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
             "online_flag"] else None
-        loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt)
+        loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt, validation=validation)
 
         if plot_all:
             imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
@@ -79,21 +79,26 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
             break
 
     accumulate_stats(config)
-    test_cer = config["stats"][config["designated_test_cer"]].y[-1]  # most recent test CER
+
+    stat = "validation" if validation else "test"
+    cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
     if not plot_all:
         imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
         plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"])
 
-
     LOGGER.debug(config["stats"])
-    return test_cer
+    return cer
 
 def to_numpy(tensor):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
         return tensor.detach().cpu().numpy()
     else:
         return tensor
+
+# Test plot
+#img = np.random.rand(3,3,3)
+#plot_images(img, "name", ["a","b","c"])
 
 def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
     if dir is None:
@@ -206,7 +211,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config["online_augmentation"] and config["online_flag"] else None
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+            "online_augmentation"] and config["online_flag"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
@@ -215,7 +221,8 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         # Update visdom every 50 instances
         if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
-            config["stats"]["epoch_decimal"] += [config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
+            config["stats"]["epoch_decimal"] += [
+                config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
             visualize.plot_all(config)
@@ -238,58 +245,45 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
-    train_dataset = HwDataset(config["training_jsons"],
-                              config["char_to_idx"],
-                              img_height=config["input_height"],
-                              num_of_channels=config["num_of_channels"],
-                              root=config["training_root"],
-                              warp=config["training_warp"],
-                              blur=config["training_blur"],
-                              blur_level=config.get("training_blur_level", 1.5),
-                              random_distortions=config["training_random_distortions"],
-                              distortion_sigma=config["training_distortion_sigma"],
-                              writer_id_paths=config["writer_id_pickles"],
-                              images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"],
-                              occlusion_freq=config["occlusion_freq"],
-                              occlusion_level=config["occlusion_level"],
-                              logger=config["logger"])
+    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
+                              num_of_channels=config["num_of_channels"], root=config["training_root"],
+                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
+                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"],
+                              occlusion_level=config["occlusion_level"], logger=config["logger"])
 
-    train_dataloader = DataLoader(train_dataset,
-                                  batch_size=config["batch_size"],
-                                  shuffle=config["training_shuffle"],
-                                  num_workers=threads,
-                                  collate_fn=lambda x:hw_dataset.collate(x,device=device),
-                                  pin_memory=device=="cpu")
+    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
+                                  num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu")
 
     # Handle basic vs with warp iterations
-    collate_fn = lambda x:hw_dataset.collate(x,device=device,
-                                             n_warp_iterations=config['n_warp_iterations'],
-                                             warp=config["testing_warp"],
-                                             occlusion_freq=config["occlusion_freq"],
-                                             occlusion_size=config["occlusion_size"],
-                                             occlusion_level=config["occlusion_level"])
+    if config["testing_occlude"]:
+        collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], warp=config["testing_warp"], occlusion_freq=config["occlusion_freq"],
+                                             occlusion_size=config["occlusion_size"], occlusion_level=config["occlusion_level"], use_occlusion=config["testing_occlude"])
+    else:
+        collate_fn = lambda x: hw_dataset.collate(x, device=device, n_warp_iterations=config['n_warp_iterations'],
+                                                  warp=config["testing_warp"], occlusion_freq=None,
+                                                  occlusion_size=None,
+                                                  occlusion_level=None)
 
-    test_dataset = HwDataset(config["testing_jsons"],
-                             config["char_to_idx"],
-                             img_height=config["input_height"],
-                             num_of_channels=config["num_of_channels"],
-                             root=config["testing_root"],
-                             warp=config["testing_warp"],
-                             blur=config.get("testing_blur", 1.5),
-                             blur_level=config["testing_blur_level"],
-                             random_distortions=config["testing_random_distortions"],
-                             distortion_sigma=config["testing_distortion_sigma"],
-                             images_to_load=config["images_to_load"],
-                             logger=config["logger"])
+    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
+                             num_of_channels=config["num_of_channels"], root=config["testing_root"],
+                             warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
 
-    test_dataloader = DataLoader(test_dataset,
-                                 batch_size=config["batch_size"],
-                                 shuffle=config["testing_shuffle"],
-                                 num_workers=threads,
-                                 collate_fn=collate_fn)
+    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
+                                 num_workers=threads, collate_fn=collate_fn)
 
-    return train_dataloader, test_dataloader, train_dataset, test_dataset
+
+    if "validation_jsons" in config:
+        validation_dataset = HwDataset(config["validation_jsons"], config["char_to_idx"], img_height=config["input_height"],
+                                 num_of_channels=config["num_of_channels"], root=config["testing_root"],
+                                 warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
+
+        validation_dataloader = DataLoader(validation_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
+                                     num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+    else:
+        validation_dataset, validation_dataloader = test_dataset, test_dataloader
+        config["validation_jsons"]=None
+
+    return train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
 
 
 def load_data(config):
@@ -297,7 +291,7 @@ def load_data(config):
     config["char_to_idx"], config["idx_to_char"], config["char_freq"] = character_set.make_char_set(
         config['training_jsons'], root=config["training_root"])
 
-    train_dataloader, test_dataloader, train_dataset, test_dataset = make_dataloaders(config=config)
+    train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = make_dataloaders(config=config)
 
     config['alphabet_size'] = len(config["idx_to_char"])   # alphabet size to be recognized
     config['num_of_writers'] = train_dataset.classes_count + 1
@@ -305,7 +299,7 @@ def load_data(config):
     config['n_train_instances'] = len(train_dataloader.dataset)
     log_print("Number of training instances:", config['n_train_instances'])
     log_print("Number of test instances:", len(test_dataloader.dataset), '\n')
-    return train_dataloader, test_dataloader, train_dataset, test_dataset
+    return train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
 
 def check_gpu(config):
     # GPU stuff
@@ -336,7 +330,7 @@ def build_model(config_path):
 
     # Prep data loaders
     LOGGER.info("Loading data...")
-    train_dataloader, test_dataloader, train_dataset, test_dataset = load_data(config)
+    train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = load_data(config)
 
     # for x in train_dataloader:
     #     print(x["labels"])
@@ -388,6 +382,7 @@ def build_model(config_path):
                 'lowest_loss':float('inf'),
                 "train_cer":[],
                 "test_cer":[],
+                "validation_cer":[],
                 "criterion":criterion,
                 "device":device,
                 "dtype":dtype,
@@ -443,22 +438,27 @@ def build_model(config_path):
         config["secondary_criterion"] = CrossEntropyLoss()
     else:  # config["style_encoder"] = False
         config["secondary_criterion"] = None
-    return config, train_dataloader, test_dataloader, train_dataset, test_dataset
+    return config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
 
 def main():
     global config, LOGGER
     opts = parse_args()
-    config, train_dataloader, test_dataloader, train_dataset, test_dataset = build_model(opts.config)
+    config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = build_model(opts.config)
 
-    for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
-        LOGGER.info("Epoch: {}".format(epoch))
-        config["current_epoch"] = epoch
+    # Improve
+    if config["improve_image"]:
+        training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"],
+                                config["dtype"], config)
+    elif config["test_only"]:
+        final_test(config, test_dataloader)
+    # Actually train
+    else:
+        for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
 
-        # Only test
-        if config["improve_image"]:
-            training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
-            break
-        elif not config["test_only"]:
+            LOGGER.info("Epoch: {}".format(epoch))
+            config["current_epoch"] = epoch
+
+
             training_cer = run_epoch(config["model"], train_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
 
             config["scheduler"].step()
@@ -466,35 +466,40 @@ def main():
             LOGGER.info("Training CER: {}".format(training_cer))
             config["train_cer"].append(training_cer)
 
-        # CER plot
-        if config["current_epoch"] % config["TEST_FREQ"]== 0:
-            test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config)
-            LOGGER.info("Test CER: {}".format(test_cer))
-            config["test_cer"].append(test_cer)
+            # CER plot
+            if config["current_epoch"] % config["TEST_FREQ"]== 0:
+                validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True)
+                LOGGER.info("Validation CER: {}".format(validation_cer))
+                config["validation_cer"].append(validation_cer)
 
-        if config["use_visdom"]:
-            config["visdom_manager"].update_plot("Test Error Rate", [epoch], test_cer)
+                if config["use_visdom"]:
+                    config["visdom_manager"].update_plot("Validation Error Rate", [epoch], [validation_cer])
 
-        if config["test_only"]:
-            break
+            # Save periodically / save BSF
+            if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
+                if config['lowest_loss'] > validation_cer:
+                    if config["validation_jsons"]:
+                        test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, validation=False)
+                        log_print(f"Saving Best Loss! Test CER: {test_cer}")
+                    else:
+                        test_cer = validation_cer
 
-        if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
+                    config['lowest_loss'] = validation_cer
+                    save_model(config, bsf=True)
 
-            # Save BSF
-            if config['lowest_loss'] > test_cer:
-                config['lowest_loss'] = test_cer
-                log_print("Saving Best")
-                save_model(config, bsf=True)
+                elif epoch % config["save_freq"] == 0:
+                    log_print("Saving most recent model")
+                    save_model(config, bsf=False)
 
-            elif epoch % config["save_freq"] == 0:
-                log_print("Saving most recent model")
-                save_model(config, bsf=False)
+                plt_loss(config)
 
-            plt_loss(config)
+        # Final test after everything (test with extra warps/transforms/beam search etc.)
+        final_test(config, test_dataloader)
 
+def final_test(config, test_dataloader):
     ## Do a final test WITH warping and plot all test images
     config["testing_warp"] = True
-    test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True)
+    test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True, validation=False)
     config["stats"][config["designated_test_cer"]].y[-1] *= -1 # shorthand
 
 def recreate():
@@ -524,5 +529,7 @@ if __name__ == "__main__":
         traceback.print_exc()
     finally:
         torch.cuda.empty_cache()
+
+
 
 # https://github.com/theevann/visdom-save/blob/master/vis.py

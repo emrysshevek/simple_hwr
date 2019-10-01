@@ -20,8 +20,8 @@ training_jsons:
 training_root: ../simple_hwr/data
 training_shuffle: true
 training_warp: false
-online_augmentation: false
-online_flag: false
+online_augmentation: true
+online_flag: true
 writer_id_pickles:
 - prepare_IAM_Lines/writer_IDs.pickle
 - prepare_online_data/writer_IDs.pickle

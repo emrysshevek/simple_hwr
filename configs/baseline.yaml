@@ -35,6 +35,9 @@ training_random_distortions: false
 online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
+# Validation
+validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
+
 # Testing data
 testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
 testing_root: data
