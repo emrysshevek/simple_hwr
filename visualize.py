@@ -1,3 +1,5 @@
+import pickle, json
+from pathlib import Path
 import os
 from visdom import Visdom
 import numpy as np
@@ -9,12 +11,13 @@ from models.crnn import Stat
 
 class Plot(object):
     def __init__(self, title="", env_name="", config=None, port=8080):
-        self.viz = Visdom(port=port, env=env_name)
+        self.env_name = env_name if env_name else title
+        self.viz = Visdom(port=port, env=self.env_name)
         #self.viz.close()
         self.windows = {}
         self.title = title
         self.config = config
-        self.env_name = env_name
+
 
     def register_plot(self, name, xlabel, ylabel, plot_type="line", ymax=None):
         self.windows[name] = {"xlabel":xlabel, "ylabel":ylabel, "title":name, "plot_type":plot_type}
@@ -25,7 +28,6 @@ class Plot(object):
 
 
     def update_plot(self, name, x, y):
-
         # Create plot if not registered
         try:
             plot_d = self.windows[name]
@@ -34,7 +36,11 @@ class Plot(object):
             plot_d = {"xlabel":"X", "ylabel":"Y", "plot_type":"scatter"}
 
         plotter = self.viz.scatter if plot_d["plot_type"] == "scatter" else self.viz.line
-        data = {"X": np.asarray(x), "Y": np.asarray([y])} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
+
+        # WHY WAS "Y" A NESTED LIST???
+        #data = {"X": np.asarray(x), "Y": np.asarray([y])} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
+
+        data = {"X": np.asarray(x), "Y": np.asarray(y)} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
 
         ## Update plot
         if "plot" in plot_d.keys():
@@ -128,9 +134,40 @@ def plot_all(config):
             visdom_manager.update_plot(stat.name, stat.x[-stat.plot_update_length:], stat.y[-stat.plot_update_length:])
             stat.updated_since_plot = False
 
-if __name__=="__main__":
+def test():
     plot = Plot("Test")
     plot.register_scatterplot("Loss", "Epoch", "Loss")
 
     for i in range(0,10):
         plot.update_plot("Loss", i, 2)
+
+def close_all_env(plotter):
+    for env in plotter.viz.get_env_list():
+        plotter.viz.delete_env(env)
+
+def load_all(path, key='test_cer', clear=True, keyword=""):
+    # python -m visdom.server -p 8080
+    plotter = Plot("NewEnv")
+    close_all_env(plotter)
+
+    for p in Path(path).rglob("losses.json"):
+        if "BSF" not in p.as_uri() and keyword in p.as_uri():
+            print(p)
+            name = p.parent.name.replace("-", "_").split("_")
+            name = "_".join((name[0],name[2],name[3],name[4], name[1]))
+            print(name)
+            plotter = Plot(name)
+            losses = json.loads(p.read_text())[key]
+            x = list(range(len(losses)))
+            plotter.register_plot(key, "Epoch", key, plot_type="line", ymax=.1)
+            plotter.update_plot(key, x, losses)
+
+
+
+
+
+if __name__=="__main__":
+    path = r"/media/data/GitHub/simple_hwr/results/occlusion/online_or_offline_only/variants/"
+    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
+    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
+    load_all(path, keyword="20190909")

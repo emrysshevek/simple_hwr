@@ -1,12 +1,89 @@
 import cv2
 import numpy as np
 from scipy.interpolate import griddata
+from scipy import ndimage
 import sys
 
 INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,
     "cubic": cv2.INTER_CUBIC
 }
+cv2.setNumThreads(0)
+
+def occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+    """
+        Occlusion frequency : between 0% and this number will be occluded
+        Occlusion level: maximum occlusion change (multiplier); each pixel to be occluded has a random occlusion probability;
+                         then it is multiplied/divided by at most the occlusion level
+
+        NOT IMPLEMENTED:
+        OTHER OPTIONS:
+            RANDOM OCCLUSION THRESHOLD
+            RANDOM OCCLUSION LEVEL (within range)
+            OCCLUSION SIZE
+    Args:
+        img:
+        occlusion_size:
+        occlusion_freq:
+        occlusion_level: just "dim" these pixels a random amount; 1 - white, 0 - original image
+        occlusion
+        logger:
+
+    Returns:
+
+    """
+    # Randomly choose occlusion frequency between 0 and specified occlusion
+    # H X W X Channel
+    random_state = np.random.RandomState()
+    occlusion_freq = random_state.uniform(0, occlusion_freq) #
+    binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+    #logger.debug(binary_mask)
+    if occlusion_level==1:
+        occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+    else: # 1 = .3
+        sd = occlusion_level / 2 # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
+        random_mask = random_state.randn(*img.shape, ) * sd # * 2 - occlusion_level # min -occlusion, max occlusion
+        random_mask = np.clip(random_mask, -1, 1)
+        if False: # randomly whiten to different levels
+            occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
+        else: # random noise
+            random_mask = np.minimum((random_mask + 1) * img, 255)
+            occlusion = np.where(binary_mask == 0, random_mask, img)
+    return occlusion
+
+# def noise(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+#     """
+#         NOT IMPLEMENTED:
+#         OTHER OPTIONS:
+#             RANDOM OCCLUSION THRESHOLD
+#             RANDOM OCCLUSION LEVEL (within range)
+#             OCCLUSION SIZE
+#     Args:
+#         img:
+#         occlusion_size:
+#         occlusion_freq:
+#         occlusion_level: just "dim" these pixels a random amount; 1 - white, 0 - original image
+#         occlusion
+#         logger:
+#
+#     Returns:
+#
+#     """
+#
+#
+#     # Randomly choose occlusion frequency between 0 and specified occlusion
+#     # H X W X Channel
+#     random_state = np.random.RandomState()
+#     occlusion_freq = random_state.uniform(0, occlusion_freq)
+#     binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
+#     #logger.debug(binary_mask)
+#     if occlusion_level==1:
+#         occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
+#     else:
+#         random_mask = random_state.rand(*img.shape) * occlusion_level # occlude between not-at-all and occlusion-level
+#         occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
+#
+#     return occlusion
 
 def warp_image(img, random_state=None, **kwargs):
     if random_state is None:
@@ -62,11 +139,103 @@ def warp_image(img, random_state=None, **kwargs):
 
     return warped
 
-if __name__ == "__main__":
-    input_image = sys.argv[1]
-    output_image = sys.argv[2]
-    img = cv2.imread(input_image)
-    #img = cv2.imread("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png",0)
-    img = warp_image(img, draw_grid_lines=True)
-    cv2.imwrite(output_image, img)
+def noise(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None, type="gaussian"):
+    if type == "gaussian":
+        return gaussian_noise(img, occlusion_size=occlusion_size, occlusion_freq=occlusion_freq, occlusion_level=occlusion_level, logger=None)
+    else:
+        raise Exception("Not implemented")
 
+def random_distortions(img, sigma=6.0, noise_max=10.0):
+    n, m = img.shape
+    noise = np.random.rand(2, n, m)
+    noise = ndimage.gaussian_filter(noise, (0, sigma, sigma))
+    noise -= np.amin(noise)
+    noise /= np.amax(noise)
+    noise = (2*noise-1) * noise_max
+
+    assert noise.shape[0] == 2
+    assert img.shape == noise.shape[1:], (img.shape, noise.shape)
+
+    xy = np.transpose(np.array(np.meshgrid(
+        range(n), range(m))), axes=[0, 2, 1])
+    noise += xy
+    distorted = ndimage.map_coordinates(img, noise, order=1, mode="reflect")
+    return distorted
+
+def blur(img, intensity=1.5):
+    return ndimage.gaussian_filter(img, intensity)
+
+def gaussian_noise(img, occlusion_size=1, occlusion_freq=1, occlusion_level=1, logger=None):
+    """
+        occlusion_level: .1 - light haze, 1 heavy
+
+    """
+
+    random_state = np.random.RandomState()
+    sd = occlusion_level / 2  # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
+    noise_mask = random_state.randn(*img.shape, ) * sd  # * 2 - occlusion_level # min -occlusion, max occlusion
+    noise_mask = np.clip(noise_mask, -1, 1) * 255/2
+    noisy_img = np.clip(img + noise_mask, 0, 255)
+    return noisy_img
+
+    # elif noise_typ == "s&p":
+    #     row, col, ch = image.shape
+    #     s_vs_p = 0.5
+    #     amount = 0.004
+    #     out = image
+    #     # Salt mode
+    #     num_salt = np.ceil(amount * image.size * s_vs_p)
+    #     coords = [np.random.randint(0, i - 1, int(num_salt))
+    #               for i in image.shape]
+    #     out[coords] = 1
+    #
+    #     # Pepper mode
+    #     num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    #     coords = [np.random.randint(0, i - 1, int(num_pepper))
+    #               for i in image.shape]
+    #     out[coords] = 0
+    #     return out
+    # elif noise_typ == "poisson":
+    #     vals = len(np.unique(image))
+    #     vals = 2 ** np.ceil(np.log2(vals))
+    #     noisy = np.random.poisson(image * vals) / float(vals)
+    #     return noisy
+    # elif noise_typ == "speckle":
+    #     row, col, ch = image.shape
+    #     gauss = np.random.randn(row, col, ch)
+    #     gauss = gauss.reshape(row, col, ch)
+    #     noisy = image + image * gauss
+    #     return noisy
+
+
+def test():
+    import matplotlib.pylab as plt
+    if False:
+        input_image = sys.argv[1]
+        output_image = sys.argv[2]
+        img = cv2.imread(input_image)
+        cv2.imwrite(output_image, img)
+    else:
+        input_imge = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
+        img = cv2.imread(input_imge,0)
+        plt.imshow(img, cmap="gray")
+        plt.title("Original image")
+        plt.show()
+
+        noisy = noise(img, occlusion_level=.5)
+        plt.imshow(noisy, cmap="gray")
+        plt.title("With noise")
+        plt.show()
+
+        distorted = random_distortions(img)
+        plt.imshow(distorted, cmap="gray")
+        plt.title("With distortion")
+        plt.show()
+
+        blurred = blur(img)
+        plt.imshow(blurred, cmap="gray")
+        plt.title("With blur")
+        plt.show()
+
+if __name__ == "__main__":
+    test()

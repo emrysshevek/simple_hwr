@@ -38,6 +38,7 @@ class Seq2Seq(nn.Module):
             sequence = [tokenized_output]
 
         for i in range(self.output_max_len-1):
+            # print(output.shape, encoder_output.shape, decoder_state.shape)
             attention_output = self.attention(encoder_output, decoder_state)
             output, decoder_state, hidden = self.decoder(output, attention_output, hidden)
             tokenized_output = torch.argmax(output, dim=1)

@@ -25,6 +25,7 @@ def use_visdom():
 def use_my_visualizer():
     x = np.array([1, 2, 3])
     y = np.array([1, 5, 9])
+
     test.update_plot("Line Loss", x, y)
     test.update_plot("Line Loss", y, x)
 

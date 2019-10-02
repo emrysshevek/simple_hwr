@@ -1,0 +1,4 @@
+output
+*.txt
+*.pyc
+*.json
