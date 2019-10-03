@@ -169,6 +169,7 @@ class HwDataset(Dataset):
 
         data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
         '''
+        self.classes_count = len(set([d["writer_id"] for d in data]))
 
         self.root = root
         self.img_height = img_height
