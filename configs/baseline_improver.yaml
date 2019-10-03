@@ -15,7 +15,7 @@ test_only: false                             # Do not train
 
 # General
 experiment: baseline
-name: true_baseline
+name_deprecated: true_baseline
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -29,7 +29,7 @@ debug: off
 improve_image: true  # backprop gradients to original image
 
 # Training data
-training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: ../simple_hwr/data
 training_shuffle: true
 training_warp: false
@@ -37,7 +37,7 @@ online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
-testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
 testing_warp: false

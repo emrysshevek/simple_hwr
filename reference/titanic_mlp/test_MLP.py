@@ -1,14 +1,11 @@
 from __future__ import print_function
-
-from models import crnn
 import os
 import torch
-
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
 from torch.nn import CrossEntropyLoss
-
 import matplotlib
+
+from models import crnn
+
 matplotlib.use('Agg')
 
 mlp = crnn.MLP(5, 10, [5, 6, 7], dropout=.8)

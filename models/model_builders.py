@@ -1,7 +1,12 @@
-from models.crnn import *
+import torch
+from torch import nn
+
+from models.crnn import basic_CRNN, LabelSmoothing
+from models.deprecated_crnn import CRNN, CRNN_with_writer_classifier, CRNN_2Stage, Nudger
 from models.attention import Attention
 from models.decoder import Decoder
 from models.language_model import DeepFusion
+from models.seq2seq import Seq2Seq
 
 
 def check_inputs(config):
@@ -31,8 +36,7 @@ def create_CRNN(config):
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
     crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
                       alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                      recognizer_dropout=config["recognizer_dropout"],
-                      online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
+                      recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
                       rnn_constructor=config["rnn_constructor"])
     return crnn
 
@@ -42,8 +46,7 @@ def create_seq2seq_recognizer(config):
 
     encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
                          alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
-                         recognizer_dropout=config["recognizer_dropout"],
-                         online_augmentation=config["online_augmentation"], rnn_layers=config["rnn_layers"],
+                         recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
                          rnn_constructor=config["rnn_constructor"])
 
     if config['cnn_load_path']:
@@ -55,9 +58,9 @@ def create_seq2seq_recognizer(config):
 
     decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
                       context_dim=config['alphabet_size'], n_layers=5, hidden_dim=config['alphabet_size'],
-                      char_freq=config['char_freq'])
+                      char_freq=None)
 
-    lm = DeepFusion(char_freq=config['char_freq'], vocab_size=config['alphabet_size'], n_layers=5)
+    lm = DeepFusion(char_freq=None, vocab_size=config['alphabet_size'], n_layers=5)
 
     seq2seq = Seq2Seq(encoder, attention, decoder, lm, output_max_len=config['max_seq_len'],
                       vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
@@ -72,7 +75,7 @@ def create_seq2seq_recognizer(config):
 def create_CRNNClassifier(config, use_writer_classifier=True):
     # Don't use writer classifier
     check_inputs(config)
-    crnn = CRNN2(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'],
+    crnn = CRNN_with_writer_classifier(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'],
                  alphabet_size=config['alphabet_size'], nh=config["rnn_dimension"],
                  number_of_writers=config["num_of_writers"], writer_rnn_output_size=config['writer_rnn_output_size'],
                  embedding_size=config["embedding_size"],

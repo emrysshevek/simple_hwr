@@ -11,7 +11,6 @@ class Decoder(nn.Module):
         self.n_layers = n_layers
         self.hidden_dim = hidden_dim
         self.context_dim = context_dim
-        self.char_freq = char_freq
         self.rnn_input_dim = embed_dim + context_dim
 
         self.embedding = nn.Embedding(vocab_size, embed_dim)

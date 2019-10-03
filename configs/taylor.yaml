@@ -1,5 +1,5 @@
 ### TESTING
-TESTING: false # Load as little as possible for fast prototyping
+TESTING: true # Load as little as possible for fast prototyping
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
@@ -8,18 +8,19 @@ test_only: false                             # Do not train
 
 # General
 experiment: 2Stage
-name: REAL_BASELINE # unknown_experiment
+name_deprecated: REAL_BASELINE # unknown_experiment
 output_folder: ./results
 epochs_to_run: 150
 save_freq: 5
 use_visdom: true
 debug: off
+GPU: false
 
 # results_dir:
 # log_dir:
 
 # Training data
-training_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 training_root: ../simple_hwr/data
 training_shuffle: true
 training_warp: false
@@ -27,7 +28,7 @@ online_augmentation: false
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
-testing_jsons: [prepare_IAM_Lines/raw_gts/lines/txt/test.json]
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
 testing_warp: false
