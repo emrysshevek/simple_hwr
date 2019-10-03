@@ -65,7 +65,6 @@ def collate_basic(batch, device="cpu"):
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
-        #"actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]), # TODO Aaron
         "paths": [b["path"] for b in batch],
         "online": online
     }
@@ -130,7 +129,6 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
-        #"actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]), # TODO remove, Aaron
         "paths": [b["path"] for b in batch],
         "online": online
     }
@@ -158,17 +156,6 @@ class HwDataset(Dataset):
             data = data[:images_to_load]
 
 
-        ## Read in all writer IDs
-        '''
-        writer_id_dict = {}
-        for writer_id_file in writer_id_paths:
-            path = os.path.join(root, writer_id_file)
-            # Add files to create super dicitonary
-            d = unpickle_it(path)
-            writer_id_dict = {**writer_id_dict, **d}
-
-        data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
-        '''
         self.classes_count = len(set([d["writer_id"] for d in data]))
 
         self.root = root
@@ -182,31 +169,6 @@ class HwDataset(Dataset):
         self.occlusion_size = occlusion_size
         self.occlusion_level = occlusion_level
         self.logger = logger
-
-        '''
-    def add_writer_ids(self, data, writer_dict):
-        """
-
-        Args:
-            data (json type thing): hw-dataset_
-            writer_id_path (str): Path to pickle dictionary of form {Writer_ID: [file_path1,file_path2...] ... }
-
-        Returns:
-            tuple: updated data with ID, number of classes
-        """
-        actual_ids = dict([[v, k] for k, vs in writer_dict.items() for v in vs ]) # {Partial path : Writer ID}
-        writer_ids = dict([[v, k] for k, (_, vs) in enumerate(writer_dict.items()) for v in vs])  # {Partial path : IDX}
-
-        for i,item in enumerate(data):
-            # Get writer ID from file
-            p,child = os.path.split(item["image_path"])
-            child = re.search("([a-z0-9]+-[0-9]+)", child).group(1)[0:7] # take the first 7 characters
-            item["actual_writer_id"] = actual_ids[child]
-            item["writer_id"] = writer_ids[child]
-            data[i] = item
-
-        return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
-        '''
 
     def __len__(self):
         return len(self.data)
@@ -250,15 +212,12 @@ class HwDataset(Dataset):
 
         gt = item['gt'] # actual text
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
-        #online = item.get('online', False)
-        # THIS IS A HACK, FIX THIS (below)
-        #online = int(item['actual_writer_id']) > 700
+        online = item["online"]
         
         return {
             "line_img": img,
             "gt_label": gt_label,
             "gt": gt,
-            #"actual_writer_id": int(item['actual_writer_id']), # TODO Aaron
             "writer_id": int(item['writer_id']),
             "path": image_path,
             "online": online
