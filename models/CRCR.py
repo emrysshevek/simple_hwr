@@ -1,9 +1,6 @@
-import torch
 from torch import nn
-from hwr_utils import *
-import os
-from torch.autograd import Variable
-from models.basic import BidirectionalRNN, GeneralizedBRNN, PrintLayer
+from models.basic import GeneralizedBRNN
+
 
 class CRCR(nn.Module):
     def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, type="default"):

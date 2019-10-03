@@ -3,18 +3,13 @@ import json
 
 import torch
 from torch.utils.data import Dataset
-from torch.autograd import Variable
 
-from collections import defaultdict
 import os
 import cv2
 import numpy as np
 
-import random
-import string_utils
-
-import grid_distortion
-from hwr_utils import unpickle_it
+from hwr_utils import grid_distortion, string_utils
+from hwr_utils.utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -179,6 +174,20 @@ class HwDataset(Dataset):
 
         self.logger = logger
 
+    # @staticmethod
+    # def basic_collate(x, device, ):
+    #     return collate(x, device=device)
+    #
+    # @staticmethod
+    # def batch_collate(x, device, n_warp_iterations, warp, occlusion_freq, occlusion_size, ):
+    # collate_fn = lambda x: hw_dataset.collate(x, device=device,
+    #                                           n_warp_iterations=config['n_warp_iterations'],
+    #                                           warp=config["testing_warp"],
+    #                                           occlusion_freq=config["occlusion_freq"],
+    #                                           occlusion_size=config["occlusion_size"],
+    #                                           occlusion_level=config["occlusion_level"])
+
+
     def load_data(self, root, images_to_load, data_paths):
         data = []
         for data_path in data_paths:
@@ -262,7 +271,7 @@ class HwDataset(Dataset):
             img = grid_distortion.warp_image(img)
 
         if self.occlusion:
-            img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
+            img = grid_distortion.occlude(img, occlusion_freq=self.occlusion_freq,
                                           occlusion_size=self.occlusion_size,
                                           occlusion_level=self.occlusion_level)
 

@@ -2,7 +2,7 @@
 TESTING: false # Load as little as possible for fast prototyping
 SMALL_TRAINING: false
 plot_freq: 50
-images_to_load: 16
+images_to_load: null
 
 ## Things that shouldn't matter much:
 # Random shuffling
@@ -11,14 +11,13 @@ images_to_load: 16
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
-#load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
 test_only: false                             # Do not train
 
 # General
 experiment: baseline
 name_deprecated: true_baseline
 output_folder: ./results
-epochs_to_run: 1
+epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off
@@ -30,7 +29,7 @@ debug: off
 #training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 # #-
 # [prepare_online_data/online_augmentation.json]
-training_jsons: combinedImages/v_1280.json
+training_jsons: [combinedImages/v_1280.json]
 training_root: data
 training_shuffle: true
 training_warp: false

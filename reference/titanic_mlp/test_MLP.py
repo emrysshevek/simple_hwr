@@ -1,20 +1,8 @@
 from __future__ import print_function
-from builtins import range
 
-from hwr_utils import is_iterable
-import json
-import character_set
-import sys
-import hw_dataset
-from hw_dataset import HwDataset
 import crnn
-import os
 import torch
-from torch.utils.data import DataLoader
-from torch.autograd import Variable
 
-import error_rates
-import string_utils
 from torch.nn import CrossEntropyLoss
 
 import matplotlib

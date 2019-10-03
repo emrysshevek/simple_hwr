@@ -1,5 +1,5 @@
 from visdom import Visdom
-import visualize
+from hwr_utils import visualize
 import numpy as np
 
 viz = Visdom(port=8080)

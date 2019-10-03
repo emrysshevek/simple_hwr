@@ -1,9 +1,6 @@
-import torch
 from torch import nn
-from hwr_utils import *
-import os
-from torch.autograd import Variable
-from models.basic import BidirectionalRNN, GeneralizedBRNN, CNN
+from hwr_utils.utils import *
+from models.basic import BidirectionalRNN, CNN
 
 class CRNN(nn.Module):
     """ Original CRNN

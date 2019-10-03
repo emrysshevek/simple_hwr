@@ -1,10 +1,5 @@
-import torch
-from torch import nn
-from hwr_utils import *
-import os
-from torch.autograd import Variable
+from hwr_utils.utils import *
 #from torchvision.models import resnet
-from models import resnet
 from models.basic import GeneralizedBRNN
 
 if __name__ == "__main__":

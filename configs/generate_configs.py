@@ -2,20 +2,26 @@ import warnings
 from pathlib import Path
 import yaml
 from itertools import product
+import sys
+sys.path.append("../slurm_scripts")
+import gen
 
 baseline_configs = "./occlusion/online_or_offline_only/warp/offline.yaml", "./occlusion/online_or_offline_only/warp/online.yaml"
 baseline_configs = "./occlusion/online_or_offline_only/offline.yaml", "./occlusion/online_or_offline_only/online.yaml"
 baseline_configs = "./occlusion/gaussian_noise/offline.yaml", "./occlusion/gaussian_noise/online.yaml"
 baseline_configs = "./MUNIT/iamlong.yaml", "./MUNIT/munit+iamlong.yaml", "./MUNIT/munit.yaml"
-
+baseline_configs = "./long/main.yaml",
 
 # "training_blur_level": 1.5,
 #                 "training_random_distortions": False,
 #                 "training_distortion_sigma": 6.0,
 #                 "testing_blur": False,
 
-
-variation_dict = {"training_random_distortions": [True, False], "training_blur": [True, False]} # randomly choose freq at most this; randomly choose level, at most this
+variation_dict = {"training_jsons": ["munit/online_munit_v75_7400.json",
+                                                  "munit/online_munit_v81_200.json",
+                                                  "combinedImages/v_1280.json",
+                                                  "prepare_online_data/online_augmentation.json"],
+                  "training_warp":[True,False]}
 baseline_dict = {"occlusion_level": 0}
 baseline_dict = False
 
@@ -69,7 +75,8 @@ def replace_config(yaml_path, variation_list, new_folder="variants"):
         output_file = name
         for key, value in variant.items():
             new_yaml_file[key] = value
-            output_file += f"_{value}"
+            file_name_variant_abbreviation = Path(str(value)).stem # mostly get rid of "/" etc.
+            output_file += f"_{file_name_variant_abbreviation}"
 
         #with open((parent / name).with_suffix(ext), "w") as f:
         with (output_dir / (output_file + ext)).open(mode='w') as f:
@@ -91,3 +98,6 @@ def main(baseline_file, variation_dict, baseline_dict=None):
 if __name__=="__main__":
     for config in baseline_configs:
         main(config, variation_dict, baseline_dict)
+
+    gen.delete_old_sh()
+    gen.loop_configs(gen.config_root, gen.sh_root)

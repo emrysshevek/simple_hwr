@@ -1,8 +1,6 @@
-import torch
 from torch import nn
-from hwr_utils import *
-import os
-from torch.autograd import Variable
+from hwr_utils.utils import *
+
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):

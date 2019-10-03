@@ -1,5 +1,4 @@
-import hw_dataset
-from hw_dataset import HwDataset
+from hwr_utils.hw_dataset import HwDataset
 
 config_path = r"./configs/online_config_iam.json" # sys.argv[1]
 

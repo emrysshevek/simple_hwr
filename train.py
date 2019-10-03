@@ -1,21 +1,13 @@
 from __future__ import print_function
 from builtins import range
 import faulthandler
-from typing import Tuple
 
-from hwr_utils import is_iterable
-import json
-import character_set
-import sys
-import hw_dataset
-from hw_dataset import HwDataset
+from hwr_utils import hw_dataset, character_set
+from hwr_utils.hw_dataset import HwDataset
 import crnn
-import os
-import torch
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
-import torch
 import types
 
 ### TO DO:
@@ -29,20 +21,12 @@ import types
 # Deepwriting - clean up generated images?
 # Dropout schedule
 
-import error_rates
-import string_utils
 from torch.nn import CrossEntropyLoss
 import traceback
 
-import visualize
-import matplotlib
 # matplotlib.use('TkAgg')
-import matplotlib.pyplot as plt
-import numpy as np
-import time
-from hwr_utils import *
+from hwr_utils.utils import *
 from torch.optim import lr_scheduler
-from crnn import Stat
 
 ## Notes on usage
 # conda activate hw2
@@ -63,6 +47,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     steps = 0.0
     model.eval()
     i = 0
+
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
@@ -85,7 +70,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
         if not plot_all:
-            imgs = x["line_imgs"][:, 0, :, :, :] if config["n_warp_iterations"] else x['line_imgs']
+            imgs = x["line_imgs"][:, 0, :, :, :] if with_iterations else x['line_imgs']
             plot_images(imgs, f"{config['current_epoch']}_testing", pred_str, config["image_test_dir"], plot_count=4)
 
         LOGGER.debug(config["stats"])
@@ -232,31 +217,33 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         LOGGER.debug("Finished with batch")
 
-        # Update visdom every 50 instances
+        # Update stats every 50 instances
         if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
             accumulate_stats(config)
-            visualize.plot_all(config)
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
 
-    training_cer_list = config["stats"][config["designated_training_cer"]].y
+    try:
+        training_cer_list = config["stats"][config["designated_training_cer"]].y
 
-    if not training_cer_list:
-        accumulate_stats(config)
+        if not training_cer_list:
+            accumulate_stats(config)
 
-    training_cer = training_cer_list[-1]  # most recent training CER
-    LOGGER.debug(config["stats"])
+        training_cer = training_cer_list[-1]  # most recent training CER
+        #LOGGER.debug(config["stats"])
 
-    # Save images
-    plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"], plot_count=4)
+        # Save images
+        plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"], plot_count=4)
 
-    return training_cer
-
+        return training_cer
+    except:
+        log_print("Problem with calculating error")
+        return -1
 
 def make_dataloaders(config, device="cpu"):
     train_dataset = HwDataset(config.training_jsons,
@@ -280,15 +267,15 @@ def make_dataloaders(config, device="cpu"):
                                   batch_size=config["batch_size"],
                                   shuffle=config["training_shuffle"],
                                   num_workers=threads,
-                                  collate_fn=lambda x:hw_dataset.collate(x,device=device),
+                                  collate_fn=lambda x: hw_dataset.collate(x, device=device),
                                   pin_memory=device=="cpu")
 
-    collate_fn = lambda x:hw_dataset.collate(x,device=device,
-                                             n_warp_iterations=config['n_warp_iterations'],
-                                             warp=config["testing_warp"],
-                                             occlusion_freq=config["occlusion_freq"],
-                                             occlusion_size=config["occlusion_size"],
-                                             occlusion_level=config["occlusion_level"])
+    collate_fn = lambda x: hw_dataset.collate(x, device=device,
+                                              n_warp_iterations=config['n_warp_iterations'],
+                                              warp=config["testing_warp"],
+                                              occlusion_freq=config["occlusion_freq"],
+                                              occlusion_size=config["occlusion_size"],
+                                              occlusion_level=config["occlusion_level"])
 
     test_dataset = HwDataset(config["testing_jsons"],
                              config["char_to_idx"],
@@ -324,7 +311,7 @@ def make_dataloaders(config, device="cpu"):
                                        logger=config["logger"])
 
         validation_dataloader = DataLoader(validation_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                     num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+                                           num_workers=threads, collate_fn=lambda x: hw_dataset.collate(x, device=device))
     else:
         validation_dataset, validation_dataloader = test_dataset, test_dataloader
         config["validation_jsons"]=None
@@ -509,7 +496,7 @@ def main():
         final_test(config, test_dataloader)
     # Actually train
     else:
-        for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"] + 1):
+        for epoch in range(config["starting_epoch"], config["starting_epoch"] + config["epochs_to_run"]):
 
             LOGGER.info("Epoch: {}".format(epoch))
             config["current_epoch"] = epoch
@@ -527,9 +514,6 @@ def main():
                 validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True, with_iterations=False)
                 LOGGER.info("Validation CER: {}".format(validation_cer))
                 config["validation_cer"].append(validation_cer)
-
-                if config["use_visdom"]:
-                    config["visdom_manager"].update_plot("Validation Error Rate", [epoch], [validation_cer])
 
             # Save periodically / save BSF
             if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
@@ -553,6 +537,15 @@ def main():
         final_test(config, test_dataloader)
 
 def final_test(config, test_dataloader):
+    its = max(config['n_warp_iterations'], 11)
+    collate_fn2 = lambda x: hw_dataset.collate(x, device=config.device,
+                                               n_warp_iterations=its,
+                                               warp=config["testing_warp"],
+                                               occlusion_freq=config["occlusion_freq"],
+                                               occlusion_size=config["occlusion_size"],
+                                               occlusion_level=config["occlusion_level"])
+
+    test_dataloader.collate_fn = collate_fn2
     ## Do a final test WITH warping and plot all test images
     config["testing_warp"] = True
     test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True, validation=False, with_iterations=True)

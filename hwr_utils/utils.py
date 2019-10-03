@@ -1,6 +1,3 @@
-import copy
-import sys
-import pathlib
 import numbers
 import socket
 import argparse
@@ -13,15 +10,14 @@ import pickle
 import yaml
 import json
 import os
-import datetime
 from Bio import pairwise2
 import numpy as np
 import warnings
-import string_utils
-import error_rates
 import glob
 from pathlib import Path
 from easydict import EasyDict as edict
+from hwr_utils import visualize, string_utils, error_rates
+from hwr_utils.stat import Stat
 
 def is_iterable(obj):
     try:
@@ -43,13 +39,12 @@ def print_tensor(tensor):
     log_print(tensor, tensor.shape)
 
 def read_config(config):
+    config = Path(config)
     log_print(config)
-    if config[-5:].lower() == ".json":
-        with open(config) as f:
-            return json.load(f)
-    elif config[-5:].lower() == ".yaml":
-        with open(config, 'r') as stream:
-            return fix_scientific_notation(yaml.load(stream))
+    if config.suffix.lower() == ".json":
+        return json.load(config.open(mode="r"))
+    elif config.suffix.lower() == ".yaml":
+        return fix_scientific_notation(yaml.load(config.open(mode="r")))
     else:
         raise "Unknown Filetype {}".format(config)
 
@@ -140,17 +135,25 @@ def incrementer(root, base):
     return new_folder
 
 def load_config(config_path):
-    par, chld = os.path.split(config_path)
-    config_root = str(Path(os.path.realpath(__file__)).parent / "configs") # r"./configs"
-    if chld[-5:].lower() != ".yaml":
-        chld = chld + ".yaml"
+    config_path = Path(config_path)
+    project_path = Path(os.path.realpath(__file__)).parent.parent.absolute()
+    config_root = project_path / "configs"
 
-    if not os.path.isfile(config_path):
-        config_path = find_config(chld, config_root)
+    # Path was specified, but not found
+    if config_root not in config_path.absolute().parents:
+        raise Exception("Could not find config!")
+
+    # Try adding a suffix
+    if config_path.suffix != ".yaml":
+        config_path = config_path.with_suffix(".yaml")
+
+    # Go search for it
+    if not config_path.exists():
+        config_path = find_config(config_path.name, config_root)
 
     config = edict(read_config(config_path))
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
-
+    config["project_path"] = project_path
     defaults = {"load_path":False,
                 "training_shuffle": False,
                 "testing_shuffle": False,
@@ -306,6 +309,16 @@ def make_config_consistent(config):
             config["training_jsons"].remove(training_data)
             if not config.training_jsons:
                 raise Exception("No training data -- check exclude_offline flag")
+
+    # Training data should be a list
+    print(type(config.training_jsons))
+
+    if isinstance(config.training_jsons, str):
+        config.training_jsons = [config.training_jsons]
+    if isinstance(config.testing_jsons, str):
+        config.testing_jsons = [config.testing_jsons]
+    if isinstance(config.validation_jsons, str):
+        config.validation_jsons = [config.validation_jsons]
 
     if not config["TESTING"]:
         wait_for_gpu()
@@ -477,7 +490,7 @@ class CharAcc:
 
 def dict_to_list(d):
     idx_to_char = []
-    for i in range(0, max(d.keys())):
+    for i in range(0, max(d.keys())+1):
         idx_to_char.append(d[i])
     return idx_to_char
 
@@ -734,73 +747,10 @@ def accumulate_stats(config, freq=None):
             stat.reset_accumlator()
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
-class Stat:
-    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
-        """
-
-        Args:
-            y (list): iterable (e.g. list) for storing y-axis values of statistic
-            x (list): iterable (e.g. list) for storing x-axis values of statistic (e.g. epochs)
-            x_title:
-            y_title:
-            name (str):
-            plot (str):
-            ymax (float):
-            accumulator_freq: when should the variable be accumulated (e.g. each epoch, every "step", every X steps, etc.
-
-
-        """
-        super().__init__()
-        self.y = y
-        self.x = x
-        self.current_weight = 0
-        self.current_sum = 0
-        self.accumlator_active = False
-        self.updated_since_plot = False
-        self.accumulator_freq = None # epoch or instances; when should this statistic accumulate?
-
-        # Plot details
-        self.x_title = x_title
-        self.y_title = y_title
-        self.ymax = ymax
-        self.name = name
-        self.plot = plot
-        self.plot_update_length = 1 # add last X items from y-list to plot
-
-    def yappend(self, new_item):
-        self.y.append(new_item)
-        if not self.updated_since_plot:
-            self.updated_since_plot = True
-
-    def default(self, o):
-        return o.__dict__
-
-    def accumulate(self, sum, weight, step=None):
-        self.current_sum += sum
-        self.current_weight += weight
-
-        if not self.accumlator_active:
-            self.accumlator_active = True
-
-        if step:
-            self.x.append(step)
-
-    def reset_accumlator(self):
-        if self.accumlator_active:
-            # print(self.current_weight)
-            # print(self.current_sum)
-            self.y += [self.current_sum / self.current_weight]
-            self.current_weight = 0
-            self.current_sum = 0
-            self.accumlator_active = False
-            self.updated_since_plot = True
-
-    def __str__(self):
-        return repr(self)
-
-    def __repr__(self):
-        return str(self.__dict__)
-
+    try:
+        visualize.plot_all(config)
+    except:
+        print("Problem graphing")
 
 class EnhancedJSONEncoder(json.JSONEncoder):
     def default(self, o):
@@ -862,7 +812,7 @@ def plot_tensor(tensor):
 
 
 if __name__=="__main__":
-    from visualize import Plot
+    from hwr_utils.visualize import Plot
     viz = Plot()
     viz.viz.close()
     viz.load_all_env("./results")

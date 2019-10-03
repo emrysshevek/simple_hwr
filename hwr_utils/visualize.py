@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import warnings
 import json
-from crnn import Stat
+from hwr_utils.stat import Stat
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
 

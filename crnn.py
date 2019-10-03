@@ -1,12 +1,7 @@
-import warnings
-import torch
-from torch import nn
-from hwr_utils import *
-import os, sys
-from torch.autograd import Variable
 #from torchvision.models import resnet
 from models.CRCR import CRCR
 from models.deprecated_crnn import *
+from torch.autograd import Variable
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

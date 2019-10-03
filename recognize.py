@@ -1,19 +1,15 @@
 import json
 
 import torch
-from torch.utils.data import Dataset
 from torch.autograd import Variable
 
 import crnn
 
-import character_set
-import os
+from hwr_utils import character_set, string_utils
 import sys
 import cv2
 import numpy as np
 
-import random
-import string_utils
 
 def main():
     config_path = sys.argv[1]

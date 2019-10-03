@@ -18,6 +18,7 @@ def make_char_set(paths, root="./data"):
     out_char_to_idx = {}
     out_idx_to_char = {}
     char_freq = defaultdict(int)
+
     for data_file in paths:
         with open(os.path.join(root, data_file)) as f:
             data = json.load(f)
