@@ -65,7 +65,7 @@ def collate_basic(batch, device="cpu"):
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
-        "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
+        #"actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]), # TODO Aaron
         "paths": [b["path"] for b in batch],
         "online": online
     }
@@ -130,21 +130,26 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         "label_lengths": label_lengths,
         "gt": [b['gt'] for b in batch],
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
-        "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
+        #"actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]), # TODO remove, Aaron
         "paths": [b["path"] for b in batch],
         "online": online
     }
 
 
 class HwDataset(Dataset):
-    def __init__(self, data_paths, char_to_idx, img_height=32, num_of_channels=3, root="./data", warp=False,
-                 writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",), images_to_load=None,
-                 occlusion_size=None, occlusion_freq=None, occlusion_level=1, logger=None):
-        self.occlusion = not (None in (occlusion_size, occlusion_freq))
-        self.occlusion_freq = occlusion_freq
-        self.occlusion_size = occlusion_size
-        self.occlusion_level = occlusion_level
-        #print(self.occlusion, self.occlusion_freq, self.occlusion_size)
+    def __init__(self,
+                 data_paths,
+                 char_to_idx,
+                 img_height=32,
+                 num_of_channels=3,
+                 root="./data",
+                 warp=False,
+                 images_to_load=None,
+                 occlusion_size=None,
+                 occlusion_freq=None,
+                 occlusion_level=1,
+                 logger=None):
+
         data = []
         for data_path in data_paths:
             with open(os.path.join(root, data_path)) as fp:
@@ -152,9 +157,9 @@ class HwDataset(Dataset):
         if images_to_load:
             data = data[:images_to_load]
 
-        #print(data_paths, data)
 
         ## Read in all writer IDs
+        '''
         writer_id_dict = {}
         for writer_id_file in writer_id_paths:
             path = os.path.join(root, writer_id_file)
@@ -163,6 +168,7 @@ class HwDataset(Dataset):
             writer_id_dict = {**writer_id_dict, **d}
 
         data, self.classes_count = self.add_writer_ids(data, writer_id_dict)
+        '''
 
         self.root = root
         self.img_height = img_height
@@ -170,8 +176,13 @@ class HwDataset(Dataset):
         self.data = data
         self.warp = warp
         self.num_of_channels = num_of_channels
+        self.occlusion = not (None in (occlusion_size, occlusion_freq))
+        self.occlusion_freq = occlusion_freq
+        self.occlusion_size = occlusion_size
+        self.occlusion_level = occlusion_level
         self.logger = logger
 
+        '''
     def add_writer_ids(self, data, writer_dict):
         """
 
@@ -194,6 +205,7 @@ class HwDataset(Dataset):
             data[i] = item
 
         return data, len(set(writer_dict.keys())) # returns dictionary and number of writers
+        '''
 
     def __len__(self):
         return len(self.data)
@@ -239,13 +251,13 @@ class HwDataset(Dataset):
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
         #online = item.get('online', False)
         # THIS IS A HACK, FIX THIS (below)
-        online = int(item['actual_writer_id']) > 700
+        #online = int(item['actual_writer_id']) > 700
         
         return {
             "line_img": img,
             "gt_label": gt_label,
             "gt": gt,
-            "actual_writer_id": int(item['actual_writer_id']),
+            #"actual_writer_id": int(item['actual_writer_id']), # TODO Aaron
             "writer_id": int(item['writer_id']),
             "path": image_path,
             "online": online
