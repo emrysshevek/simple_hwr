@@ -26,14 +26,13 @@ debug: off
 # log_dir:
 
 # Training data
-training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+#training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json]
 training_root: data
 training_shuffle: true
 training_warp: false
 training_blur: false
 training_random_distortions: false
-online_augmentation: false
-writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Validation
 validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]

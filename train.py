@@ -66,8 +66,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
-            "online_flag"] else None
+        online = x['online'].view(1, -1, 1).to(device)
         loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt, validation=validation)
 
         if plot_all:
@@ -142,7 +141,7 @@ def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
     plt.close('all')
 
 
-def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
+def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, iterations=20):
     """
 
     Args:
@@ -152,7 +151,6 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         optimizer:
         dtype:
         config:
-        mask_online_as_offline (bool): if mask_online_as_offline, then online flag is set to offline
 
     Returns:
 
@@ -172,20 +170,19 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         gt = x['gt']  # actual string ground truth
 
         # Add online/offline binary flag
-        online_vector = np.zeros(x['online'].shape) if mask_online_as_offline else x['online']
-        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        online_vector = x['online']
+        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) 
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                     step=config["global_step"])
         # Nudge it X times
-        for ii in range(iterations):
+        for j in range(iterations):
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                       step=config["global_step"])
             # print(torch.abs(x['line_imgs']-params[0]).sum())
             accumulate_stats(config)
             training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
-            if ii % 5 == 0:
+            if j % 5 == 0:
                 LOGGER.info(f"{training_cer} {loss}")
 
         plot_images(params[0], i, final_pred_str, dir=config["image_dir"], plot_count=4)
@@ -211,8 +208,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1)
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 

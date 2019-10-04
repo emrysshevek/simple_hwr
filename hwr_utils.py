@@ -168,7 +168,6 @@ def load_config(config_path):
                 "decoder_type" : "naive",
                 "rnn_type": "lstm",
                 "cnn": "default",
-                "online_flag": True,
                 "save_count": 0,
                 "training_blur": False,
                 "training_blur_level": 1.5,
@@ -317,12 +316,6 @@ def make_config_consistent(config):
 
     if config["SMALL_TRAINING"]:
         config["plot_freq"] = 1
-
-    # Removing online jsons if not using online
-    for data_path in config["training_jsons"]:
-        if "online" in data_path and not config["online_augmentation"]:
-            config["training_jsons"].remove(data_path)
-            config["online_flag"] = False # turn off flag if no online data provided
 
     # Save images
     if config["improve_image"]:

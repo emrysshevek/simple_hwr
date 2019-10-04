@@ -84,8 +84,8 @@ def check_inputs(config):
     # Setup RNN input dimension
     config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
 
-    if config["online_augmentation"] and config["online_flag"]:
-        config["rnn_input_dimension"] += 1
+    #if config["online_augmentation"] and config["online_flag"]:
+    config["rnn_input_dimension"] += 1
 
     if config["rnn_type"].lower() == "gru":
         config["rnn_constructor"]=nn.GRU
