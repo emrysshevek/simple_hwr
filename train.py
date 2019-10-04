@@ -46,7 +46,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     sum_loss = 0.0
     steps = 0.0
     model.eval()
-    i = 0
+    i = -1
 
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
@@ -63,7 +63,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         if config["TESTING"]:
             break
 
-    if i > 0:
+    if i >= 0:
         accumulate_stats(config)
 
         stat = "validation" if validation else "test"
@@ -246,6 +246,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         return -1
 
 def make_dataloaders(config, device="cpu"):
+    default_collate = lambda x: hw_dataset.collate(x, device=device)
     train_dataset = HwDataset(config.training_jsons,
                               config["char_to_idx"],
                               img_height=config["input_height"],
@@ -267,34 +268,40 @@ def make_dataloaders(config, device="cpu"):
                                   batch_size=config["batch_size"],
                                   shuffle=config["training_shuffle"],
                                   num_workers=threads,
-                                  collate_fn=lambda x: hw_dataset.collate(x, device=device),
+                                  collate_fn=default_collate,
                                   pin_memory=device=="cpu")
 
-    collate_fn = lambda x: hw_dataset.collate(x, device=device,
-                                              n_warp_iterations=config['n_warp_iterations'],
-                                              warp=config["testing_warp"],
-                                              occlusion_freq=config["occlusion_freq"],
-                                              occlusion_size=config["occlusion_size"],
-                                              occlusion_level=config["occlusion_level"])
+    # test_dataset = HwDataset(config["testing_jsons"],
+    #                          config["char_to_idx"],
+    #                          img_height=config["input_height"],
+    #                          num_of_channels=config["num_of_channels"],
+    #                          root=config["testing_root"],
+    #                          warp=config["testing_warp"],
+    #                          blur=config.get("testing_blur", 1.5),
+    #                          blur_level=config["testing_blur_level"],
+    #                          random_distortions=config["testing_random_distortions"],
+    #                          distortion_sigma=config["testing_distortion_sigma"],
+    #                          images_to_load=config["images_to_load"],
+    #                          logger=config["logger"])
 
     test_dataset = HwDataset(config["testing_jsons"],
                              config["char_to_idx"],
                              img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"],
                              root=config["testing_root"],
-                             warp=config["testing_warp"],
-                             blur=config.get("testing_blur", 1.5),
-                             blur_level=config["testing_blur_level"],
-                             random_distortions=config["testing_random_distortions"],
-                             distortion_sigma=config["testing_distortion_sigma"],
+                             warp=False,
+                             blur=0,
+                             blur_level=0,
+                             random_distortions=False,
+                             distortion_sigma=0,
                              images_to_load=config["images_to_load"],
                              logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset,
                                  batch_size=config["batch_size"],
-                                 shuffle=config["testing_shuffle"],
+                                 shuffle=False,
                                  num_workers=threads,
-                                 collate_fn=collate_fn)
+                                 collate_fn=default_collate)
 
     if "validation_jsons" in config and config.validation_jsons: # must be present and non-empty
         validation_dataset = HwDataset(config["validation_jsons"],
@@ -311,7 +318,7 @@ def make_dataloaders(config, device="cpu"):
                                        logger=config["logger"])
 
         validation_dataloader = DataLoader(validation_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                           num_workers=threads, collate_fn=lambda x: hw_dataset.collate(x, device=device))
+                                           num_workers=threads, collate_fn=default_collate)
     else:
         validation_dataset, validation_dataloader = test_dataset, test_dataloader
         config["validation_jsons"]=None
@@ -541,11 +548,12 @@ def final_test(config, test_dataloader):
     collate_fn2 = lambda x: hw_dataset.collate(x, device=config.device,
                                                n_warp_iterations=its,
                                                warp=config["testing_warp"],
-                                               occlusion_freq=config["occlusion_freq"],
-                                               occlusion_size=config["occlusion_size"],
-                                               occlusion_level=config["occlusion_level"])
-
+                                               occlusion_freq=0,
+                                               occlusion_size=0,
+                                               occlusion_level=0)
     test_dataloader.collate_fn = collate_fn2
+
+
     ## Do a final test WITH warping and plot all test images
     config["testing_warp"] = True
     test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, plot_all=True, validation=False, with_iterations=True)

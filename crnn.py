@@ -163,7 +163,6 @@ class TrainerBaseline(json.JSONEncoder):
 
         return loss, err, pred_strs
 
-
     def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True, with_iterations=False):
         if with_iterations:
             self.config.logger.debug("Running test with iterations")
@@ -215,6 +214,7 @@ class TrainerBaseline(json.JSONEncoder):
             self.config.logger.debug("Updating test!")
             stat = self.config["designated_test_cer"]
             self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["current_epoch"])
+            #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
 
     def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         if force_training:

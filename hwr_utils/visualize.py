@@ -28,10 +28,10 @@ class Plot(object):
             self.windows[name]["opts"]["layoutopts"] = dict(plotly=dict(yaxis=dict(range=[0, ymax])))
 
 
-    def update_plot(self, name, x, y):
+    def update_plot(self, plot_name, x, y, **kwargs):
         # Create plot if not registered
         try:
-            plot_d = self.windows[name]
+            plot_d = self.windows[plot_name]
         except:
             warnings.warn("Plot not found, creating new plot")
             plot_d = {"xlabel":"X", "ylabel":"Y", "plot_type":"scatter"}
@@ -53,7 +53,7 @@ class Plot(object):
         else: # Create new plot
             win = plotter(
                 **data,
-                opts=plot_d["opts"]
+                opts=plot_d["opts"], **kwargs
             )
             plot_d["plot"] = win
             self.windows["name"] = plot_d
@@ -81,7 +81,7 @@ class Plot(object):
         #self.viz = Visdom(env=current_env) # get current env
         data = json.loads(self.viz.get_window_data())
         if len(data) == 0:
-            print("NOTHING HAS BEEN SAVED: NOTHING IN THIS ENV - DOES IT EXIST ?")
+            print("NOTHING HAS BEEN SAVED: NOTHING IN THIS VISDOM ENV - DOES IT EXIST ?")
             return
     
         file = open(file_path, 'w+')
@@ -155,24 +155,23 @@ def load_all(path, key='test_cer', clear=True, keywords=""):
         if "BSF" not in p.as_uri() and keywords in p.as_uri():
             print(p)
             name = p.parent.name.replace("-", "_")
-            name = name.split("_")
+            split_name = name.split("_")
             #name = "_".join((name[0],name[2],name[3],name[4], name[1]))
-            name = "_".join((name[2], name[3], name[0]))
-            print(name)
+            name = "_".join((split_name[2], split_name[3], split_name[0]))
+            if len(split_name) > 4:
+                name += "_".join(split_name[4:])
+
             plotter = Plot(name)
             losses = json.loads(p.read_text())[key]
             x = list(range(len(losses)))
             plotter.register_plot(key, "Epoch", key, plot_type="line", ymax=.1)
-            plotter.update_plot(key, x, losses)
-
-
-
-
+            try:
+                plotter.update_plot(plot_name=key, x=x, y=losses, name=name)
+            except:
+                print(f"Problem with {name, key}")
 
 if __name__=="__main__":
     # python -m visdom.server -p 8080
-    path = r"/media/data/GitHub/simple_hwr/results/occlusion/online_or_offline_only/variants/"
-    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
-    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
-    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion"
-    load_all(path, keywords="2019092")
+    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long"
+    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
+    load_all(path, keywords="201910", key="validation_cer")
