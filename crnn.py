@@ -82,10 +82,7 @@ def check_inputs(config):
         config["mlp_layers"] = []
 
     # Setup RNN input dimension
-    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
-
-    #if config["online_augmentation"] and config["online_flag"]:
-    config["rnn_input_dimension"] += 1
+    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"] + 1 # +1 for online flag
 
     if config["rnn_type"].lower() == "gru":
         config["rnn_constructor"]=nn.GRU
@@ -102,14 +99,14 @@ def create_CRNNClassifier(config, use_writer_classifier=True):
                                        writer_dropout=config["writer_dropout"], recognizer_dropout=config["recognizer_dropout"],
                                        writer_rnn_dimension=config["writer_rnn_dimension"],
                                        mlp_layers=config["mlp_layers"], detach_embedding=config["detach_embedding"],
-                                       online_augmentation=config["online_augmentation"], use_writer_classifier=use_writer_classifier, rnn_constructor=config["rnn_constructor"])
+                                       use_writer_classifier=use_writer_classifier, rnn_constructor=config["rnn_constructor"])
     return crnn
 
 def create_2Stage(config):
     check_inputs(config)
     crnn = CRNN_2Stage(rnn_input_dim=config["rnn_input_dimension"], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                        n_rnn=2, leakyRelu=False, recognizer_dropout=config["recognizer_dropout"],
-                       online_augmentation=config["online_augmentation"], first_rnn_out_dim=128, rnn_constructor=config["rnn_constructor"])
+                       first_rnn_out_dim=128, rnn_constructor=config["rnn_constructor"])
     return crnn
 
 def create_Nudger(config):

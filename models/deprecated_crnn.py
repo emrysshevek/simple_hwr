@@ -29,7 +29,7 @@ class CRNN_with_writer_classifier(nn.Module):
 
     def __init__(self, rnn_input_dim, nc, alphabet_size, nh, number_of_writers=512, writer_rnn_output_size=128, leakyRelu=False,
                  embedding_size=64, writer_dropout=.5, writer_rnn_dimension=128, mlp_layers=(64, None, 128), recognizer_dropout=.5,
-                 detach_embedding=True, online_augmentation=False, use_writer_classifier=True, rnn_constructor=nn.LSTM):
+                 detach_embedding=True, use_writer_classifier=True, rnn_constructor=nn.LSTM):
         super().__init__()
         self.cnn = CNN(cnnOutSize=1024, nc=nc, leakyRelu=leakyRelu)
         self.softmax = nn.LogSoftmax()
@@ -84,8 +84,7 @@ class CRNN_2Stage(nn.Module):
         nc: number of channels
 
     """
-    def __init__(self, rnn_input_dim, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, online_augmentation=False,
-                 first_rnn_out_dim=128, rnn_constructor=nn.LSTM):
+    def __init__(self, rnn_input_dim, nc, alphabet_size, rnn_hidden_dim, n_rnn=2, leakyRelu=False, recognizer_dropout=.5, first_rnn_out_dim=128, rnn_constructor=nn.LSTM):
         super().__init__()
         self.softmax = nn.LogSoftmax()
         self.cnn = CNN(1024, nc, leakyRelu=leakyRelu)
