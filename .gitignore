@@ -10,7 +10,7 @@
 results/
 
 # Configs
-configs/
+configs/**/*.yaml
 !configs/TEMPLATE.yaml
 
 # Data
