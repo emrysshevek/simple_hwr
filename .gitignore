@@ -10,7 +10,8 @@
 results/
 
 # Configs
-# configs/
+configs/
+!configs/TEMPLATE.yaml
 
 # Data
 data/prepare_font_data/output/
