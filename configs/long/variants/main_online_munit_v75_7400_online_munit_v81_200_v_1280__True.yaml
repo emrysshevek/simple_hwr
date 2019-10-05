@@ -11,7 +11,10 @@ epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: false
-training_jsons: munit/online_munit_v81_200.json
+training_jsons:
+- munit/online_munit_v75_7400.json
+- munit/online_munit_v81_200.json
+- combinedImages/v_1280.json
 training_root: data
 training_shuffle: true
 training_warp: true

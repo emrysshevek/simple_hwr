@@ -11,10 +11,14 @@ epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: false
-training_jsons: prepare_online_data/online_augmentation.json
+training_jsons:
+- combinedImages/offline_v_1.json
+- combinedImages/offline_v_1_random.json
+- combinedImages/v_1280.json
+- combinedImages/online_v_3640_random.json
 training_root: data
 training_shuffle: true
-training_warp: false
+training_warp: true
 training_blur: false
 training_random_distortions: false
 online_augmentation: true

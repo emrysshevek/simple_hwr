@@ -17,11 +17,24 @@ baseline_configs = "./long/main.yaml",
 #                 "training_distortion_sigma": 6.0,
 #                 "testing_blur": False,
 
-variation_dict = {"training_jsons": ["munit/online_munit_v75_7400.json",
-                                                  "munit/online_munit_v81_200.json",
-                                                  "combinedImages/v_1280.json",
-                                                  "prepare_online_data/online_augmentation.json"],
+# variation_dict = {"training_jsons": ["munit/online_munit_v75_7400.json",
+#                                      "munit/online_munit_v81_200.json",
+#                                       "combinedImages/v_1280.json",
+#                                       "prepare_online_data/online_augmentation.json"],
+#                   "training_warp":[True,False]}
+
+# [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+variation_dict = {"training_jsons": [["munit/online_munit_v75_7400.json", "munit/online_munit_v81_200.json","combinedImages/v_1280.json"],
+                                    ["prepare_online_data/online_augmentation.json"],
+                                    ["combinedImages/online_v_3640_random.json"],
+                                    ["combinedImages/offline_v_1.json"],
+                                    ["combinedImages/offline_v_1_random.json"],
+                                    ["combinedImages/offline_v_1.json", "combinedImages/offline_v_1_random.json"],
+                                    ["prepare_IAM_Lines/gts/lines/txt/training.json", "combinedImages/offline_v_1.json", "combinedImages/offline_v_1_random.json"],
+                                    ["combinedImages/offline_v_1.json", "combinedImages/offline_v_1_random.json", "combinedImages/v_1280.json", "combinedImages/online_v_3640_random.json"]
+                                    ],
                   "training_warp":[True,False]}
+
 baseline_dict = {"occlusion_level": 0}
 baseline_dict = False
 
@@ -75,7 +88,12 @@ def replace_config(yaml_path, variation_list, new_folder="variants"):
         output_file = name
         for key, value in variant.items():
             new_yaml_file[key] = value
-            file_name_variant_abbreviation = Path(str(value)).stem # mostly get rid of "/" etc.
+            file_name_variant_abbreviation = ""
+            if isinstance(value, list):
+                for val in value:
+                    file_name_variant_abbreviation += Path(str(val)).stem + "_" # mostly get rid of "/" etc.
+            else:
+                file_name_variant_abbreviation += Path(str(value)).stem
             output_file += f"_{file_name_variant_abbreviation}"
 
         #with open((parent / name).with_suffix(ext), "w") as f:

@@ -11,10 +11,11 @@ epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: false
-training_jsons: munit/online_munit_v75_7400.json
+training_jsons:
+- prepare_online_data/online_augmentation.json
 training_root: data
 training_shuffle: true
-training_warp: false
+training_warp: true
 training_blur: false
 training_random_distortions: false
 online_augmentation: true
