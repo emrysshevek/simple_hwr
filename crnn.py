@@ -2,6 +2,7 @@
 from models.CRCR import CRCR
 from models.deprecated_crnn import *
 from torch.autograd import Variable
+from models.basic import BidirectionalRNN, CNN
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

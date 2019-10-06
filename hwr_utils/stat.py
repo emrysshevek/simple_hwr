@@ -39,17 +39,14 @@ class Stat:
     def default(self, o):
         return o.__dict__
 
-    def accumulate(self, sum, weight, step=None):
+    def accumulate(self, sum, weight):
         self.current_sum += sum
         self.current_weight += weight
 
         if not self.accumlator_active:
             self.accumlator_active = True
 
-        if step:
-            self.x.append(step)
-
-    def reset_accumlator(self):
+    def reset_accumlator(self, epoch=None, instance=None):
         if self.accumlator_active:
             # print(self.current_weight)
             # print(self.current_sum)
@@ -58,6 +55,10 @@ class Stat:
             self.current_sum = 0
             self.accumlator_active = False
             self.updated_since_plot = True
+            if self.accumulator_freq == "epoch":
+                self.x.append(epoch)
+            elif self.accumulator_freq == "instance":
+                self.x.append(instance)
 
     def __str__(self):
         return repr(self)

@@ -172,6 +172,6 @@ def load_all(path, key='test_cer', clear=True, keywords=""):
 
 if __name__=="__main__":
     # python -m visdom.server -p 8080
-    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long"
-    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
+    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
+    #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
     load_all(path, keywords="2019100", key="validation_cer")

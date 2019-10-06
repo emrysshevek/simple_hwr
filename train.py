@@ -98,7 +98,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         if config["TESTING"]:
             break
 
-    if i >= 0:
+    if i >= 0: # if there was any test data, calculate the CER
         accumulate_all_stats(config, keyword=stat)
         cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
@@ -482,9 +482,6 @@ def build_model(config_path):
     defaults = {"starting_epoch":1,
                 "model": hw,
                 'lowest_loss':float('inf'),
-                "train_cer":[],
-                "test_cer":[],
-                "validation_cer":[],
                 "criterion":criterion,
                 "device":device,
                 "dtype":dtype,
@@ -569,12 +566,12 @@ def main():
             config["scheduler"].step()
 
             LOGGER.info("Training CER: {}".format(training_cer))
-            config["train_cer"].append(training_cer)
+            #config["train_cer"].append(training_cer)
 
             # CER plot
             if config["current_epoch"] % config["TEST_FREQ"]== 0:
                 validation_cer = validate(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config)
-                config["validation_cer"].append(validation_cer)
+                #config["validation_cer"].append(validation_cer)
 
             # Save periodically / save BSF
             if not config["results_dir"] is None and not config["SMALL_TRAINING"]:

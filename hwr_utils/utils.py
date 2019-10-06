@@ -578,6 +578,28 @@ def mkdir(path):
     else:
         warnings.warn("Unknown path type, cannot create folder")
 
+def save_stats(config, bsf):
+    if bsf:
+        path = os.path.join(config["results_dir"], "BSF")
+        mkdir(path)
+    else:
+        path = config["results_dir"]
+
+    # Save all stats
+    results = config["stats"]
+    with open(os.path.join(path, "all_stats.json"), 'w') as fh:
+        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
+
+    # Save CER
+    config.train_cer = config.stats[config["designated_validation_cer"]].y
+    config.validation_cer = config.stats[config["designated_training_cer"]].y
+    config.test_cer = config.stats[config["designated_test_cer"]].y
+
+    #results = {"training":config["stats"][config["designated_training_cer"]], "test":config["stats"][config["designated_test_cer"]]}
+    results = {"train_cer":config.train_cer, "validation_cer":config.validation_cer, "test_cer":config.test_cer}
+    with open(os.path.join(path, "losses.json"), 'w') as fh:
+        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
+
 
 def save_model(config, bsf=False):
     # Can pickle everything in config except items below
@@ -611,16 +633,7 @@ def save_model(config, bsf=False):
         state_dict["model"] = config["nudger"].state_dict()
         torch.save(state_dict, os.path.join(path, "{}_nudger_model.pt".format(config['name'])))
 
-    # Save all stats
-    results = config["stats"]
-    with open(os.path.join(path, "all_stats.json"), 'w') as fh:
-        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
-
-    # Save CER
-    #results = {"training":config["stats"][config["designated_training_cer"]], "test":config["stats"][config["designated_test_cer"]]}
-    results = {"train_cer":config["train_cer"], "validation_cer":config["validation_cer"], "test_cer":config["test_cer"]}
-    with open(os.path.join(path, "losses.json"), 'w') as fh:
-        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
+    save_stats(config, bsf)
 
     # Save visdom
     if config["use_visdom"]:
@@ -753,7 +766,7 @@ def accumulate_all_stats(config, keyword="", freq=None):
 
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq and keyword.lower() in stat.name.lower():
-            stat.reset_accumlator()
+            stat.reset_accumlator(epoch=config.current_epoch, instance=config.global_instances_counter)
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
     try:
@@ -782,9 +795,9 @@ def stat_prep(config):
     # Prep storage
     config_stats = []
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
-    config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
-    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Test Error Rate", ymax=.2))
-    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Validation Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Training Error Rate", accumulator_freq="instance"))
+    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Test Error Rate", ymax=.2, accumulator_freq="instance"))
+    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Validation Error Rate", ymax=.2, accumulator_freq="instance"))
     config["designated_training_cer"] = "Training Error Rate"
     config["designated_test_cer"] = "Test Error Rate"
     config["designated_validation_cer"] = "Validation Error Rate" if config["validation_jsons"] else "Test Error Rate"
