@@ -42,11 +42,46 @@ log_print(f"Threads: {threads}")
 #threads = 1
 torch.set_num_threads(threads)
 
+def validate(model, dataloader, idx_to_char, device, config):
+    """ Validate a model -- save if best so far"""
+
+    validation_cer = test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True, with_iterations=False)
+    LOGGER.info(f"Validation CER: {validation_cer}")
+
+    if config['lowest_loss'] > validation_cer:
+        if config["validation_jsons"]:
+            test_cer = test(config["model"], config.test_dataloader, config["idx_to_char"], config["device"], config,
+                            validation=False, with_iterations=False)
+            LOGGER.info(f"Saving Best Loss! Test CER: {test_cer}")
+        else:
+            test_cer = validation_cer
+
+        config['lowest_loss'] = validation_cer
+        save_model(config, bsf=True)
+    return validation_cer
+
+
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True, with_iterations=False):
-    sum_loss = 0.0
-    steps = 0.0
+    """ Test/validate a model. Validation bool just specifies which stats to update
+
+    Args:
+        model:
+        dataloader:
+        idx_to_char:
+        device:
+        config:
+        with_analysis:
+        plot_all:
+        validation:
+        with_iterations:
+
+    Returns:
+
+    """
+
     model.eval()
     i = -1
+    stat = "validation" if validation else "test"
 
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
@@ -64,9 +99,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
             break
 
     if i >= 0:
-        accumulate_stats(config)
-
-        stat = "validation" if validation else "test"
+        accumulate_all_stats(config, keyword=stat)
         cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
         if not plot_all:
@@ -76,8 +109,8 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
         LOGGER.debug(config["stats"])
         return cer
     else:
-        print("No test data")
-        return -1
+        log_print(f"No {stat} data!")
+        return np.inf
 
 def to_numpy(tensor):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -133,7 +166,6 @@ def plot_images(line_imgs, name, text_str, dir=None, plot_count=None, live=False
         plt.savefig(path, dpi=400)
         plt.close('all')
 
-
 def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
     """
 
@@ -175,7 +207,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                       step=config["global_step"])
             # print(torch.abs(x['line_imgs']-params[0]).sum())
-            accumulate_stats(config)
+            accumulate_all_stats(config)
             training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
             if ii % 5 == 0:
                 LOGGER.info(f"{training_cer} {loss}")
@@ -191,6 +223,9 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     model.train()
     config["stats"]["epochs"] += [config["current_epoch"]]
     plot_freq = config["plot_freq"]
+    local_instance_counter = 0
+    test_freq = 6000 # in terms of instances
+    next_update = test_freq
 
     for i, x in enumerate(dataloader):
         LOGGER.debug(f"Training Iteration: {i}")
@@ -200,7 +235,9 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         gt = x['gt']  # actual string ground truth
         config["global_step"] += 1
         config["global_instances_counter"] += line_imgs.shape[0]
-        config["stats"]["instances"] += [config["global_instances_counter"]]
+        local_instance_counter += line_imgs.shape[0]
+
+        #config["stats"]["instances"] += config["global_instances_counter"]
 
 
         # GT testing
@@ -217,13 +254,20 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         LOGGER.debug("Finished with batch")
 
+        # Run a validation set if training set is HUGE and no end in sight
+        if local_instance_counter>=next_update and config['n_train_instances']-local_instance_counter > test_freq:
+            log_print("Validating - mid epoch!")
+            validate(config["model"], config.validation_dataloader, config["idx_to_char"], config["device"], config)
+            next_update += test_freq
+
+
         # Update stats every 50 instances
         if (config["global_step"] % plot_freq == 0 and config["global_step"] > 0) or config["TESTING"] or config["SMALL_TRAINING"]:
             config["stats"]["updates"] += [config["global_step"]]
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
-            accumulate_stats(config)
+            accumulate_all_stats(config, keyword="Training")
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
@@ -232,7 +276,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         training_cer_list = config["stats"][config["designated_training_cer"]].y
 
         if not training_cer_list:
-            accumulate_stats(config)
+            accumulate_all_stats(config)
 
         training_cer = training_cer_list[-1]  # most recent training CER
         #LOGGER.debug(config["stats"])
@@ -495,6 +539,10 @@ def main():
     opts = parse_args()
     config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = build_model(opts.config)
 
+    config.train_dataloader = train_dataloader
+    config.validation_dataloader = validation_dataloader
+    config.test_dataloader = test_dataloader
+
     # Improve
     if config["improve_image"]:
         training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"],
@@ -508,7 +556,6 @@ def main():
             LOGGER.info("Epoch: {}".format(epoch))
             config["current_epoch"] = epoch
 
-
             training_cer = run_epoch(config["model"], train_dataloader, config["criterion"], config["optimizer"], config["dtype"], config)
 
             config["scheduler"].step()
@@ -518,23 +565,12 @@ def main():
 
             # CER plot
             if config["current_epoch"] % config["TEST_FREQ"]== 0:
-                validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True, with_iterations=False)
-                LOGGER.info("Validation CER: {}".format(validation_cer))
+                validation_cer = validate(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config)
                 config["validation_cer"].append(validation_cer)
 
             # Save periodically / save BSF
             if not config["results_dir"] is None and not config["SMALL_TRAINING"]:
-                if config['lowest_loss'] > validation_cer:
-                    if config["validation_jsons"]:
-                        test_cer = test(config["model"], test_dataloader, config["idx_to_char"], config["device"], config, validation=False, with_iterations=False)
-                        log_print(f"Saving Best Loss! Test CER: {test_cer}")
-                    else:
-                        test_cer = validation_cer
-
-                    config['lowest_loss'] = validation_cer
-                    save_model(config, bsf=True)
-
-                elif epoch % config["save_freq"] == 0:
+                if epoch % config["save_freq"] == 0:
                     log_print("Saving most recent model")
                     save_model(config, bsf=False)
 

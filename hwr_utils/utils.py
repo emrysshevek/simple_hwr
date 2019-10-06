@@ -541,13 +541,11 @@ def load_model(config):
     try:
         config["train_cer"] = losses["train_cer"]
         config["test_cer"] = losses["test_cer"]
+        config["validation_cer"] = losses["validation_cer"]
     except:
         warnings.warn("Could not load from losses.json")
         config["train_cer"]=[]
         config["test_cer"] = []
-
-    if config["train_cer"]:
-        config["lowest_loss"] = min(config["train_cer"])
 
     # Load stats
     try:
@@ -741,9 +739,20 @@ def calculate_cer(pred_strs, gt):
     return sum_loss, steps
 
 
-def accumulate_stats(config, freq=None):
+def accumulate_all_stats(config, keyword="", freq=None):
+    """ Only update the stats that have the same frequency as the update call
+
+    Args:
+        config:
+        keyword:
+        freq:
+
+    Returns:
+
+    """
+
     for title, stat in config["stats"].items():
-        if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq:
+        if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq and keyword.lower() in stat.name.lower():
             stat.reset_accumlator()
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
@@ -767,15 +776,15 @@ def stat_prep(config):
     """
     config["stats"]["epochs"] = []
     config["stats"]["epoch_decimal"] = []
-    config["stats"]["instances"] = []
+    #config["stats"]["instances"] = []
     config["stats"]["updates"] = []
 
     # Prep storage
     config_stats = []
     config_stats.append(Stat(y=[], x=config["stats"]["updates"], x_title="Updates", y_title="Loss", name="HWR Training Loss"))
     config_stats.append(Stat(y=[], x=config["stats"]["epoch_decimal"], x_title="Epochs", y_title="CER", name="Training Error Rate"))
-    config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Test Error Rate", ymax=.2))
-    config_stats.append(Stat(y=[], x=[], x_title="Epochs", y_title="CER", name="Validation Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Test Error Rate", ymax=.2))
+    config_stats.append(Stat(y=[], x=[], x_title="Instances", y_title="CER", name="Validation Error Rate", ymax=.2))
     config["designated_training_cer"] = "Training Error Rate"
     config["designated_test_cer"] = "Test Error Rate"
     config["designated_validation_cer"] = "Validation Error Rate" if config["validation_jsons"] else "Test Error Rate"

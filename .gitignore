@@ -13,6 +13,8 @@ results/
 # configs/
 
 # Data
+data/rerendered_online_data/
+data/prepare_IAM_Lines/offlineCropped/
 data/prepare_font_data/fonts/
 data/prepare_font_data/output/
 data/prepare_font_data/validation.*

@@ -255,8 +255,8 @@ def elastic_transform(image, alpha, sigma, random_state=None):
 
 def get_test_image():
     input_image = "data/prepare_IAM_Lines/lines/m04/m04-061/m04-061-02.png"
-    input_image = "data/sample_offline/a05-039-00.png"
-    input_image = "data/sample_online/0_6cfd6616717146a687391b52621340c1.tif"
+    input_image = "../data/sample_offline/a05-039-00.png"
+    #input_image = "data/sample_online/0_6cfd6616717146a687391b52621340c1.tif"
     img = cv2.imread(input_image, 0)
     plt.imshow(img, cmap="gray")
     plt.title("Original image")
@@ -286,7 +286,7 @@ def test():
         plt.title("With blur")
         plt.show()
 
-def test2():
+def test_crop():
         img = get_test_image()
         cropped = crop(img)
         plt.imshow(cropped, cmap="gray")
@@ -294,6 +294,6 @@ def test2():
         plt.show()
 
 if __name__ == "__main__":
-    test2()
+    test()
 
 

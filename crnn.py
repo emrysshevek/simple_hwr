@@ -114,11 +114,11 @@ def create_Nudger(config):
     return crnn
 
 class TrainerBaseline(json.JSONEncoder):
-    def __init__(self, model, optimizer, config, ctc_criterion):
+    def __init__(self, model, optimizer, config, loss_criterion):
         self.model = model
         self.optimizer = optimizer
         self.config = config
-        self.ctc_criterion = ctc_criterion
+        self.loss_criterion = loss_criterion
         self.idx_to_char = self.config["idx_to_char"]
         self.train_decoder = string_utils.naive_decode
         self.decoder = config["decoder"]
@@ -130,6 +130,226 @@ class TrainerBaseline(json.JSONEncoder):
         return None
 
     def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
+        self.model.train()
+
+        pred_tup = self.model(line_imgs, online)
+        pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+
+        # Calculate HWR loss
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1)))
+
+        output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        pred_strs = list(self.decoder.decode_training(output_batch))
+
+        # Get losses
+        self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
+        loss_recognizer = self.loss_criterion(pred_logits, labels, preds_size, label_lengths)
+
+        # Backprop
+        self.config["logger"].debug("Backpropping: {}".format(step))
+        self.optimizer.zero_grad()
+        loss_recognizer.backward(retain_graph=retain_graph)
+        self.optimizer.step()
+
+        loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
+
+        # Error Rate
+        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+        self.config["logger"].debug("Calculating Error Rate: {}".format(step))
+        err, weight = calculate_cer(pred_strs, gt)
+
+        self.config["logger"].debug("Accumulating stats")
+        self.config["stats"]["Training Error Rate"].accumulate(err, weight)
+
+        return loss, err, pred_strs
+
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True, with_iterations=False):
+        if with_iterations:
+            self.config.logger.debug("Running test with iterations")
+            return self.test_warp(line_imgs, online, gt, force_training, nudger, validation=validation)
+        else:
+            self.config.logger.debug("Running normal test")
+            return self.test_normal(line_imgs, online, gt, force_training, nudger, validation=validation)
+
+    def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
+        """
+
+        Args:
+            line_imgs:
+            online:
+            gt:
+            force_training: Run test in .train() as opposed to .eval() mode
+            update_stats:
+
+        Returns:
+
+        """
+
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        pred_tup = self.model(line_imgs, online)
+        pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+
+        output_batch = pred_logits.permute(1, 0, 2)
+        pred_strs = list(self.decoder.decode_test(output_batch))
+
+        # Error Rate
+        if nudger:
+            return rnn_input
+        else:
+            err, weight = calculate_cer(pred_strs, gt)
+            self.update_test_cer(validation, err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_strs
+
+    def update_test_cer(self, validation, err, weight, prefix=""):
+        if validation:
+            self.config.logger.debug("Updating validation!")
+            stat = self.config["designated_validation_cer"]
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+        else:
+            self.config.logger.debug("Updating test!")
+            stat = self.config["designated_test_cer"]
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+            #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
+
+    def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        #use_lm = config['testing_language_model']
+        #n_warp_iterations = config['n_warp_iterations']
+
+        compiled_preds = []
+        # Loop through identical images
+        # batch, repetitions, c/h/w
+        for n in range(0, line_imgs.shape[1]):
+            imgs = line_imgs[:,n,:,:,:]
+            pred_tup = self.model(imgs, online)
+            pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+            output_batch = pred_logits.permute(1, 0, 2)
+            pred_strs = list(self.decoder.decode_test(output_batch))
+            compiled_preds.append(pred_strs) # reps, batch
+
+        compiled_preds = np.array(compiled_preds).transpose((1,0)) # batch, reps
+
+        # Loop through batch items
+        best_preds = []
+        for b in range(0, compiled_preds.shape[0]):
+            preds, counts = np.unique(compiled_preds[b], return_counts=True)
+            best_pred = preds[np.argmax(counts)]
+            best_preds.append(best_pred)
+
+        # Error Rate
+        if nudger:
+            return rnn_input
+        else:
+            err, weight = calculate_cer(best_preds, gt)
+            self.update_test_cer(validation, err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_strs
+
+class TrainerNudger(TrainerBaseline):
+
+    def __init__(self, model, optimizer, config, loss_criterion, train_baseline=True):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.loss_criterion = loss_criterion
+        self.idx_to_char = self.config["idx_to_char"]
+        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, loss_criterion)
+        self.nudger = config["nudger"]
+        self.recognizer_rnn = self.model.rnn
+        self.train_baseline = train_baseline
+        self.decoder = config["decoder"]
+
+    def default(self, o):
+        return None
+
+    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
+        self.nudger.train()
+
+        # Train baseline at the same time
+        if self.train_baseline:
+            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
+            self.model.my_eval()
+        else:
+            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
+
+        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
+        output_batch = pred_logits_nudged.permute(1, 0, 2)
+        pred_strs = list(self.decoder.decode_training(output_batch))
+
+        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
+        loss_recognizer_nudged = self.loss_criterion(pred_logits_nudged, labels, preds_size, label_lengths)
+        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
+
+        # Backprop
+        self.optimizer.zero_grad()
+        loss_recognizer_nudged.backward()
+        self.optimizer.step()
+
+        ## ASSERT SOMETHING HAS CHANGED
+
+        if self.train_baseline:
+            self.model.my_train()
+
+        # Error Rate
+        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
+        err, weight, pred_str = calculate_cer(pred_strs, gt)
+        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
+
+        return loss, err, pred_str
+
+    def test(self, line_imgs, online, gt, validation=True):
+        self.nudger.eval()
+        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
+
+        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
+        # preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
+        output_batch = pred_logits_nudged.permute(1, 0, 2)
+        pred_strs = list(self.decoder.decode_test(output_batch))
+        err, weight = calculate_cer(pred_strs, gt)
+
+        self.update_test_cer(validation, err, weight, prefix="Nudged ")
+        loss = -1
+
+        return loss, err, pred_strs
+
+
+
+class TrainerStrokeRecovery(TrainerBaseline):
+    def __init__(self, model, optimizer, config, loss_criterion):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.loss_criterion = loss_criterion
+
+    def default(self, o):
+        return None
+
+    def train(self, line_imgs, online=None, labels=None, label_lengths=None, gt=None, retain_graph=False, step=0):
+        """
+
+        Args:
+            line_imgs: Offline image
+            online:
+            labels:
+            label_lengths:
+            gt:
+            retain_graph:
+            step:
+
+        Returns:
+
+        """
+
         self.model.train()
 
         pred_tup = self.model(line_imgs, online)
@@ -209,11 +429,11 @@ class TrainerBaseline(json.JSONEncoder):
         if validation:
             self.config.logger.debug("Updating validation!")
             stat = self.config["designated_validation_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["current_epoch"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
         else:
             self.config.logger.debug("Updating test!")
             stat = self.config["designated_test_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["current_epoch"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
             #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
 
     def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
@@ -253,71 +473,3 @@ class TrainerBaseline(json.JSONEncoder):
             self.update_test_cer(validation, err, weight)
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
-
-class TrainerNudger(TrainerBaseline):
-
-    def __init__(self, model, optimizer, config, ctc_criterion, train_baseline=True):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.ctc_criterion = ctc_criterion
-        self.idx_to_char = self.config["idx_to_char"]
-        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, ctc_criterion)
-        self.nudger = config["nudger"]
-        self.recognizer_rnn = self.model.rnn
-        self.train_baseline = train_baseline
-        self.decoder = config["decoder"]
-
-    def default(self, o):
-        return None
-
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        self.nudger.train()
-
-        # Train baseline at the same time
-        if self.train_baseline:
-            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
-            self.model.my_eval()
-        else:
-            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_training(output_batch))
-
-        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-        loss_recognizer_nudged = self.ctc_criterion(pred_logits_nudged, labels, preds_size, label_lengths)
-        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
-
-        # Backprop
-        self.optimizer.zero_grad()
-        loss_recognizer_nudged.backward()
-        self.optimizer.step()
-
-        ## ASSERT SOMETHING HAS CHANGED
-
-        if self.train_baseline:
-            self.model.my_train()
-
-        # Error Rate
-        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight, pred_str = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_str
-
-    def test(self, line_imgs, online, gt, validation=True):
-        self.nudger.eval()
-        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        # preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_test(output_batch))
-        err, weight = calculate_cer(pred_strs, gt)
-
-        self.update_test_cer(validation, err, weight, prefix="Nudged ")
-        loss = -1
-
-        return loss, err, pred_strs

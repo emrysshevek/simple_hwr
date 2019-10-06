@@ -17,8 +17,8 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: everything
-name: kitchen_sink
+experiment: occlusion
+name: baseline_warp_online_random_dimming
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5

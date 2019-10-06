@@ -174,4 +174,4 @@ if __name__=="__main__":
     # python -m visdom.server -p 8080
     path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
-    load_all(path, keywords="201910", key="validation_cer")
+    load_all(path, keywords="2019100", key="validation_cer")
