@@ -172,8 +172,11 @@ def crop(img, threshold=200, padding=10):
         return img
 
 
-def random_distortions(img, sigma=6.0, noise_max=10.0):
+def random_distortions(img, sigma=8.0, noise_max=10.0):
     n, m = img.shape
+
+    sigma = np.random.uniform(sigma, 15)
+
     noise = np.random.rand(2, n, m)
     noise = ndimage.gaussian_filter(noise, (0, sigma, sigma))
     noise -= np.amin(noise)
@@ -190,6 +193,7 @@ def random_distortions(img, sigma=6.0, noise_max=10.0):
     return distorted
 
 def blur(img, intensity=1.5):
+    intensity = np.random.uniform(0,intensity)
     return ndimage.gaussian_filter(img, intensity)
 
 def gaussian_noise(img, occlusion_level=1, logger=None):
@@ -234,13 +238,15 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     #     noisy = image + image * gauss
     #     return noisy
 
-def elastic_transform(image, alpha, sigma, random_state=None):
+def elastic_transform(image, alpha=3, sigma=1.1, random_state=None):
     """Elastic deformation of images as described in [Simard2003]_.
     .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
        Convolutional Neural Networks applied to Visual Document Analysis", in
        Proc. of the International Conference on Document Analysis and
        Recognition, 2003.
     """
+    alpha = np.random.uniform(1,alpha)
+
     if random_state is None:
         random_state = np.random.RandomState(None)
 
@@ -258,10 +264,15 @@ def get_test_image():
     input_image = "../data/sample_offline/a05-039-00.png"
     #input_image = "data/sample_online/0_6cfd6616717146a687391b52621340c1.tif"
     img = cv2.imread(input_image, 0)
-    plt.imshow(img, cmap="gray")
-    plt.title("Original image")
-    plt.show()
+    plot(img, "Original image")
     return img
+
+def plot(img, title):
+    plt.figure(dpi=400)
+    plt.imshow(img, cmap="gray")
+    plt.title(title)
+    plt.show()
+
 
 def test():
     if False:
@@ -272,19 +283,16 @@ def test():
     else:
         img = get_test_image()
         noisy = noise(img, occlusion_level=.5)
-        plt.imshow(noisy, cmap="gray")
-        plt.title("With noise")
-        plt.show()
+        plot(noisy, "With Noise")
 
         distorted = random_distortions(img)
-        plt.imshow(distorted, cmap="gray")
-        plt.title("With distortion")
-        plt.show()
+        plot(distorted, "With distortion")
 
         blurred = blur(img)
-        plt.imshow(blurred, cmap="gray")
-        plt.title("With blur")
-        plt.show()
+        plot(blurred, "With blur")
+
+        distorted2 = elastic_transform(img,  alpha=3, sigma=1.1)
+        plot(distorted2, "Distorted2")
 
 def test_crop():
         img = get_test_image()
@@ -293,7 +301,22 @@ def test_crop():
         plt.title("cropped")
         plt.show()
 
+def test_wavy_distortion(img):
+    for i in range(0,5):
+        distorted = random_distortions(img)
+        plot(distorted, "With distortion")
+
+def test_blur(img):
+    for i in range(0,5):
+        blurred = blur(img)
+        plot(blurred, "With blur")
+
 if __name__ == "__main__":
-    test()
+    img = get_test_image()
+    test_wavy_distortion(img)
+    # img = get_test_image()
+    #
+    # distorted2 = elastic_transform(img, alpha=1, sigma=1.1)
+    # plot(distorted2, "Distorted2")
 
 

@@ -254,11 +254,20 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         LOGGER.debug("Finished with batch")
 
+        if i == 0:
+            plot_images(x['line_imgs'], f"{config['current_epoch']}_{local_instance_counter}_training", first_pred_str,
+                        dir=config["image_train_dir"], plot_count=4)
+
+
         # Run a validation set if training set is HUGE and no end in sight
         if local_instance_counter>=next_update and config['n_train_instances']-local_instance_counter > test_freq:
             log_print("Validating - mid epoch!")
             validate(config["model"], config.validation_dataloader, config["idx_to_char"], config["device"], config)
             next_update += test_freq
+
+            # Save out example images on the first go
+            plot_images(x['line_imgs'], f"{config['current_epoch']}_{local_instance_counter}_training", first_pred_str,
+                        dir=config["image_train_dir"], plot_count=4)
 
 
         # Update stats every 50 instances
@@ -276,18 +285,17 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         training_cer_list = config["stats"][config["designated_training_cer"]].y
 
         if not training_cer_list:
-            accumulate_all_stats(config)
-
+            accumulate_all_stats(config, keyword="training")
         training_cer = training_cer_list[-1]  # most recent training CER
-        #LOGGER.debug(config["stats"])
 
-        # Save images
-        plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str, dir=config["image_train_dir"], plot_count=4)
+        # Save out example images on the first go
+        plot_images(x['line_imgs'], f"{config['current_epoch']}_training", first_pred_str,
+                    dir=config["image_train_dir"], plot_count=4)
 
         return training_cer
     except:
         log_print("Problem with calculating error")
-        return -1
+        return np.inf
 
 def make_dataloaders(config, device="cpu"):
     default_collate = lambda x: hw_dataset.collate(x, device=device)

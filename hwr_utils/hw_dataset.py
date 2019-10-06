@@ -144,7 +144,7 @@ class HwDataset(Dataset):
                  writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",),
                  images_to_load=None,
                  occlusion_size=None, occlusion_freq=None, occlusion_level=1,
-                 elastic_distortion=False, elastic_alpha=3, elastic_sigma=1.1,
+                 elastic_distortion=True, elastic_alpha=3, elastic_sigma=1.1,
                  logger=None):
 
         data = self.load_data(root, images_to_load, data_paths)
