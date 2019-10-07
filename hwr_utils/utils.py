@@ -193,7 +193,8 @@ def load_config(config_path):
                 "occlusion_level": .4,
                 "exclude_offline": False,
                 "validation_jsons": [],
-                "elastic_transform": False
+                "elastic_transform": False,
+                "coord_conv": False
                 }
 
     for k in defaults.keys():

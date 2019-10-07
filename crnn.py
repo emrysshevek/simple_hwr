@@ -3,7 +3,7 @@ from models.CRCR import CRCR
 from models.deprecated_crnn import *
 from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
-
+from models.CoordConv import CoordConv
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
@@ -11,12 +11,16 @@ MAX_LENGTH=60
 class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
-    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False, recognizer_dropout=.5, rnn_input_dimension=1024, rnn_constructor=nn.LSTM, cnn_type="default"):
+    def __init__(self, cnnOutSize, nc, alphabet_size, rnn_hidden_dim, rnn_layers=2, leakyRelu=False,
+                 recognizer_dropout=.5, rnn_input_dimension=1024, rnn_constructor=nn.LSTM, cnn_type="default", coord_conv=False):
         super().__init__()
         self.softmax = nn.LogSoftmax()
         self.dropout = recognizer_dropout
+
+        first_conv_op = CoordConv if coord_conv else nn.Conv2d
+
         if cnn_type in ["default", "intermediates"] or "resnet" in cnn_type:
-            self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
+            self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type, first_conv_op=first_conv_op)
         elif cnn_type=="crcr":
             self.cnn = CRCR(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
         else:
@@ -210,11 +214,11 @@ class TrainerBaseline(json.JSONEncoder):
         if validation:
             self.config.logger.debug("Updating validation!")
             stat = self.config["designated_validation_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
         else:
             self.config.logger.debug("Updating test!")
             stat = self.config["designated_test_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
             #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
 
     def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
@@ -430,11 +434,11 @@ class TrainerStrokeRecovery(TrainerBaseline):
         if validation:
             self.config.logger.debug("Updating validation!")
             stat = self.config["designated_validation_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
         else:
             self.config.logger.debug("Updating test!")
             stat = self.config["designated_test_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight, self.config["global_instances_counter"])
+            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
             #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
 
     def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):

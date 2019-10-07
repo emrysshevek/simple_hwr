@@ -13,6 +13,7 @@ dependencies:
   - pyyaml
   - tqdm
   - matplotlib
+  - scikit-learn
   - pip:
     - easydict
     - biopython==1.73

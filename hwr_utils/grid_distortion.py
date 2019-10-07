@@ -171,11 +171,12 @@ def crop(img, threshold=200, padding=10):
     except:
         return img
 
-
-def random_distortions(img, sigma=8.0, noise_max=10.0):
+# https://github.com/tmbdev/das2018-tutorial/blob/master/40-augmentation.ipynb
+def random_distortions(img, sigma=20.0, noise_max=10.0):
     n, m = img.shape
 
-    sigma = np.random.uniform(sigma, 15)
+    sigma = np.random.uniform(8, sigma)
+    noise_max = np.random.uniform(1, noise_max)
 
     noise = np.random.rand(2, n, m)
     noise = ndimage.gaussian_filter(noise, (0, sigma, sigma))
@@ -203,7 +204,8 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     """
 
     random_state = np.random.RandomState()
-    sd = occlusion_level / 2  # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
+    sd = min(abs(np.random.normal()) * occlusion_level/2, occlusion_level/2)
+    #sd = occlusion_level / 2  # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
     noise_mask = random_state.randn(*img.shape, ) * sd  # * 2 - occlusion_level # min -occlusion, max occlusion
     noise_mask = np.clip(noise_mask, -1, 1) * 255/2
     noisy_img = np.clip(img + noise_mask, 0, 255)
@@ -238,7 +240,7 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     #     noisy = image + image * gauss
     #     return noisy
 
-def elastic_transform(image, alpha=3, sigma=1.1, random_state=None):
+def elastic_transform(image, alpha=2.5, sigma=1.1, random_state=None):
     """Elastic deformation of images as described in [Simard2003]_.
     .. [Simard2003] Simard, Steinkraus and Platt, "Best Practices for
        Convolutional Neural Networks applied to Visual Document Analysis", in
@@ -272,7 +274,6 @@ def plot(img, title):
     plt.imshow(img, cmap="gray")
     plt.title(title)
     plt.show()
-
 
 def test():
     if False:
@@ -311,9 +312,15 @@ def test_blur(img):
         blurred = blur(img)
         plot(blurred, "With blur")
 
+def test_gaussian(img):
+    for i in range(0,5):
+        gauss = gaussian_noise(img, occlusion_level=.2, logger=None)
+        plot(gauss, "gauss")
+
 if __name__ == "__main__":
     img = get_test_image()
-    test_wavy_distortion(img)
+    test_gaussian(img)
+    #test_wavy_distortion(img)
     # img = get_test_image()
     #
     # distorted2 = elastic_transform(img, alpha=1, sigma=1.1)
