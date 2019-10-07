@@ -15,7 +15,6 @@ from pathlib import Path
 from scipy import interpolate
 from sklearn.preprocessing import normalize
 
-
 ## Other loss functions and variations
 # Distance from actual point
 # Distance to nearest point on image
@@ -24,8 +23,12 @@ from sklearn.preprocessing import normalize
 # Compare rendered images! How to make it differentiable?
 # Handle empty time differently - have computer guess "in between" stroke value? could work
 # Stroke level penalties - perfect inverse/backward patterns have minimal penalty
+# Need an end of stroke and end of sequence token - small penalty if end of stroke is close
 
-def get_strokes(path):
+## Other ideas
+# Feed in current "step" to RNN, scaled to same scale as width
+
+def get_strokes(path, max_stroke_count=None):
     """
 
     Args:
@@ -43,7 +46,10 @@ def get_strokes(path):
     min_time = float(strokes[0][0].attrib["time"])
     last_time = 0
     stroke_delay = 0  # time between strokes
-    start_end_strokes = []
+    start_end_strokes = [] # list of start times and end times between strokes; one before sequence starts!
+
+    if max_stroke_count:
+        strokes = strokes[:max_stroke_count]
 
     for stroke in strokes:
         x_coords = []
@@ -106,12 +112,14 @@ def normalize(my_array):
     """
     return ((my_array-np.min(my_array))/(np.max(my_array)-np.min(my_array))-.5)*2
 
-def get_gts(path, instances = 50):
+def get_gts(path, instances = 50, max_stroke_count=None):
     """ Take in xml with strokes, output ordered target coordinates
         Parameterizes x & y coordinates as functions of t
         Any t can be selected; strokes are collapsed so there's minimal time between strokes
-        If
 
+        Start stroke flag - true for first point in stroke
+        End stroke flag - true for last point in stroke
+        ** A single point can have both flags!
 
     Args:
         path (str): path to XML
@@ -120,7 +128,7 @@ def get_gts(path, instances = 50):
     Returns:
         x-array, y-array
     """
-    stroke_list, start_end_strokes = get_strokes(path)
+    stroke_list, start_end_strokes = get_strokes(path, max_stroke_count=max_stroke_count)
     x,y,time = convert_strokes(stroke_list)
 
     # find dead timezones
@@ -128,15 +136,44 @@ def get_gts(path, instances = 50):
     time_continuum = np.linspace(np.min(time), np.max(time), instances)
     x_func = interpolate.interp1d(time, x)
     y_func = interpolate.interp1d(time, y)
+    begin_stroke = []
+    start_end_strokes_backup = start_end_strokes.copy()
 
+    strokes_left = len(start_end_strokes)
     for i,t in enumerate(time_continuum):
-        for lower, upper in start_end_strokes:
+        for ii, (lower, upper) in enumerate(start_end_strokes):
             if t < lower:
                 break
-            if t > lower and t < upper:
-                t = lower if abs(t-lower)<abs(t-upper) else upper
+            elif t > lower and t < upper:
+                if abs(t-lower)<abs(t-upper):
+                    t = lower
+                    begin_stroke.append(1)
+                else:
+                    t = upper
                 time_continuum[i] = t
                 break
+        # Don't use strokes that can't help anymore
+        start_end_strokes = start_end_strokes[ii:] # this means we started the next stroke
+
+        if strokes_left > len(start_end_strokes):
+            strokes_left = len(start_end_strokes)
+            begin_stroke.append(1)
+        else:
+            begin_stroke.append(0)
+
+
+    end_stroke = begin_stroke.copy()[1:] + [1]
+    begin_stroke = np.array(begin_stroke)
+    end_stroke = np.array(end_stroke)
+    end_of_sequence = np.zeros(time_continuum.shape[0])
+    end_of_sequence[-1] = 1
+
+    #print(end_of_sequence.shape, end_stroke.shape, begin_stroke.shape)
+    print(begin_stroke)
+    print(end_stroke)
+    print(end_of_sequence)
+
+    globals().update(locals())
     return normalize(x_func(time_continuum)), normalize(y_func(time_continuum))
 
 def l1_loss(preds, targs):
@@ -178,12 +215,11 @@ def test_loss():
 
 def test_stroke_parse():
     ## Add terminating stroke!!
+    path = Path("../prepare_online_data/lines-xml/a01-000u-06.xml")
+    x = get_gts(path, instances=30)
 
-    path = Path("/media/taylor/Data/Linux/Github/simple_hwr/data/prepare_online_data/lines-xml/a01-000u-06.xml")
-    r = convert_strokes(get_strokes(path))
-    datapoints = len(r)
-    return r
 
 if __name__=="__main__":
     x = test_stroke_parse()
     print(x)
+
