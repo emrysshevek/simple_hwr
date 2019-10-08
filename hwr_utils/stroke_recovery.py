@@ -33,6 +33,8 @@ import random
 ## Other ideas
 # Feed in current "step" to RNN, scaled to same scale as width
 
+# Add more instances -- otherwise make it so the first instance is at the start of the letter
+
 pad_dpi = {"padding":.05, "dpi":71}
 
 def prep_figure(dpi=71):

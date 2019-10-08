@@ -13,7 +13,7 @@ dependencies:
   - pyyaml
   - tqdm
   - matplotlib
-  - scikit-learn
+  #- scikit-learn
   - pip:
     - easydict
     - biopython==1.73
@@ -24,9 +24,10 @@ dependencies:
     - six==1.12.0
     - tqdm==4.32.1
     - tensorboardx==1.6
-    - torch==1.1.0
+    - torch>=1.2.0
     - torchfile==0.1.0
     - torchvision==0.2.2.post3
     - wget
+    - git+https://github.com/jonbarron/robust_loss_pytorch
 prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr
 

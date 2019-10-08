@@ -10,6 +10,35 @@ from crnn import TrainerStrokeRecovery
 from hwr_utils.hw_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
+from torch.optim import lr_scheduler
+
+
+# pip install git+https://github.com/jonbarron/robust_loss_pytorch
+
+## TO DO:
+## Read proposals
+## Second committee member
+
+# Loss functions:
+    # Predicted points - nearest neighbor to rendered drawing
+    # Use Barron loss
+    # Calculate angle / trajectory to next point
+    # Allow reverse strokes?
+    # Small penalty for matching neighboring point
+        # i.e. a smoothed loss, most weight is on current point matching
+        # OR take the smallest possible loss of 3 most relevant points
+
+# Attention
+# Variable width -- add more instances etc.
+# Add arrows to graphs!!
+
+## Dataset:
+    # Fix rendering issue
+    # Keep time component constant - have possibility of "multiple blanks" etc.
+    # Make dataset bigger
+
+# Make a link from script directory to result directory
+# LARGE without blur
 
 class StrokeRecoveryModel(nn.Module):
     def __init__(self):
@@ -23,6 +52,9 @@ class StrokeRecoveryModel(nn.Module):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:])
+
+
+
         return rnn_output
 
 
@@ -71,11 +103,13 @@ torch.cuda.empty_cache()
 device=torch.device("cuda")
 #device=torch.device("cpu")
 
-output = Path("./results/stroke_recovery")
+output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
+
 output.mkdir(parents=True, exist_ok=True)
 model = StrokeRecoveryModel().to(device)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=.0005)
+optimizer = torch.optim.Adam(model.parameters(), lr=.001)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
 trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=l1_loss)
 batch_size=32
 
@@ -97,14 +131,14 @@ test_dataset=StrokeRecoveryDataset(["online_coordinate_data/3_stroke_16/test_onl
                         num_of_channels = 1
                         )
 
-test_dataloader = DataLoader(train_dataset,
+test_dataloader = DataLoader(test_dataset,
                               batch_size=batch_size,
                               shuffle=True,
                               num_workers=3,
                               collate_fn=train_dataset.collate,
                               pin_memory=False)
 
-for i in range(0,100):
+for i in range(0,400):
     epoch = i
     loss = run_epoch(train_dataloader)
     print(f"Epoch: {i}, Training Loss: {loss}")
