@@ -1,5 +1,4 @@
 from online_coordinate_parser import *
-from online_coordinate_parser import *
 from pathlib import Path
 import json
 import cv2

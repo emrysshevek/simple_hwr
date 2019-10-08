@@ -46,7 +46,7 @@ def test(dataloader):
     for i, item in enumerate(dataloader):
         #print(item)
         targs = item["gt"]
-        line_imgs = item["line_imgs"]
+        line_imgs = item["line_imgs"].to(device)
         loss, preds = trainer.test(line_imgs, targs)
         preds_to_graph = preds.permute([0,2,1])
         loss_list += [loss]
