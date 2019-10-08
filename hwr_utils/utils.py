@@ -19,6 +19,12 @@ from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
 from hwr_utils.stat import Stat
 
+def to_numpy(tensor):
+    if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
+        return tensor.detach().cpu().numpy()
+    else:
+        return tensor
+
 def is_iterable(obj):
     try:
         iter(obj)
@@ -48,7 +54,7 @@ def read_config(config):
     else:
         raise "Unknown Filetype {}".format(config)
 
-def setup_logging(folder, log_std_out=True, level="info"):
+def setup_logging(folder=None, log_std_out=True, level="INFO"):
     import logging, datetime, sys
     global LOGGER
     # Set up logging

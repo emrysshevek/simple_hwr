@@ -140,7 +140,7 @@ def normalize_stroke_list(stroke_list, maintain_ratio=False):
 
     new_stroke_list = []
     for item in stroke_list:
-        print(item["x"])
+        #print(item["x"])
         new_stroke_list.append({"x":normalize(item["x"].copy(), x_max, x_min), "y":normalize(item["y"].copy(), y_max, y_min)})
 
     return new_stroke_list

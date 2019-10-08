@@ -310,7 +310,7 @@ def make_dataloaders(config, device="cpu"):
                               random_distortions=config["training_random_distortions"],
                               distortion_sigma=config["training_distortion_sigma"],
                               writer_id_paths=config["writer_id_pickles"],
-                              images_to_load=config["images_to_load"],
+                              max_images_to_load=config["images_to_load"],
                               occlusion_size=config["occlusion_size"],
                               occlusion_freq=config["occlusion_freq"],
                               occlusion_level=config["occlusion_level"],
@@ -346,7 +346,7 @@ def make_dataloaders(config, device="cpu"):
                              blur_level=0,
                              random_distortions=False,
                              distortion_sigma=0,
-                             images_to_load=config["images_to_load"],
+                             max_images_to_load=config["images_to_load"],
                              logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset,
@@ -366,7 +366,7 @@ def make_dataloaders(config, device="cpu"):
                                        blur_level=config["testing_blur_level"],
                                        random_distortions=config["testing_random_distortions"],
                                        distortion_sigma=config["testing_distortion_sigma"],
-                                       images_to_load=config["images_to_load"],
+                                       max_images_to_load=config["images_to_load"],
                                        logger=config["logger"])
 
         validation_dataloader = DataLoader(validation_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],

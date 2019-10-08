@@ -142,12 +142,12 @@ class HwDataset(Dataset):
                  blur=False, blur_level=1.5,
                  random_distortions=False, distortion_sigma = 6.0,
                  writer_id_paths=("prepare_IAM_Lines/writer_IDs.pickle",),
-                 images_to_load=None,
+                 max_images_to_load=None,
                  occlusion_size=None, occlusion_freq=None, occlusion_level=1,
                  elastic_distortion=True, elastic_alpha=2.5, elastic_sigma=1.1,
                  logger=None):
 
-        data = self.load_data(root, images_to_load, data_paths)
+        data = self.load_data(root, max_images_to_load, data_paths)
 
         ## Read in all writer IDs
         writer_id_dict = self.join_writer_ids(root, writer_id_paths)
@@ -296,7 +296,9 @@ class HwDataset(Dataset):
 
 
         gt = item['gt'] # actual text
+
         gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
+
         #online = item.get('online', False)
         # THIS IS A HACK, FIX THIS (below)
         online = int(item['actual_writer_id']) > 700
@@ -312,5 +314,113 @@ class HwDataset(Dataset):
         }
 
 
+class StrokeRecoveryDataset(Dataset):
+    def __init__(self,
+                 data_paths,
+                 img_height=32,
+                 num_of_channels=3,
+                 root="./data",
+                 max_images_to_load=None,
+                 logger=None, **kwargs):
+
+        self.data = self.load_data(root, max_images_to_load, data_paths)
+        self.collate = collate_stroke
+        self.root = root
+        self.num_of_channels = num_of_channels
+        self.img_height = img_height
+
+    def load_data(self, root, images_to_load, data_paths):
+        data = []
+        for data_path in data_paths:
+            with open(os.path.join(root, data_path)) as fp:
+                new_data = json.load(fp)
+                if isinstance(new_data, dict):
+                    new_data = [item for key, item in new_data.items()]
+                # print(new_data[:100])
+                data.extend(new_data)
+
+        if images_to_load:
+            data = data[:images_to_load]
+        print("Dataloader size", len(data))
+        return data
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        image_path = os.path.join(self.root, item['image_path'])
+        if self.num_of_channels == 3:
+            img = cv2.imread(image_path)
+        elif self.num_of_channels == 1:  # read grayscale
+            img = cv2.imread(image_path, 0)
+        else:
+            raise Exception("Unexpected number of channels")
+        if img is None:
+            print("Warning: image is None:", os.path.join(self.root, item['image_path']))
+            return None
+
+        percent = float(self.img_height) / img.shape[0]
+
+        # Add channel dimension, since resize and warp only keep non-trivial channel axis
+        if self.num_of_channels == 1:
+            img = img[:, :, np.newaxis]
+
+        img = img.astype(np.float32)
+        img = img / 128.0 - 1.0
+
+        gt = np.array(item['gt']).transpose([1,0])  # actual text
+
+        return {
+            "line_img": img,
+            "gt": gt,
+            "path": image_path,
+        }
+
+def collate_stroke(batch, device="cpu"):
+    batch = [b for b in batch if b is not None]
+    #These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See hw_dataset.py")
+        print(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    dim0 = batch[0]['line_img'].shape[0] # height
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # width
+    dim2 = batch[0]['line_img'].shape[2] # channel
+
+    all_labels = []
+    label_lengths = []
+
+    # Make input square (variable vidwth
+    input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        input_batch[i,:,:b_img.shape[1],:] = b_img
+
+        l = batch[i]['gt']
+        all_labels.append(l)
+        label_lengths.append(len(l))
+
+    #all_labels = np.concatenate(all_labels)
+    all_labels = np.array(all_labels)
+    #print("ALL", all_labels.shape)
+    label_lengths = np.array(label_lengths)
+
+    line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+    labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
+    label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "gt": labels,
+        "label_lengths": label_lengths,
+        "paths": [b["path"] for b in batch],
+    }
+
 if __name__=="__main__":
     pass
+

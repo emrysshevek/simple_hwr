@@ -17,38 +17,36 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 # General
-experiment: default
-name: baseline
+experiment: everything
+name: kitchen_sink
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off
 decoder_type: naive # beam
-optimizer_type: adam
 
 # results_dir:
 # log_dir:
 
-# Validation
-validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
-
 # Training data
-training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
-training_root: ../simple_hwr/data
+#training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+training_jsons: [online_coordinate_data/3_stroke_16/train_online_coords.json]
+training_root: data
 training_shuffle: false
-training_warp: true
-online_augmentation: false                  # use online+offline data
-online_flag: false                          # include a flag designating instance as online/offline
+training_warp: false
+training_blur: false
+training_random_distortions: false
+exclude_offline: false
+online_augmentation: true                  # use online+offline data
+online_flag: true                          # include a flag designating instance as online/offline
 writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle, prepare_online_data/writer_IDs.pickle]
 
 # Testing data
-testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
+testing_jsons: [online_coordinate_data/3_stroke_16/test_online_coords.json]
 testing_root: ../simple_hwr/data
 testing_shuffle: false
-n_warp_iterations: 0
 testing_warp: false
-testing_occlude: false
 output_predictions: false                    # Output incorrect test predictions
 
 #Network
@@ -57,10 +55,11 @@ batch_size: 16                               # Batch size
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
-rnn_dimension: 512                           # originally 512
+rnn_dimension: 256                           # originally 512
 rnn_layers: 2
-rnn_type: lstm                               # gru, lstm
-cnn: default                                 # default, resnet, intermediates
+rnn_type: lstm                                # gru, lstm
+cnn: default                                  # default, resnet, intermediates
+model: stroke_recovery                        # stroke_recovery, recognition
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
@@ -82,6 +81,7 @@ scheduler_gamma: .95          # LR decay rate
 #scheduler_gamma: .95          # LR decay rate
 
 # Occlusion
-occlusion_size: null          # Square dimension in pixels of region to occlude
-occlusion_freq: null          # percent of pixels to occlude
-occlusion_level: null       # level of dimming; 1=white, 0=no change
+#occlusion_size: 1          # Square dimension in pixels of region to occlude
+#occlusion_freq: .5          # percent of pixels to occlude
+#occlusion_level: .5        # level of dimming; 1=white, 0=no change
+
