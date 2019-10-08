@@ -55,20 +55,30 @@ class basic_CRNN(nn.Module):
             tuple: normal prediction, refined prediction, normal CNN encoding, nudged CNN encoding
 
         """
+        print("running forward", input.size())
         conv = self.cnn(input)
+        print("past cnn")
         rnn_input = conv # [width/time, batch, feature_maps]
+        print("past rnn input")
 
         if online is not None:
             rnn_input = torch.cat([rnn_input, online.expand(conv.shape[0], -1, -1)], dim=2)
         recognizer_output = self.rnn(rnn_input)
+        print("past recognizer")
         return recognizer_output, rnn_input
 
 def create_CRNN(config):
     check_inputs(config)
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'], alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                recognizer_dropout=config["recognizer_dropout"], rnn_input_dimension=config["rnn_input_dimension"], rnn_layers=config["rnn_layers"],
-                      rnn_constructor=config["rnn_constructor"], cnn_type=config["cnn"])
+    crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], 
+                      nc=config['num_of_channels'], 
+                      alphabet_size=config['alphabet_size'], 
+                      rnn_hidden_dim=config["rnn_dimension"],
+                      recognizer_dropout=config["recognizer_dropout"], 
+                      rnn_input_dimension=config["rnn_input_dimension"], 
+                      rnn_layers=config["rnn_layers"],
+                      rnn_constructor=config["rnn_constructor"], 
+                      cnn_type=config["cnn"])
     return crnn
 
 def check_inputs(config):
@@ -125,8 +135,8 @@ class TrainerBaseline(json.JSONEncoder):
         self.train_decoder = string_utils.naive_decode
         self.decoder = config["decoder"]
 
-        if self.config["n_warp_iterations"]:
-            print("Using test warp")
+        #if self.config["n_warp_iterations"]:
+        #    print("Using test warp")
 
     def default(self, o):
         return None
@@ -135,6 +145,7 @@ class TrainerBaseline(json.JSONEncoder):
         self.model.train()
 
         pred_tup = self.model(line_imgs, online)
+        print("survived")
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
@@ -167,7 +178,7 @@ class TrainerBaseline(json.JSONEncoder):
 
 
     def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
-        if self.config["n_warp_iterations"]:
+        if "warp" in self.config["training_distortions"] and "iterations" in self.config["training_distortions"]["warp"]:
             return self.test_warp(line_imgs, online, gt, force_training, nudger, validation=validation)
         else:
             return self.test_normal(line_imgs, online, gt, force_training, nudger, validation=validation)

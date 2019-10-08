@@ -59,6 +59,7 @@ print(f"Threads: {threads}")
 torch.set_num_threads(threads)
 
 def test(model, dataloader, idx_to_char, device, config, with_analysis=False, plot_all=False, validation=True):
+    print("TESTING (train.py)")
     sum_loss = 0.0
     steps = 0.0
     model.eval()
@@ -94,10 +95,6 @@ def to_numpy(tensor):
         return tensor.detach().cpu().numpy()
     else:
         return tensor
-
-# Test plot
-#img = np.random.rand(3,3,3)
-#plot_images(img, "name", ["a","b","c"])
 
 def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
     if dir is None:
@@ -209,7 +206,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
         # Add online/offline binary flag
         online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1)
-
+        
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
         LOGGER.debug("Finished with batch")
@@ -241,66 +238,58 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 
 def make_dataloaders(config, device="cpu"):
+
+    print("DISTORTIONS: ", config["training_distortions"])
+    train_collate = lambda x: hw_dataset.collate(x, device=device, distortions=config["training_distortions"])
+    test_collate = lambda x: hw_dataset.collate(x, device=device, distortions=config["testing_distortions"])
     train_dataset = HwDataset(config["training_jsons"],
                               config["char_to_idx"],
                               img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"],
                               root=config["training_root"],
-                              warp=config["training_warp"],
                               images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"],
-                              occlusion_freq=config["occlusion_freq"],
-                              occlusion_level=config["occlusion_level"],
+                              distortions=config["training_distortions"],
                               logger=config["logger"])
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=config["batch_size"],
                                   shuffle=config["training_shuffle"],
                                   num_workers=threads,
-                                  collate_fn=lambda x:hw_dataset.collate(x,device=device),
+                                  collate_fn=train_collate,
                                   pin_memory=device=="cpu")
-
-    # Handle basic vs with warp iterations
-    if config["testing_occlude"]:
-        collate_fn = lambda x: hw_dataset.collate(x,
-                                                  device=device,
-                                                  n_warp_iterations=config['n_warp_iterations'],
-                                                  warp=config["testing_warp"],
-                                                  occlusion_freq=config["occlusion_freq"],
-                                                  occlusion_size=config["occlusion_size"],
-                                                  occlusion_level=config["occlusion_level"],
-                                                  use_occlusion=config["testing_occlude"])
-    else:
-        collate_fn = lambda x: hw_dataset.collate(x, device=device, n_warp_iterations=config['n_warp_iterations'],
-                                                  warp=config["testing_warp"], occlusion_freq=None,
-                                                  occlusion_size=None,
-                                                  occlusion_level=None)
 
     test_dataset = HwDataset(config["testing_jsons"],
                              config["char_to_idx"],
                              img_height=config["input_height"],
                              num_of_channels=config["num_of_channels"],
                              root=config["testing_root"],
-                             warp=False,
                              images_to_load=config["images_to_load"],
+                             distortions=config["testing_distortions"],
                              logger=config["logger"])
 
     test_dataloader = DataLoader(test_dataset,
                                  batch_size=config["batch_size"],
                                  shuffle=config["testing_shuffle"],
                                  num_workers=threads,
-                                 collate_fn=collate_fn)
+                                 collate_fn=test_collate)
 
     if "validation_jsons" in config:
-        validation_dataset = HwDataset(config["validation_jsons"], config["char_to_idx"], img_height=config["input_height"],
-                                 num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                                 warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
+        validation_dataset = HwDataset(config["validation_jsons"], 
+                                       config["char_to_idx"], 
+                                       img_height=config["input_height"],
+                                       num_of_channels=config["num_of_channels"], 
+                                       root=config["testing_root"],
+                                       images_to_load=config["images_to_load"], 
+                                       logger=config["logger"])
 
-        validation_dataloader = DataLoader(validation_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                     num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device))
+        validation_dataloader = DataLoader(validation_dataset, 
+                                           batch_size=config["batch_size"], 
+                                           shuffle=config["testing_shuffle"],
+                                           num_workers=threads, 
+                                           collate_fn=train_collate)
     else:
         validation_dataset, validation_dataloader = test_dataset, test_dataloader
-        config["validation_jsons"]=None
+        config["validation_jsons"] = None
 
     return train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
 

@@ -95,15 +95,11 @@ def log_print(*args, print_statements=True):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', type=str, default="./configs/taylor.yaml", help='Path to the config file.')
+    parser.add_argument('--config', type=str, default="./configs/TEMPLATE.yaml", help='Path to the config file.')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
 
     opts = parser.parse_args()
     return opts
-    # if "name" not in config.keys():
-    #     config["name"] = opts.name
-    # elif not config["name"] and opts.name:
-    #     config["name"] = opts.name
 
 def find_config(config_name, config_root="./configs"):
     # Correct config paths
@@ -169,22 +165,9 @@ def load_config(config_path):
                 "rnn_type": "lstm",
                 "cnn": "default",
                 "save_count": 0,
-                "training_blur": False,
-                "training_blur_level": 1.5,
-                "training_random_distortions": False,
-                "training_distortion_sigma": 6.0,
-                "testing_blur": False,
-                "testing_blur_level": 1.5,
-                "testing_random_distortions": False,
-                "testing_distortion_sigma": 6.0,
-                "occlusion_size": None,
-                "occlusion_freq": None,
                 "logging": "info",
-                "n_warp_iterations": 11,
-                "testing_occlude": False,
-                "testing_warp": False,
+                #"n_warp_iterations": 11,
                 "optimizer_type": "adam",
-                "occlusion_level": .4,
                 "exclude_offline": False,
                 "validation_jsons": [],
                 "elastic_transform": False
@@ -290,12 +273,12 @@ def make_config_consistent(config):
     if config["SMALL_TRAINING"] or config["TESTING"]:
         config["images_to_load"] = config["batch_size"]
 
-    config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
-    if not config["testing_occlude"] and not config["testing_warp"]:
-        config["n_warp_iterations"] = 0
-    elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
-        config["n_warp_iterations"] = 7
-        print("n_warp_iterations set to 0, changing to 11")
+    #config["occlusion"] = config["occlusion_size"] and config["occlusion_freq"]
+    #if not config["testing_occlude"] and not config["testing_warp"]:
+    #    config["n_warp_iterations"] = 0
+    #elif (config["testing_occlude"] or config["testing_warp"]) and config["n_warp_iterations"] == 0:
+    #    config["n_warp_iterations"] = 7
+    #    print("n_warp_iterations set to 0, changing to 11")
 
     if config["exclude_offline"]:
         training_data = "prepare_IAM_Lines/gts/lines/txt/training.json"
@@ -608,6 +591,7 @@ def save_model(config, bsf=False):
 
 def create_resume_training(config):
     export_config = config.copy()
+    print(export_config)
     export_config["load_path"] = config["main_model_path"]
 
     for key in config.keys():
@@ -621,12 +605,14 @@ def create_resume_training(config):
 
     with open(Path(output / 'TEST.yaml'), 'w') as outfile:
         export_config["test_only"] = True
-        if export_config["training_warp"]:
-            export_config["testing_warp"] = True
-        if export_config["occlusion_level"]:
-            export_config["testing_occlude"] = True
-        if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
-            export_config["n_warp_iterations"] = 21
+        # TODO copy training distortions to test distortions, depending on what this is intended to do?
+
+        #if export_config["training_warp"]:
+        #    export_config["testing_warp"] = True
+        #if export_config["occlusion_level"]:
+        #    export_config["testing_occlude"] = True
+        #if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
+        #    export_config["n_warp_iterations"] = 21
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
 def plt_loss(config):

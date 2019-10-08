@@ -18,16 +18,17 @@ from hwr_utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
-def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
-    if n_warp_iterations:
-        #print("USING COLLATE WITH REPETITION")
-        return collate_repetition(batch, device, n_warp_iterations, warp, occlusion_freq, occlusion_size, occlusion_level=occlusion_level)
+#def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
+def collate(batch, device="cpu", distortions={}):
+    if "warp" in distortions and "iterations" in distortions["warp"]:
+        return collate_repetition(batch, device, distortions) 
     else:
         return collate_basic(batch, device)
 
 def collate_basic(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
-    #These all should be the same size or error
+
+    # These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
         print("Problem with collating!!! See hw_dataset.py")
         print(batch)
@@ -69,10 +70,12 @@ def collate_basic(batch, device="cpu"):
         "online": online
     }
 
-def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
+#def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
+def collate_repetition(batch, device="cpu", distortions = {"warp": {"iterations": 21}}):
     batch = [b for b in batch if b is not None]
     batch_size = len(batch)
-    occlude = occlusion_size and occlusion_freq
+    warp_iterations = distortions["warp"]["iterations"]
+    #occlude = occlusion_size and occlusion_freq
 
     # These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -87,7 +90,7 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
 
     all_labels = []
     label_lengths = []
-    final = np.full((batch_size, n_warp_iterations, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+    final = np.full((batch_size, warp_iterations, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
 
     # Duplicate items in batch
     for b_i,x in enumerate(batch):
@@ -95,12 +98,14 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         img = (np.float32(x['line_img']) + 1) * 128.0
 
         width = img.shape[1]
-        for r_i in range(n_warp_iterations):
+        for r_i in range(warp_iterations):
             new_img = img.copy()
-            if warp:
-                new_img = grid_distortion.warp_image(new_img)
-            if occlude:
-                new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size, occlusion_level=occlusion_level)
+            
+            new_img = apply_distortions(new_img, distortions)
+            #if warp:
+            #    new_img = grid_distortion.warp_image(new_img)
+            #if occlude:
+                #new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size, occlusion_level=occlusion_level)
 
 
             # Add channel dimension, since resize and warp only keep non-trivial channel axis
@@ -133,6 +138,27 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         "online": online
     }
 
+def apply_distortions(img, distortions):
+    """
+    Takes a distortion configuration (originally from .yaml) and applies distortions
+    such as warp, occlusion, blur, etc. to img according to what exists in distortions dict
+
+    Returns img after modifications
+    """
+    if distortions.get("warp", False):
+        img = grid_distortion.warp_image(img)
+
+    if distortions.get("occlusion", False):
+        freq = distortions["occlusion"]["freq"]
+        size = distortions["occlusion"]["size"]
+        level = distortions["occlusion"]["level"]
+
+        img = grid_distortion.occlude(img,
+                                      occlusion_freq = freq,
+                                      occlusion_size = size,
+                                      occlusion_level = level)
+    return img
+
 
 class HwDataset(Dataset):
     def __init__(self,
@@ -141,11 +167,8 @@ class HwDataset(Dataset):
                  img_height=32,
                  num_of_channels=3,
                  root="./data",
-                 warp=False,
+                 distortions={},
                  images_to_load=None,
-                 occlusion_size=None,
-                 occlusion_freq=None,
-                 occlusion_level=1,
                  logger=None):
 
         data = []
@@ -155,19 +178,14 @@ class HwDataset(Dataset):
         if images_to_load:
             data = data[:images_to_load]
 
-
         self.classes_count = len(set([d["writer_id"] for d in data]))
 
         self.root = root
         self.img_height = img_height
         self.char_to_idx = char_to_idx
         self.data = data
-        self.warp = warp
         self.num_of_channels = num_of_channels
-        self.occlusion = not (None in (occlusion_size, occlusion_freq))
-        self.occlusion_freq = occlusion_freq
-        self.occlusion_size = occlusion_size
-        self.occlusion_level = occlusion_level
+        self.distortions = distortions
         self.logger = logger
 
     def __len__(self):
@@ -188,23 +206,14 @@ class HwDataset(Dataset):
             return None
 
         percent = float(self.img_height) / img.shape[0]
-
-        #if random.randint(0, 1):
-        #    img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
-        #else:
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
-        if self.warp:
-            img = grid_distortion.warp_image(img)
-
-        if self.occlusion:
-            img = grid_distortion.occlude(img,occlusion_freq=self.occlusion_freq,
-                                          occlusion_size=self.occlusion_size,
-                                          occlusion_level=self.occlusion_level)
+        # Apply distortions if any
+        img = apply_distortions(img, self.distortions)
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis
-        if self.num_of_channels==1:
-            img=img[:,:, np.newaxis]
+        if self.num_of_channels == 1:
+            img = img[:,:, np.newaxis]
 
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
