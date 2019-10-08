@@ -50,6 +50,7 @@ def get_strokes(path, max_stroke_count=None):
 
     if max_stroke_count:
         strokes = strokes[:max_stroke_count]
+    #print([i.attrib for i in strokes])
 
     for stroke in strokes:
         x_coords = []
@@ -101,7 +102,7 @@ def convert_strokes(stroke_list):
 def process(time):
     total_time = np.max(time) - np.min(time)
 
-def normalize(my_array):
+def normalize(my_array, _max=1):
     """ Max/min rescale to -1,1 range
 
     Args:
@@ -110,7 +111,40 @@ def normalize(my_array):
     Returns:
 
     """
-    return ((my_array-np.min(my_array))/(np.max(my_array)-np.min(my_array))-.5)*2
+    return ((my_array - np.min(my_array)) / array_range(my_array) - .5) * 2 * _max
+
+def array_range(my_array):
+    return np.max(my_array)-np.min(my_array)
+
+def normalize_stroke_list(stroke_list, maintain_ratio=False):
+    """ Max/min rescale to -1,1 range
+
+    Args:
+        my_array:
+
+    Returns:
+
+    """
+    normalize = lambda _array,_max,_min: (((np.array(_array)-_min)/(_max-_min)-.5)*2).tolist()
+    x_max = np.max([max(x["x"]) for x in stroke_list])
+    x_min = np.min([min(x["x"]) for x in stroke_list])
+    y_min = np.min([min(x["y"]) for x in stroke_list])
+    y_max = np.max([max(x["y"]) for x in stroke_list])
+
+    ## THIS DOES NOT MAINTAIN CENTERING!
+    if maintain_ratio:
+         xrange = x_max-x_min
+         yrange = y_max-y_min
+         x_max = xrange * yrange/xrange + x_min
+
+
+    new_stroke_list = []
+    for item in stroke_list:
+        print(item["x"])
+        new_stroke_list.append({"x":normalize(item["x"].copy(), x_max, x_min), "y":normalize(item["y"].copy(), y_max, y_min)})
+
+    return new_stroke_list
+
 
 def get_gts(path, instances = 50, max_stroke_count=None):
     """ Take in xml with strokes, output ordered target coordinates
@@ -139,21 +173,27 @@ def get_gts(path, instances = 50, max_stroke_count=None):
     begin_stroke = []
     start_end_strokes_backup = start_end_strokes.copy()
 
+    # Each time a stop/start break is met, we've started a new stroke
+    # We start with a stop/start break
+    end_stroke_override = False
+
     strokes_left = len(start_end_strokes)
     for i,t in enumerate(time_continuum):
         for ii, (lower, upper) in enumerate(start_end_strokes):
             if t < lower:
-                break
+                break # same stroke, go to next timestep
             elif t > lower and t < upper:
-                if abs(t-lower)<abs(t-upper):
+                if abs(t-lower) < abs(t-upper):
                     t = lower
-                    begin_stroke.append(1)
                 else:
                     t = upper
                 time_continuum[i] = t
+            if t >= upper: # only happens on last item of stroke
+                start_end_strokes = start_end_strokes[ii+1:]
                 break
+
         # Don't use strokes that can't help anymore
-        start_end_strokes = start_end_strokes[ii:] # this means we started the next stroke
+        #print(len(start_end_strokes), len(start_end_strokes[ii:]), start_end_strokes)
 
         if strokes_left > len(start_end_strokes):
             strokes_left = len(start_end_strokes)
@@ -169,12 +209,16 @@ def get_gts(path, instances = 50, max_stroke_count=None):
     end_of_sequence[-1] = 1
 
     #print(end_of_sequence.shape, end_stroke.shape, begin_stroke.shape)
-    print(begin_stroke)
-    print(end_stroke)
-    print(end_of_sequence)
+    # print(begin_stroke)
+    # print(end_stroke)
+    # print(end_of_sequence)
 
-    globals().update(locals())
-    return normalize(x_func(time_continuum)), normalize(y_func(time_continuum))
+    x_range = array_range(x_func(time_continuum))
+    y_range = array_range(y_func(time_continuum))
+
+    assert len(normalize(x_func(time_continuum))) == len(normalize(y_func(time_continuum))) == len(begin_stroke) == len(end_stroke) == len(end_of_sequence)
+    output = np.array([normalize(x_func(time_continuum)), normalize(y_func(time_continuum)), begin_stroke, end_stroke, end_of_sequence])
+    return output, stroke_list, x_range/y_range
 
 def l1_loss(preds, targs):
     loss = torch.sum(torch.abs(preds-targs))
@@ -217,7 +261,6 @@ def test_stroke_parse():
     ## Add terminating stroke!!
     path = Path("../prepare_online_data/lines-xml/a01-000u-06.xml")
     x = get_gts(path, instances=30)
-
 
 if __name__=="__main__":
     x = test_stroke_parse()

@@ -45,10 +45,22 @@ def check_uniqueness(img_json):
         if item > 1:
             print(key, item)
 
+def get_train_test_splits(folder="./training_test_splits"):
+    final_dict = {}
+    split_dict = {"trainset.txt":"train", "testset_f.txt":"test", "testset_v.txt":"val1", "testset_t.txt":"val2"}
+    for f in Path(folder).rglob("*.txt"):
+        value = split_dict[f.name]
+        for line in f.open(mode="r"):
+            line = line.strip()
+            assert line not in final_dict
+            final_dict[line] = value
+    return final_dict
+
 def main():
     IMG_DIR = 'lineImages'
     XML_DIR = 'original-xml-all'
     img_json = []
+    split_dict = get_train_test_splits()
 
     if not exists(IMG_DIR) or not exists(XML_DIR):
         raise Exception(f"Verify {prepend_cwd(IMG_DIR)} and {prepend_cwd(XML_DIR)} exist.")
@@ -68,13 +80,14 @@ def main():
             img_id = img_id.split("-")
             f = Path(file)
             z_or_w = f.stem[-1] if f.stem[-1] in ["z","w"] else ""
-            img_id2 = str(f.parent.name) + z_or_w
-            img_id = f"{img_id2}-{img_id[2]}"
-
+            set_id = str(f.parent.name) + z_or_w
+            img_id = f"{set_id}-{img_id[2]}"
             img_path = get_image_path_from_id(img_id, IMG_DIR)
+
+            dataset = split_dict[set_id] if set_id in split_dict else "unknown"
             if exists(img_path):
                 full_img_path = prepend_cwd(img_path)
-                img_json.append({'gt': gt, 'image_path': full_img_path, 'augmentation': True})
+                img_json.append({'gt': gt, 'image_path': full_img_path, 'augmentation': True, 'dataset':dataset, 'set_id':set_id, 'img_id':img_id})
 
     print(f"Found {len(img_json)} images")
     if img_json:
