@@ -623,7 +623,7 @@ def create_resume_training(config):
         export_config["test_only"] = True
         if export_config["training_warp"]:
             export_config["testing_warp"] = True
-        if export_config["occlusion_level"]:
+        if export_config.get("occlusion_level", False):
             export_config["testing_occlude"] = True
         if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
             export_config["n_warp_iterations"] = 21
