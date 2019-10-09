@@ -1,7 +1,7 @@
 import json
 import random
 
-with open('/home/mason/fslg_hwr/simple_hwr/prepare_online_data/online_augmentation.json') as fp:
+with open('online_augmentation.json') as fp:
     data = json.load(fp)
 
 split = .7

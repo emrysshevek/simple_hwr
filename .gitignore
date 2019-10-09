@@ -31,6 +31,8 @@ data/online_coordinate_data/*/
 data/prepare_online_data/lineImages*
 data/prepare_online_data/original-xml*
 data/prepare_online_data/writers.xml
+data/prepare_online_data/line-level-xml*
+data/prepare_online_data/training_test_splits/
 data/prepare_online_data/online_augmentation.json
 writer_IDs.pickle
 
