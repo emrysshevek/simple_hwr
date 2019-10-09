@@ -3,10 +3,13 @@ from pathlib import Path
 import json
 import cv2
 import matplotlib.pyplot as plt
+import sys
+sys.path.insert(0, "../../")
 from hwr_utils.stroke_recovery import *
+from tqdm import tqdm
 
 def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
-                   xml_folder="../prepare_online_data/line-level-xml",
+                   xml_folder="../prepare_online_data/line-level-xml/lineStrokes",
                    json_path="../prepare_online_data/online_augmentation.json",
                    img_folder="prepare_online_data/lineImages", render_images=True):
     # Loop through files
@@ -23,7 +26,7 @@ def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
 
     output_dict = {"train": [], "test": []}
 
-    for item in data_dict:
+    for item in tqdm(data_dict):
         file_name = Path(item["image_path"]).name
         rel_path = Path(item["image_path"]).relative_to(original_img_folder).with_suffix(".xml")
         xml_path = xml_folder / rel_path
@@ -55,6 +58,7 @@ def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
             draw_strokes(normalize_stroke_list(stroke_list), ratio, save_path=img_path)
         output_dict[dataset].append(new_item)
 
+    print("Creating train_online_coords.json and test_online_coords.json...")
     json.dump(output_dict["train"], (output_folder / "train_online_coords.json").open("w"), indent=2)
     json.dump(output_dict["test"], (output_folder / "test_online_coords.json").open("w"), indent=2)
 
@@ -65,4 +69,4 @@ if __name__ == "__main__":
     stroke = 3
     instances = 16
     output_dict = create_dataset(max_strokes=stroke, square=True, instances=instances,
-                                 output_folder=f"./{stroke}_stroke_{instances}", render_images=False)
+                                 output_folder=f"./{stroke}_stroke_{instances}", render_images=True)
