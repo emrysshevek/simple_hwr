@@ -12,6 +12,33 @@ from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 
+# pip install git+https://github.com/jonbarron/robust_loss_pytorch
+
+## TO DO:
+## Read proposals
+## Second committee member
+
+# Loss functions:
+    # Predicted points - nearest neighbor to rendered drawing
+    # Use Barron loss
+    # Calculate angle / trajectory to next point
+    # Allow reverse strokes?
+    # Small penalty for matching neighboring point
+        # i.e. a smoothed loss, most weight is on current point matching
+        # OR take the smallest possible loss of 3 most relevant points
+
+# Attention
+# Variable width -- add more instances etc.
+# Add arrows to graphs!!
+
+## Dataset:
+    # Fix rendering issue
+    # Keep time component constant - have possibility of "multiple blanks" etc.
+    # Make dataset bigger
+
+# Make a link from script directory to result directory
+# LARGE without blur
+
 class StrokeRecoveryModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -24,6 +51,9 @@ class StrokeRecoveryModel(nn.Module):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:])
+
+
+
         return rnn_output
 
 

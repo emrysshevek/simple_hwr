@@ -186,8 +186,8 @@ def load_config(config_path):
     config_root = project_path / "configs"
 
     # Path was specified, but not found
-    if config_root not in config_path.absolute().parents:
-        raise Exception("Could not find config!")
+    # if config_root not in config_path.absolute().parents:
+    #     raise Exception("Could not find config!")
 
     # Try adding a suffix
     if config_path.suffix != ".yaml":
