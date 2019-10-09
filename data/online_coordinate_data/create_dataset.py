@@ -7,49 +7,57 @@ import sys
 sys.path.insert(0, "../../")
 from hwr_utils.stroke_recovery import *
 from tqdm import tqdm
+import multiprocessing
 
-def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
+class CreateDataset:
+
+    def __init__(self, max_strokes=3, square=True, instances=50, output_folder='.',
                    xml_folder="../prepare_online_data/line-level-xml/lineStrokes",
                    json_path="../prepare_online_data/online_augmentation.json",
                    img_folder="prepare_online_data/lineImages", render_images=True):
-    # Loop through files
-    # Find image paths
-    # create dicitonary
-    json_path = Path(json_path)
-    xml_folder = Path(xml_folder)
-    original_img_folder = Path(img_folder)
-    output_folder = Path(output_folder)
-    new_img_folder = (Path(output_folder) / "images").resolve()
-    data_folder = Path("..").resolve()
-    new_img_folder.mkdir(exist_ok=True, parents=True)
-    data_dict = json.load(json_path.open("r"))
+        # Loop through files
+        # Find image paths
+        # create dicitonary
+        self.json_path = Path(json_path)
+        self.xml_folder = Path(xml_folder)
+        self.original_img_folder = Path(img_folder)
+        self.output_folder = Path(output_folder)
+        self.new_img_folder = (Path(output_folder) / "images").resolve()
+        self.data_folder = Path("..").resolve()
+        self.new_img_folder.mkdir(exist_ok=True, parents=True)
+        self.data_dict = json.load(self.json_path.open("r"))
+        self.output_dict = {"train": [], "test": []}
+        self.max_strokes=max_strokes
+        self.square=square
+        self.instances=instances
+        self.render_images=render_images
 
-    output_dict = {"train": [], "test": []}
 
-    for item in tqdm(data_dict):
-        file_name = Path(item["image_path"]).name
-        rel_path = Path(item["image_path"]).relative_to(original_img_folder).with_suffix(".xml")
-        xml_path = xml_folder / rel_path
+    def process_one(self, item):
+        file_name = Path(item["image_path"]).stem
+        rel_path = Path(item["image_path"]).relative_to(self.original_img_folder).with_suffix(".xml")
+        xml_path = self.xml_folder / rel_path
 
         # For each item, we can extract multiple stroke_lists by using a sliding
         # window across the image.  Thus multiple json items will point to the same
         # image, but different strokes within that image.
-        gt_lists, stroke_lists, xs_to_ys = extract_gts(xml_path, 
-                                                       instances=instances, 
-                                                       max_stroke_count=max_strokes)
-
-        for gts, stroke_list, x_to_y in zip(gt_lists, stroke_lists, xs_to_ys):
+        gt_lists, stroke_lists, xs_to_ys = extract_gts(xml_path,
+                                                       instances=instances,
+                                                       max_stroke_count=self.max_strokes)
+        new_items = []
+        for i, (gts, stroke_list, x_to_y) in enumerate(zip(gt_lists, stroke_lists, xs_to_ys)):
 
             if item["dataset"] in ["test", "val1", "val2"]:
                 dataset = "test"
             else:
                 dataset = "train"
 
-            img_path = (new_img_folder / file_name)
+            img_path = (self.new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
+
             new_item = {
                 "full_img_path": item["image_path"],
-                "xml_path": xml_path.resolve().relative_to(data_folder).as_posix(),
-                "image_path": img_path.relative_to(data_folder).as_posix(),
+                "xml_path": xml_path.resolve().relative_to(self.data_folder).as_posix(),
+                "image_path": img_path.relative_to(self.data_folder).as_posix(),
                 "dataset": dataset,
                 "gt": [gt.tolist() for gt in gts],
                 "stroke_list": stroke_list,
@@ -57,24 +65,47 @@ def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
             }
 
             # Create images
-            ratio = 1 if square else x_to_y
+            ratio = 1 if self.square else x_to_y
 
             # Don't warp images too much
-            if square and x_to_y < .5 or x_to_y > 2:
+            if self.square and x_to_y < .5 or x_to_y > 2:
                 continue
-            if render_images:
-                draw_strokes(normalize_stroke_list(stroke_list), ratio, save_path=img_path)
-            output_dict[dataset].append(new_item)
+            if self.render_images:
+                draw_strokes(normalize_stroke_list(stroke_list), ratio, save_path=img_path, line_width=.8)
+            new_items.append(new_item)
+        return new_items
 
-    print("Creating train_online_coords.json and test_online_coords.json...")
-    json.dump(output_dict["train"], (output_folder / "train_online_coords.json").open("w"), indent=2)
-    json.dump(output_dict["test"], (output_folder / "test_online_coords.json").open("w"), indent=2)
 
-    return output_dict
+    def parallel(self):
+        data_dict = self.data_dict
+        all_results = []
+        poolcount = multiprocessing.cpu_count()
+        pool = multiprocessing.Pool(processes=poolcount)
 
+        #data_dict = data_dict[:30]
+        temp_results = pool.imap_unordered(self.process_one, tqdm(data_dict))  # iterates through everything all at once
+        pool.close()
+
+        # Loop through results as they come in
+        for result in temp_results:
+            all_results.append(result)
+
+        for d in all_results:
+            for item in d:
+                if item["dataset"]=="train":
+                    self.output_dict["train"].append(item)
+                elif item["dataset"] == "test":
+                    self.output_dict["test"].append(item)
+
+        print("Creating train_online_coords.json and test_online_coords.json...")
+        json.dump(self.output_dict["train"], (self.output_folder / "train_online_coords.json").open("w"), indent=2)
+        json.dump(self.output_dict["test"], (self.output_folder / "test_online_coords.json").open("w"), indent=2)
+
+        return self.output_dict
 
 if __name__ == "__main__":
     stroke = 3
     instances = 16
-    output_dict = create_dataset(max_strokes=stroke, square=True, instances=instances,
-                                 output_folder=f"./{stroke}_stroke_{instances}", render_images=True)
+    data_set = CreateDataset(max_strokes=stroke, square=True, instances=instances,
+                                 output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=True)
+    data_set.parallel()

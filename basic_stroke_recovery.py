@@ -52,8 +52,6 @@ class StrokeRecoveryModel(nn.Module):
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:])
 
-
-
         return rnn_output
 
 

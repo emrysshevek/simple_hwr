@@ -1,4 +1,5 @@
 import torch
+#import robust_loss_pytorch
 
 def l1_loss(preds, targs, label_lengths=16):
     """ Preds: [x], [y], [start stroke], [end stroke], [end of sequence]
@@ -16,6 +17,25 @@ def l1_loss(preds, targs, label_lengths=16):
     #targs = targs.reshape(-1,16,5) # batch, width, 5
     return abs(preds-targs).sum()
 
+
+def l1_loss(preds, targs, label_lengths=16):
+    """ Preds: [x], [y], [start stroke], [end stroke], [end of sequence]
+
+    Args:
+        preds: Will be in the form [picture_width, batch, 5
+        targs:
+
+    Returns:
+
+    # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
+
+    """
+    # robust_loss_pytorch.adaptive.AdaptiveLossFunction(
+    #     num_dims=1, float_dtype=np.float32, device='cpu')
+
+    #print(preds.shape, targs.shape)
+    #targs = targs.reshape(-1,16,5) # batch, width, 5
+    return abs(preds-targs).sum()
 
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN

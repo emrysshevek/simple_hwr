@@ -47,14 +47,14 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     if save_path:
         prep_figure(pad_dpi["dpi"])
     if line_width is None:
-        linewidth = max(random.gauss(1, .5), .4)
+        line_width = max(random.gauss(1, .5), .4)
 
     if x_to_y != 1:
         for stroke in stroke_list:
             stroke["x"] = [item * x_to_y for item in stroke["x"]]
 
     for stroke in stroke_list:
-        plt.plot(stroke["x"], stroke["y"], linewidth=linewidth, color="black")
+        plt.plot(stroke["x"], stroke["y"], linewidth=line_width, color="black")
 
     y_min = min([min(x["y"]) for x in stroke_list])
     y_max = max([max(x["y"]) for x in stroke_list])
