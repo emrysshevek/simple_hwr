@@ -110,57 +110,62 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
 
 def get_strokes(path, max_stroke_count=None):
     """
-
     Args:
         path: XML path to stroke file
 
     Returns:
-        list of dicts: each dict contains a stroke, keys: x,y, time
+        list of lists of dicts: each dict contains a stroke, keys: x,y, time
     """
     root = ET.parse(path).getroot()
-    strokes = root[1]
+    all_strokes = root[1]
+    stroke_lists = []
+    start_end_strokes_lists = []
 
-    # print("Strokes", len(strokes))
+    # If not constrained by number of strokes, set max_stroke_count to full length window
+    if max_stroke_count is None:
+        max_stroke_count = len(all_strokes) - 1
+    
+    for i in range(len(all_strokes) - max_stroke_count):
+        strokes = all_strokes[i:i + max_stroke_count]
+        stroke_list = []
+        min_time = float(strokes[0][0].attrib["time"])
+        last_time = 0
+        stroke_delay = 0  # time between strokes
+        start_end_strokes = [] # list of start times and end times between strokes; one before sequence starts!
+        
+        for stroke in strokes:
+            x_coords = []
+            y_coords = []
+            time_list = []
 
-    stroke_list = []
-    min_time = float(strokes[0][0].attrib["time"])
-    last_time = 0
-    stroke_delay = 0  # time between strokes
-    start_end_strokes = [] # list of start times and end times between strokes; one before sequence starts!
+            for i, point in enumerate(stroke):
+                # print("Points", len(strokes))
+                x, y, time = point.attrib["x"], point.attrib["y"], point.attrib["time"]
+                x_coords.append(int(x))
+                y_coords.append(-int(y))
 
-    if max_stroke_count:
-        strokes = strokes[:max_stroke_count]
-    #print([i.attrib for i in strokes])
+                if i == 0:  # no time passes between strokes!
+                    min_time += float(time) - min_time - last_time - .001
+                    start_end_strokes.append((last_time, float(time) - min_time))
 
-    for stroke in strokes:
-        x_coords = []
-        y_coords = []
-        time_list = []
+                next_time = float(time) - min_time
 
-        for i, point in enumerate(stroke):
-            # print("Points", len(strokes))
-            x, y, time = point.attrib["x"], point.attrib["y"], point.attrib["time"]
-            x_coords.append(int(x))
-            y_coords.append(-int(y))
+                if time_list and next_time == time_list[-1]:
+                    next_time += .001
+                    assert next_time > time_list[-1]
 
-            if i == 0:  # no time passes between strokes!
-                min_time += float(time) - min_time - last_time - .001
-                start_end_strokes.append((last_time, float(time) - min_time))
+                # No repeated times
+                if time_list and next_time <= time_list[-1]:
+                    next_time = time_list[-1] + .001
 
-            next_time = float(time) - min_time
+                time_list.append(next_time)
+            last_time = time_list[-1]
+            stroke_list.append({"x": x_coords, "y": y_coords, "time": time_list})
 
-            if time_list and next_time == time_list[-1]:
-                next_time += .001
-                assert next_time > time_list[-1]
-
-            # No repeated times
-            if time_list and next_time <= time_list[-1]:
-                next_time = time_list[-1] + .001
-
-            time_list.append(next_time)
-        last_time = time_list[-1]
-        stroke_list.append({"x": x_coords, "y": y_coords, "time": time_list})
-    return stroke_list, start_end_strokes
+        stroke_lists.append(stroke_list)
+        start_end_strokes_lists.append(start_end_strokes)
+        
+    return stroke_lists, start_end_strokes_lists
 
 
 def convert_strokes(stroke_list):
@@ -226,7 +231,7 @@ def normalize_stroke_list(stroke_list, maintain_ratio=False):
     return new_stroke_list
 
 
-def get_gts(path, instances = 50, max_stroke_count=None):
+def extract_gts(path, instances = 50, max_stroke_count=None):
     """ Take in xml with strokes, output ordered target coordinates
         Parameterizes x & y coordinates as functions of t
         Any t can be selected; strokes are collapsed so there's minimal time between strokes
@@ -242,60 +247,71 @@ def get_gts(path, instances = 50, max_stroke_count=None):
     Returns:
         x-array, y-array
     """
-    stroke_list, start_end_strokes = get_strokes(path, max_stroke_count=max_stroke_count)
-    x,y,time = convert_strokes(stroke_list)
+    stroke_lists, start_end_strokes_lists = get_strokes(path, max_stroke_count=max_stroke_count)
+    
+    output_gts = []
+    output_stroke_lists = []
+    output_xs_to_ys = []
 
-    # find dead timezones
-    # make x and y independently a function of t
-    time_continuum = np.linspace(np.min(time), np.max(time), instances)
-    x_func = interpolate.interp1d(time, x)
-    y_func = interpolate.interp1d(time, y)
-    begin_stroke = []
-    start_end_strokes_backup = start_end_strokes.copy()
+    for stroke_list, start_end_strokes in zip(stroke_lists, start_end_strokes_lists):
+        x,y,time = convert_strokes(stroke_list)
 
-    # Each time a stop/start break is met, we've started a new stroke
-    # We start with a stop/start break
-    end_stroke_override = False
+        # find dead timezones
+        # make x and y independently a function of t
+        time_continuum = np.linspace(np.min(time), np.max(time), instances)
+        x_func = interpolate.interp1d(time, x)
+        y_func = interpolate.interp1d(time, y)
+        begin_stroke = []
+        start_end_strokes_backup = start_end_strokes.copy()
 
-    strokes_left = len(start_end_strokes)
-    for i,t in enumerate(time_continuum):
-        for ii, (lower, upper) in enumerate(start_end_strokes):
-            if t < lower:
-                break # same stroke, go to next timestep
-            elif t > lower and t < upper:
-                if abs(t-lower) < abs(t-upper):
-                    t = lower
-                else:
-                    t = upper
-                time_continuum[i] = t
-            if t >= upper: # only happens on last item of stroke
-                start_end_strokes = start_end_strokes[ii+1:]
-                break
+        # Each time a stop/start break is met, we've started a new stroke
+        # We start with a stop/start break
+        end_stroke_override = False
 
-        # Don't use strokes that can't help anymore
-        #print(len(start_end_strokes), len(start_end_strokes[ii:]), start_end_strokes)
+        strokes_left = len(start_end_strokes)
+        for i,t in enumerate(time_continuum):
+            for ii, (lower, upper) in enumerate(start_end_strokes):
+                if t < lower:
+                    break # same stroke, go to next timestep
+                elif t > lower and t < upper:
+                    if abs(t-lower) < abs(t-upper):
+                        t = lower
+                    else:
+                        t = upper
+                    time_continuum[i] = t
+                if t >= upper: # only happens on last item of stroke
+                    start_end_strokes = start_end_strokes[ii+1:]
+                    break
 
-        if strokes_left > len(start_end_strokes):
-            strokes_left = len(start_end_strokes)
-            begin_stroke.append(1)
-        else:
-            begin_stroke.append(0)
+            # Don't use strokes that can't help anymore
+            #print(len(start_end_strokes), len(start_end_strokes[ii:]), start_end_strokes)
+
+            if strokes_left > len(start_end_strokes):
+                strokes_left = len(start_end_strokes)
+                begin_stroke.append(1)
+            else:
+                begin_stroke.append(0)
 
 
-    end_stroke = begin_stroke.copy()[1:] + [1]
-    begin_stroke = np.array(begin_stroke)
-    end_stroke = np.array(end_stroke)
-    end_of_sequence = np.zeros(time_continuum.shape[0])
-    end_of_sequence[-1] = 1
+        end_stroke = begin_stroke.copy()[1:] + [1]
+        begin_stroke = np.array(begin_stroke)
+        end_stroke = np.array(end_stroke)
+        end_of_sequence = np.zeros(time_continuum.shape[0])
+        end_of_sequence[-1] = 1
 
-    #print(end_of_sequence.shape, end_stroke.shape, begin_stroke.shape)
-    # print(begin_stroke)
-    # print(end_stroke)
-    # print(end_of_sequence)
+        # print(end_of_sequence.shape, end_stroke.shape, begin_stroke.shape)
+        # print(begin_stroke)
+        # print(end_stroke)
+        # print(end_of_sequence)
 
-    x_range = array_range(x_func(time_continuum))
-    y_range = array_range(y_func(time_continuum))
+        x_range = array_range(x_func(time_continuum))
+        y_range = array_range(y_func(time_continuum))
 
-    assert len(normalize(x_func(time_continuum))) == len(normalize(y_func(time_continuum))) == len(begin_stroke) == len(end_stroke) == len(end_of_sequence)
-    output = np.array([normalize(x_func(time_continuum)), normalize(y_func(time_continuum)), begin_stroke, end_stroke, end_of_sequence])
-    return output, stroke_list, x_range/y_range
+        assert len(normalize(x_func(time_continuum))) == len(normalize(y_func(time_continuum))) == len(begin_stroke) == len(end_stroke) == len(end_of_sequence)
+        output = np.array([normalize(x_func(time_continuum)), normalize(y_func(time_continuum)), begin_stroke, end_stroke, end_of_sequence])
+
+        output_gts.append(output)
+        output_stroke_lists.append(stroke_list)
+        output_xs_to_ys.append(x_range/y_range)
+
+    return output_gts, output_stroke_lists, output_xs_to_ys

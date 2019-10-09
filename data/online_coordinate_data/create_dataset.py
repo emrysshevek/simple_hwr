@@ -30,33 +30,41 @@ def create_dataset(max_strokes=3, square=True, instances=50, output_folder='.',
         file_name = Path(item["image_path"]).name
         rel_path = Path(item["image_path"]).relative_to(original_img_folder).with_suffix(".xml")
         xml_path = xml_folder / rel_path
-        gts, stroke_list, x_to_y = get_gts(xml_path, instances=instances, max_stroke_count=max_strokes)
 
-        if item["dataset"] in ["test", "val1", "val2"]:
-            dataset = "test"
-        else:
-            dataset = "train"
+        # For each item, we can extract multiple stroke_lists by using a sliding
+        # window across the image.  Thus multiple json items will point to the same
+        # image, but different strokes within that image.
+        gt_lists, stroke_lists, xs_to_ys = extract_gts(xml_path, 
+                                                       instances=instances, 
+                                                       max_stroke_count=max_strokes)
 
-        img_path = (new_img_folder / file_name)
-        new_item = {
-            "full_img_path": item["image_path"],
-            "xml_path": xml_path.resolve().relative_to(data_folder).as_posix(),
-            "image_path": img_path.relative_to(data_folder).as_posix(),
-            "dataset": dataset,
-            "gt": [gt.tolist() for gt in gts],
-            "stroke_list": stroke_list,
-            "x_to_y": x_to_y
-        }
+        for gts, stroke_list, x_to_y in zip(gt_lists, stroke_lists, xs_to_ys):
 
-        # Create images
-        ratio = 1 if square else x_to_y
+            if item["dataset"] in ["test", "val1", "val2"]:
+                dataset = "test"
+            else:
+                dataset = "train"
 
-        # Don't warp images too much
-        if square and x_to_y < .5 or x_to_y > 2:
-            continue
-        if render_images:
-            draw_strokes(normalize_stroke_list(stroke_list), ratio, save_path=img_path)
-        output_dict[dataset].append(new_item)
+            img_path = (new_img_folder / file_name)
+            new_item = {
+                "full_img_path": item["image_path"],
+                "xml_path": xml_path.resolve().relative_to(data_folder).as_posix(),
+                "image_path": img_path.relative_to(data_folder).as_posix(),
+                "dataset": dataset,
+                "gt": [gt.tolist() for gt in gts],
+                "stroke_list": stroke_list,
+                "x_to_y": x_to_y
+            }
+
+            # Create images
+            ratio = 1 if square else x_to_y
+
+            # Don't warp images too much
+            if square and x_to_y < .5 or x_to_y > 2:
+                continue
+            if render_images:
+                draw_strokes(normalize_stroke_list(stroke_list), ratio, save_path=img_path)
+            output_dict[dataset].append(new_item)
 
     print("Creating train_online_coords.json and test_online_coords.json...")
     json.dump(output_dict["train"], (output_folder / "train_online_coords.json").open("w"), indent=2)
