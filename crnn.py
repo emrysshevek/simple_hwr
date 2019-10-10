@@ -359,7 +359,7 @@ class TrainerStrokeRecovery:
         stroke_loss.backward()
         self.optimizer.step()
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, None, None
+        return loss, output_batch, None
 
     def test(self, line_imgs, gt, validation=False, **kwargs):
         self.model.eval()

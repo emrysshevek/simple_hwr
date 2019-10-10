@@ -332,6 +332,7 @@ class StrokeRecoveryDataset(Dataset):
     def load_data(self, root, images_to_load, data_paths):
         data = []
         for data_path in data_paths:
+            data_path = str(data_path)
             with open(os.path.join(root, data_path)) as fp:
                 new_data = json.load(fp)
                 if isinstance(new_data, dict):
