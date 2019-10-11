@@ -4,6 +4,7 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import numpy as np
 import random
+import math
 from pathlib import Path
 import os
 import torch
@@ -100,6 +101,14 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
 
     plt.scatter(x_middle_strokes, y_middle_strokes, s=4)
     plt.scatter(x_start_strokes, y_start_strokes, s=4)
+
+    for (x1, y1), (x2, y2) in zip(zip(x_middle_strokes, y_middle_strokes), 
+                                  zip(x_middle_strokes[1:], y_middle_strokes[1:])):
+        xdiff = (x2 - x1)
+        ydiff = (y2 - y1)
+        dx = xdiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
+        dy = ydiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
+        plt.arrow(x1, y1, dx, dy, color="blue", head_width = 1.4, head_length = 0.8, length_includes_head = True)
 
     if save_path:
         plt.savefig(save_path)
