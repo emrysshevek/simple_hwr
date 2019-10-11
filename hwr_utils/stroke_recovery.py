@@ -87,12 +87,23 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
         img_path = Path(img_path)
         img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
         img = img[::-1, :]
+        img = cv2.resize(img, (60, 60))
         plt.imshow(img, cmap="gray")
+        
+        # move all points positive, fit to square, apply padding, scale up
+        x -= min(x)
+        y -= min(y)
+        x /= max(x)
+        y /= max(y)
+        x += pad_dpi["padding"]
+        y += pad_dpi["padding"]
+        x *= 54.7 # HACK fiddled with these constants
+        y *= 55
 
-        # Rescale points
-        factor = 2 * pad_dpi["padding"] + 1
-        x = (x + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
-        y = (y + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
+        # (old) Rescale points
+        #factor = 2 * pad_dpi["padding"] + 1
+        #x = (x + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
+        #y = (y + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
 
     x_middle_strokes = x[np.where(start_points == 0)]
     y_middle_strokes = y[np.where(start_points == 0)]
