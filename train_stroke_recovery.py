@@ -45,7 +45,6 @@ from robust_loss_pytorch import AdaptiveLossFunction
     ## Warp
     ## Translate
 
-## Increase the number of instances
 ## Find the Indian datasets
 ## Calculate a direction/angle
 ## Make variable width
@@ -75,12 +74,13 @@ from robust_loss_pytorch import AdaptiveLossFunction
 # http://mile.ee.iisc.ernet.in/hpl/TamilCharacters/Offline/hpl-tamil-iso-char-train-offline-1.0.tar.gz
 # http://mile.ee.iisc.ernet.in/hpl/TamilCharacters/Offline/hpl-tamil-iso-char-test-offline-1.0.tar.gz
 
+torch.cuda.empty_cache()
 
 class StrokeRecoveryModel(nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.cnn = CNN(nc=1, first_conv_op=CoordConv)
+        self.cnn = CNN(nc=1, first_conv_op=CoordConv, cnn_type="default64")
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=5, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid =torch.nn.Sigmoid().to(device)
 
@@ -90,7 +90,6 @@ class StrokeRecoveryModel(nn.Module):
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:])
 
         return rnn_output
-
 
 def run_epoch(dataloader, report_freq=500):
     loss_list = []
@@ -157,7 +156,7 @@ scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
 trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_fnc)
 batch_size=32
 
-folder = Path("online_coordinate_data/3_stroke_16_v2")
+folder = Path("online_coordinate_data/3_stroke_64_v2")
 test_size = 2000
 train_size = None
 train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
@@ -186,11 +185,9 @@ test_dataloader = DataLoader(test_dataset,
                               collate_fn=train_dataset.collate,
                               pin_memory=False)
 
-for i in range(0,400):
+for i in range(0,80):
     epoch = i
     loss = run_epoch(train_dataloader)
     print(f"Epoch: {i}, Training Loss: {loss}")
     test_loss = test(test_dataloader)
     print(f"Epoch: {i}, Test Loss: {test_loss}")
-
-

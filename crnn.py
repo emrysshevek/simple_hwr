@@ -21,7 +21,7 @@ class basic_CRNN(nn.Module):
         first_conv_op = CoordConv if coord_conv else nn.Conv2d
 
         if cnn_type in ["default", "intermediates"] or "resnet" in cnn_type:
-            self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type, first_conv_op=first_conv_op)
+            self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, cnn_type=cnn_type, first_conv_op=first_conv_op)
         elif cnn_type=="crcr":
             self.cnn = CRCR(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
         else:

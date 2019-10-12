@@ -105,7 +105,7 @@ class CreateDataset:
 
 if __name__ == "__main__":
     stroke = 3
-    instances = 16
+    instances = 64
     data_set = CreateDataset(max_strokes=stroke, square=True, instances=instances,
                                  output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=True)
     data_set.parallel()

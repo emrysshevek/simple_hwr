@@ -1,6 +1,22 @@
 from torch import nn
 from hwr_utils.utils import *
 from models.CoordConv import *
+from torch.nn.functional import interpolate
+
+
+class Interpolate(nn.Module):
+    def __init__(self, size=[512,2,32], scale_factor=None, mode='linear', align_corners=None):
+        super(Interpolate, self).__init__()
+        self.interp = nn.functional.interpolate
+        self.size = size
+        self.mode = mode
+        self.align_corners=align_corners
+        self.scale_factor=scale_factor
+
+    def forward(self, x):
+        x = self.interp(x, size=self.size, scale_factor=self.scale_factor, mode=self.mode, align_corners=self.align_corners)
+        return x
+
 
 class MLP(nn.Module):
     def __init__(self, input_size, classifier_output_dimension, hidden_layers, dropout=.5, embedding_idx=None):
@@ -121,7 +137,7 @@ class PrintLayer(nn.Module):
 
 
 class CNN(nn.Module):
-    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, type="default", first_conv_op=nn.Conv2d, verbose=False):
+    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, cnn_type="default", first_conv_op=nn.Conv2d, verbose=False):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
 
         The CNN learns some kind of sequential ordering because the maps are fed into the LSTM sequentially.
@@ -136,22 +152,25 @@ class CNN(nn.Module):
         self.cnnOutSize = cnnOutSize
         #self.average_pool = nn.AdaptiveAvgPool2d((512,2))
         self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
-        self.intermediate_pass = 13 if type == "intermediates" else None
+        self.intermediate_pass = 13 if cnn_type == "intermediates" else None
         self.verbose = verbose
 
         print("Intermediate pass {}".format(self.intermediate_pass))
 
-        if type in ["default", "intermediates"]:
+        if cnn_type in ["default", "intermediates"]:
             self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)
-        elif "resnet" in type:
+        elif "default64" in cnn_type:
+            self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu)
+        elif "resnet" in cnn_type:
             from models import resnet
-            if type=="resnet":
+            if cnn_type== "resnet":
                 #self.cnn = torchvision.models.resnet101(pretrained=False)
                 self.cnn = resnet.resnet18(pretrained=False, channels=nc)
-            elif type=="resnet34":
+            elif cnn_type== "resnet34":
                 self.cnn = resnet.resnet34(pretrained=False, channels=nc)
-            elif type=="resnet101":
+            elif cnn_type== "resnet101":
                 self.cnn = resnet.resnet101(pretrained=False, channels=nc)
+
 
 
     def default_CNN(self, nc=3, leakyRelu=False):
@@ -183,12 +202,12 @@ class CNN(nn.Module):
 
             if self.verbose:
                 cnn.add_module(f"printAfter{i}", PrintLayer(name=f"printAfter{i}"))
-
-        # input: 16, 1, 60, 256; batch, channels, height, width
+        # Conv,MaxPool,Conv,MaxPool,Conv,Conv,MaxPool,Conv,Conv,MaxPool,Conv
+        # input: 16, 1, 60, 1802; batch, channels, height, width
         convRelu(0) # 16, 64, 60, 1802
         cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 16, 64, 30, 901
         convRelu(1) # 16, 128, 30, 901
-        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d(2, 2))  # 16, 128, 15, 450
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d((2, 2)))  # 16, 128, 15, 450
         convRelu(2, True) # 16, 256, 15, 450
         convRelu(3) # 16, 256, 15, 450
         cnn.add_module('pooling{0}'.format(2),
@@ -198,6 +217,57 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
         convRelu(6, True)  # 16, 512, 2, 451
+
+        return cnn
+
+
+    def default_CNN64(self, nc=3, leakyRelu=False):
+
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
+        ps = [1, 1, 1, 1, 1, 1, 0] # padding
+        ss = [1, 1, 1, 1, 1, 1, 1] # stride
+        nm = [64, 128, 256, 256, 512, 512, 512] # number of channels/maps
+
+        cnn = nn.Sequential()
+
+        def convRelu(i, batchNormalization=False):
+            conv_op = nn.Conv2d if i>0 else self.conv_op
+
+            if self.verbose and False:
+                cnn.add_module(f"printBefore{i}", PrintLayer(name=f"printBefore{i}"))
+
+            nIn = nc if i == 0 else nm[i - 1]
+            nOut = nm[i]
+            cnn.add_module('conv{0}'.format(i),
+                           conv_op(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i]))
+            if batchNormalization:
+                cnn.add_module('batchnorm{0}'.format(i), nn.BatchNorm2d(nOut))
+            if leakyRelu:
+                cnn.add_module('relu{0}'.format(i),
+                               nn.LeakyReLU(0.2, inplace=True))
+            else:
+                cnn.add_module('relu{0}'.format(i), nn.ReLU(True))
+
+            if self.verbose:
+                cnn.add_module(f"printAfter{i}", PrintLayer(name=f"printAfter{i}"))
+        # Conv,MaxPool,Conv,MaxPool,Conv,Conv,MaxPool,Conv,Conv,MaxPool,Conv
+        # input: 16, 1, 60, 1802; batch, channels, height, width
+        convRelu(0) # 16, 64, 60, 1802
+        cnn.add_module('pooling{0}'.format(0), nn.MaxPool2d(2, 2))  # 16, 64, 30, 901
+        convRelu(1) # 16, 128, 30, 901
+        cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 128, 15, 450
+        #cnn.add_module('pooling{0}'.format(1), nn.MaxPool2d((2, 2)))  # 16, 128, 15, 450
+        convRelu(2, True) # 16, 256, 15, 450
+        convRelu(3) # 16, 256, 15, 450
+        cnn.add_module('pooling{0}'.format(2),
+                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 256, 7, 451 # kernel_size, stride, padding
+        convRelu(4, True) # 16, 512, 7, 451
+        convRelu(5) # 16, 512, 7, 451
+        cnn.add_module('pooling{0}'.format(3),
+                       nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
+        convRelu(6, True)  # 16, 512, 2, 451
+        cnn.add_module("upsample", Interpolate(size=[2,64], scale_factor=None, mode='bilinear', align_corners=True))
+
         return cnn
 
     """
