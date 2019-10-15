@@ -219,6 +219,11 @@ class HwDataset(Dataset):
         gt_label = string_utils.str2label(gt, self.char_to_idx)  # character indices of text
         online = item["online"]
 
+
+        gt = item['gt'] # actual text
+        gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
+        online = item["online"]
+        
         return {
             "line_img": img,
             "gt_label": gt_label,

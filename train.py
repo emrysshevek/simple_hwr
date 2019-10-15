@@ -54,9 +54,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gts = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
-            "online_flag"] else None
-
+        online = x['online'].view(1, -1, 1).to(device)
         loss, initial_err, pred_strs = config["trainer"].test(line_imgs, online, gts, validation=validation)
 
         if plot_all:
@@ -135,7 +133,7 @@ def plot_images(line_imgs, name, text_str, dir=None, plot_count=None):
     plt.close('all')
 
 
-def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
+def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, iterations=20):
     """
 
     Args:
@@ -145,7 +143,6 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         optimizer:
         dtype:
         config:
-        mask_online_as_offline (bool): if mask_online_as_offline, then online flag is set to offline
 
     Returns:
 
@@ -165,20 +162,19 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         gt = x['gt']  # actual string ground truth
 
         # Add online/offline binary flag
-        online_vector = np.zeros(x['online'].shape) if mask_online_as_offline else x['online']
-        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        online_vector = x['online']
+        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) 
 
         loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                     step=config["global_step"])
         # Nudge it X times
-        for ii in range(iterations):
+        for j in range(iterations):
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                       step=config["global_step"])
             # print(torch.abs(x['line_imgs']-params[0]).sum())
             accumulate_stats(config)
             training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
-            if ii % 5 == 0:
+            if j % 5 == 0:
                 LOGGER.info(f"{training_cer} {loss}")
 
         plot_images(params[0], i, final_pred_str, dir=config["image_dir"], plot_count=4)
@@ -204,8 +200,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         config["stats"]["instances"] += [config["global_instances_counter"]]
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1)
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gts, step=config["global_step"])
 
@@ -239,32 +234,56 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
 
 def make_dataloaders(config, device="cpu"):
 
-    train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
-                              num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], images_to_load=config["images_to_load"],
-                              occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"],
-                              occlusion_level=config["occlusion_level"], logger=config["logger"])
+    train_dataset = HwDataset(config["training_jsons"],
+                              config["char_to_idx"],
+                              img_height=config["input_height"],
+                              num_of_channels=config["num_of_channels"],
+                              root=config["training_root"],
+                              warp=config["training_warp"],
+                              images_to_load=config["images_to_load"],
+                              occlusion_size=config["occlusion_size"],
+                              occlusion_freq=config["occlusion_freq"],
+                              occlusion_level=config["occlusion_level"],
+                              logger=config["logger"])
 
-    train_dataloader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=config["training_shuffle"],
-                                  num_workers=threads, collate_fn=lambda x:hw_dataset.collate(x,device=device), pin_memory=device=="cpu", drop_last=True)
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=config["batch_size"],
+                                  shuffle=config["training_shuffle"],
+                                  num_workers=threads,
+                                  collate_fn=lambda x:hw_dataset.collate(x,device=device),
+                                  pin_memory=device=="cpu")
 
     # Handle basic vs with warp iterations
     if config["testing_occlude"]:
-        collate_fn = lambda x:hw_dataset.collate(x,device=device, n_warp_iterations=config['n_warp_iterations'], warp=config["testing_warp"], occlusion_freq=config["occlusion_freq"],
-                                             occlusion_size=config["occlusion_size"], occlusion_level=config["occlusion_level"])
+        collate_fn = lambda x: hw_dataset.collate(x,
+                                                  device=device,
+                                                  n_warp_iterations=config['n_warp_iterations'],
+                                                  warp=config["testing_warp"],
+                                                  occlusion_freq=config["occlusion_freq"],
+                                                  occlusion_size=config["occlusion_size"],
+                                                  occlusion_level=config["occlusion_level"],
+                                                  use_occlusion=config["testing_occlude"])
     else:
         collate_fn = lambda x: hw_dataset.collate(x, device=device, n_warp_iterations=config['n_warp_iterations'],
                                                   warp=config["testing_warp"], occlusion_freq=None,
                                                   occlusion_size=None,
                                                   occlusion_level=None)
 
-    test_dataset = HwDataset(config["testing_jsons"], config["char_to_idx"], img_height=config["input_height"],
-                             num_of_channels=config["num_of_channels"], root=config["testing_root"],
-                             warp=False, images_to_load=config["images_to_load"], logger=config["logger"])
 
-    test_dataloader = DataLoader(test_dataset, batch_size=config["batch_size"], shuffle=config["testing_shuffle"],
-                                 num_workers=threads, collate_fn=collate_fn, drop_last=True)
+    test_dataset = HwDataset(config["testing_jsons"],
+                             config["char_to_idx"],
+                             img_height=config["input_height"],
+                             num_of_channels=config["num_of_channels"],
+                             root=config["testing_root"],
+                             warp=False,
+                             images_to_load=config["images_to_load"],
+                             logger=config["logger"])
 
+    test_dataloader = DataLoader(test_dataset,
+                                 batch_size=config["batch_size"],
+                                 shuffle=config["testing_shuffle"],
+                                 num_workers=threads,
+                                 collate_fn=collate_fn)
 
     if "validation_jsons" in config:
         validation_dataset = HwDataset(config["validation_jsons"], config["char_to_idx"], img_height=config["input_height"],

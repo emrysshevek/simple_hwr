@@ -1,3 +1,4 @@
+import sys
 from xml.etree import ElementTree as ET
 import json
 from tqdm import tqdm
@@ -23,6 +24,7 @@ def get_image_path_from_id(img_id):
     folder_2 = "-".join([components[0], strip_rightmost_alphabetic(components[1])])
     fname = img_id + ".tif"
     return join(IMG_DIR, folder_1, folder_2, fname)
+
 
 def prepend_cwd(img_path):
     cwd = basename(normpath(getcwd()))
@@ -54,10 +56,16 @@ if __name__ == "__main__":
             gt = clean_text(line.get('text'))
             img_id = line.get('id')
             img_path = get_image_path_from_id(img_id)
+            writer_id = root.find('General').find('Form').attrib["writerID"]
             if exists(img_path):
                 full_img_path = prepend_cwd(img_path)
-                img_json.append({'gt': gt, 'image_path': full_img_path, 'augmentation': True})
-    
+                img_json.append({
+                    'gt': gt,
+                    'image_path': full_img_path,
+                    'online': True,
+                    'writer_id': writer_id
+                })
+
     if img_json:
         with open('online_augmentation.json', 'w') as fp:
             json.dump(img_json, fp, indent=2)

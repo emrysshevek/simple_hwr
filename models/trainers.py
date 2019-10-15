@@ -96,7 +96,6 @@ class TrainerSeq2Seq(json.JSONEncoder):
         Returns:
 
         """
-
         if force_training:
             self.model.train()
         else:
@@ -117,6 +116,7 @@ class TrainerSeq2Seq(json.JSONEncoder):
             self.config["stats"][f"{prefix}Validation Error Rate"].accumulate(err, weight)
         else:
             self.config["stats"][f"{prefix}Test Error Rate"].accumulate(err, weight, self.config["current_epoch"])
+
 
 
 class TrainerBaseline(json.JSONEncoder):

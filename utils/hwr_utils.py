@@ -169,7 +169,6 @@ def load_config(config_path):
                 "decoder_type" : "naive",
                 "rnn_type": "lstm",
                 "cnn": "default",
-                "online_flag": True,
                 "save_count": 0,
                 "training_blur": False,
                 "training_blur_level": 1.5,
@@ -317,12 +316,6 @@ def make_config_consistent(config):
 
     if config["SMALL_TRAINING"]:
         config["plot_freq"] = 1
-
-    # Removing online jsons if not using online
-    for data_path in config["training_jsons"]:
-        if "online" in data_path and not config["online_augmentation"]:
-            config["training_jsons"].remove(data_path)
-            config["online_flag"] = False # turn off flag if no online data provided
 
     # Save images
     if config["improve_image"]:
@@ -613,13 +606,14 @@ def save_model(config, bsf=False):
         create_resume_training(config)
     config["save_count"] += 1
 
+
 def create_resume_training(config):
     export_config = config.copy()
     export_config["load_path"] = config["main_model_path"]
 
     for key in config.keys():
         item = config[key]
-        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list):
+        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list) and item is not None:
             del export_config[key]
 
     output = Path(config["results_dir"])
@@ -630,11 +624,12 @@ def create_resume_training(config):
         export_config["test_only"] = True
         if export_config["training_warp"]:
             export_config["testing_warp"] = True
-        if export_config["occlusion_level"]:
+        if export_config.get("occlusion_level", False):
             export_config["testing_occlude"] = True
         if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
             export_config["n_warp_iterations"] = 21
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
+
 
 def plt_loss(config):
     ## Plot with matplotlib

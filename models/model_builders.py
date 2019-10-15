@@ -20,14 +20,12 @@ def check_inputs(config):
         config["mlp_layers"] = []
 
     # Setup RNN input dimension
-    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"]
-    if config["online_augmentation"]:
-        config["rnn_input_dimension"] += 1
+    config["rnn_input_dimension"] = config["cnn_out_size"] + config["embedding_size"] + 1 # +1 for online flag
 
     if config["rnn_type"].lower() == "gru":
-        config["rnn_constructor"] = nn.GRU
+        config["rnn_constructor"]=nn.GRU
     elif config["rnn_type"].lower() == "lstm" or True:
-        config["rnn_constructor"] = nn.LSTM
+        config["rnn_constructor"]=nn.LSTM
     return config
 
 
@@ -37,7 +35,7 @@ def create_CRNN(config):
     crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
                       alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                       recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-                      rnn_constructor=config["rnn_constructor"])
+                      rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
     return crnn
 
 
@@ -47,7 +45,7 @@ def create_seq2seq_recognizer(config):
     encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
                          alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
                          recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-                         rnn_constructor=config["rnn_constructor"])
+                         rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
 
     if config['cnn_load_path']:
         pretrained_state_dict = {name: val for name, val in torch.load(config['cnn_load_path']).items() if

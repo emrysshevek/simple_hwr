@@ -39,9 +39,9 @@ def process(data, author_mapping, prefix='words'):
         std = (profile * (distances ** 2.0)).sum() / profile.sum()
         std = np.sqrt(std)
 
-        author_id, avg_line, avg_full = author_mapping[line_id]
-        all_authors[author_id].append(std)
-        all_authors_baseline[author_id].append(avg_line)
+        writer_id, avg_line, avg_full = author_mapping[line_id]
+        all_authors[writer_id].append(std)
+        all_authors_baseline[writer_id].append(avg_line)
 
     all_ratios = []
     for k, v in all_authors.items():
@@ -55,10 +55,11 @@ def process(data, author_mapping, prefix='words'):
     for d in new_data:
         image_file = d['image_path']
         line_id = image_file.split("/")[-2]
-        author_id, avg_line, avg_full = author_mapping[line_id]
-        author_avg_std = np.mean(all_authors[author_id])
-        d['author_avg_std'] = author_avg_std
-        d['author_id'] = author_id
+        writer_id, avg_line, avg_full = author_mapping[line_id]
+        author_avg_std = np.mean(all_authors[writer_id])
+        #d['author_avg_std'] = author_avg_std
+        d['writer_id'] = writer_id
+        d['online'] = False
 
         qualified_img_path = dirname(abspath(__file__))
         d['image_path'] = basename(normpath(qualified_img_path)) + "/lines/" + d['image_path']
