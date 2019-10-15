@@ -606,13 +606,14 @@ def save_model(config, bsf=False):
         create_resume_training(config)
     config["save_count"] += 1
 
+
 def create_resume_training(config):
     export_config = config.copy()
     export_config["load_path"] = config["main_model_path"]
 
     for key in config.keys():
         item = config[key]
-        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list):
+        if not isinstance(item, str) and not isinstance(item, numbers.Number) and not isinstance(item, list) and item is not None:
             del export_config[key]
 
     output = Path(config["results_dir"])
@@ -628,6 +629,7 @@ def create_resume_training(config):
         if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
             export_config["n_warp_iterations"] = 21
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
+
 
 def plt_loss(config):
     ## Plot with matplotlib
