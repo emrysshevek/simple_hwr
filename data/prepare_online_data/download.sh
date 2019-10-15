@@ -5,7 +5,6 @@ wget http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-all.tar.gz http:/
 # http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-part.tar.gz - has xml stroke information by page; writer-ids; transcriptions
 # http://www.fki.inf.unibe.ch/DBs/iamOnDB/data/original-xml-all.tar.gz - same as above, but with some without ground truths / writer IDs
 
-
 echo "Decompressing original xml"
 mkdir original-xml-all
 tar -zxf original-xml-all.tar.gz -C original-xml-all

@@ -1,6 +1,6 @@
 ### TESTING
 TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
-SMALL_TRAINING: false  # Load 1 batch; will not save output
+SMALL_TRAINING: true  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
 TEST_FREQ: 1         # epoch frequency for running test set
 plot_freq: 50         # print updates, update plots every 50 batches
@@ -82,6 +82,6 @@ scheduler_gamma: .95          # LR decay rate
 #scheduler_gamma: .95          # LR decay rate
 
 # Occlusion
-occlusion_size: null          # Square dimension in pixels of region to occlude
-occlusion_freq: null          # percent of pixels to occlude
-occlusion_level: null       # level of dimming; 1=white, 0=no change
+occlusion_size: 0          # Square dimension in pixels of region to occlude
+occlusion_freq: 0          # percent of pixels to occlude
+occlusion_level: 0       # level of dimming; 1=white, 0=no change

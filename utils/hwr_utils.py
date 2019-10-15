@@ -188,9 +188,7 @@ def load_config(config_path):
                 "optimizer_type": "adam",
                 "occlusion_level": .4,
                 "exclude_offline": False,
-                "seq2seq": False,
-                "validation_jsons": [],
-                "elastic_transform": False
+                "seq2seq": False
                 }
 
     for k in defaults.keys():

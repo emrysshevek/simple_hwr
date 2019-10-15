@@ -74,11 +74,6 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     accumulate_stats(config)
 
     stat = "validation" if validation else "test"
-    print(config)
-    print(config['stats'])
-    print(config[f"designated_{stat}_cer"])
-    print(config['stats'][config[f"designated_{stat}_cer"]])
-    print(config['stats'][config[f"designated_{stat}_cer"]].y)
     cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
     if not plot_all:
@@ -246,7 +241,7 @@ def make_dataloaders(config, device="cpu"):
 
     train_dataset = HwDataset(config["training_jsons"], config["char_to_idx"], img_height=config["input_height"],
                               num_of_channels=config["num_of_channels"], root=config["training_root"],
-                              warp=config["training_warp"], writer_id_paths=config["writer_id_pickles"], images_to_load=config["images_to_load"],
+                              warp=config["training_warp"], images_to_load=config["images_to_load"],
                               occlusion_size=config["occlusion_size"], occlusion_freq=config["occlusion_freq"],
                               occlusion_level=config["occlusion_level"], logger=config["logger"])
 
@@ -448,6 +443,7 @@ def build_model(config_path):
     else:  # config["style_encoder"] = False
         config["secondary_criterion"] = None
     return config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader
+
 
 
 def main():

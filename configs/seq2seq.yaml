@@ -1,6 +1,6 @@
 ### TESTING
 TESTING: false # Load as little as possible for fast prototyping
-#SMALL_TRAINING: 100
+SMALL_TRAINING: true
 
 # Load model
 load_path: # results/seq2seq/20190913_103617-seq2seq_lr_0.0001_bs_16_warp_True_arch_seq2seq/seq2seq_model.pt

@@ -83,7 +83,7 @@ class TrainerSeq2Seq(json.JSONEncoder):
 
         return loss, err, pred_strs
 
-    def test(self, line_imgs, online, gt, force_training=False, nudger=False):
+    def test(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
         """
 
         Args:
@@ -107,10 +107,16 @@ class TrainerSeq2Seq(json.JSONEncoder):
 
         # Error Rate
         err, weight = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+        self.update_test_cer(validation, err, weight)
         loss = -1  # not calculating test loss here
 
         return loss, err, pred_strs
+
+    def update_test_cer(self, validation, err, weight, prefix=""):
+        if validation:
+            self.config["stats"][f"{prefix}Validation Error Rate"].accumulate(err, weight)
+        else:
+            self.config["stats"][f"{prefix}Test Error Rate"].accumulate(err, weight, self.config["current_epoch"])
 
 
 class TrainerBaseline(json.JSONEncoder):
@@ -248,6 +254,44 @@ class TrainerBaseline(json.JSONEncoder):
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
+    def test_warp(self, line_imgs, online, gt, force_training=False, nudger=False):
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        #use_lm = config['testing_language_model']
+        #n_warp_iterations = config['n_warp_iterations']
+
+        compiled_preds = []
+        # Loop through identical images
+        # batch, repetitions, c/h/w
+        for n in range(0, line_imgs.shape[1]):
+            imgs = line_imgs[:,n,:,:,:]
+            pred_tup = self.model(imgs, online)
+            pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+            output_batch = pred_logits.permute(1, 0, 2)
+            pred_strs = list(self.decoder.decode_test(output_batch))
+            compiled_preds.append(pred_strs) # reps, batch
+
+        compiled_preds = np.array(compiled_preds).transpose((1,0)) # batch, reps
+
+        # Loop through batch items
+        best_preds = []
+        for b in range(0, compiled_preds.shape[0]):
+            preds, counts = np.unique(compiled_preds[b], return_counts=True)
+            best_pred = preds[np.argmax(counts)]
+            best_preds.append(best_pred)
+
+        # Error Rate
+        if nudger:
+            return rnn_input
+        else:
+            err, weight = calculate_cer(best_preds, gt)
+            self.config["stats"]["Test Error Rate"].accumulate(err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_strs
+
 
 class TrainerNudger(TrainerBaseline):
 
@@ -317,3 +361,4 @@ class TrainerNudger(TrainerBaseline):
         loss = -1
 
         return loss, err, pred_strs
+

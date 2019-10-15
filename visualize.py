@@ -173,5 +173,4 @@ if __name__=="__main__":
     path = r"/media/data/GitHub/simple_hwr/results/occlusion/online_or_offline_only/variants/"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion/online_or_offline_only"
-    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/occlusion"
-    load_all(path, keyword="20190920")
+    load_all(path, keyword="20190909")

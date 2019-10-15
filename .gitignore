@@ -28,7 +28,6 @@ data/prepare_online_data/original-xml*
 data/prepare_online_data/writers.xml
 data/prepare_online_data/online_augmentation.json
 data/prepare_online_data/cropped_images/
-writer_IDs.pickle
 
 # Passwords and cookies
 *.log
