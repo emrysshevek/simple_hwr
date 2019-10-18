@@ -3,7 +3,7 @@ import robust_loss_pytorch
 import numpy as np
 import torch.nn as nn
 from robust_loss_pytorch import AdaptiveLossFunction
-
+from sdtw import SoftDTW
 
 class StrokeLoss:
     def __init__(self, loss_type="robust"):
@@ -37,6 +37,23 @@ class StrokeLoss:
         else:
             return abs(preds-targs).sum()
 
+
+    def soft_dtw(self):
+
+# Time series 1: numpy array, shape = [m, d] where m = length and d = dim
+# Time series 2: numpy array, shape = [n, d] where n = length and d = dim
+
+# D can also be an arbitrary distance matrix: numpy array, shape [m, n]
+D = SquaredEuclidean(X, Y)
+sdtw = SoftDTW(D, gamma=1.0)
+# soft-DTW discrepancy, approaches DTW as gamma -> 0
+value = sdtw.compute()
+# gradient w.r.t. D, shape = [m, n], which is also the expected alignment matrix
+E = sdtw.grad()
+# gradient w.r.t. X, shape = [m, d]
+G = D.jacobian_product(E)
+
+
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN
     from torch import nn
@@ -50,3 +67,6 @@ if __name__ == "__main__":
     print(rnn_output.shape)
     loss = loss_fnc(rnn_output, targs)
     print(loss)
+
+
+

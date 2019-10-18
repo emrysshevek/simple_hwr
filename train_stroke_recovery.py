@@ -120,7 +120,7 @@ def test(dataloader):
         loss, preds = trainer.test(line_imgs, targs)
         loss_list += [loss]
     preds_to_graph = preds.permute([0, 2, 1])
-    graph(preds_to_graph, item)
+    graph(preds_to_graph, item, type="test")
 
     return np.mean(loss_list)/batch_size
 

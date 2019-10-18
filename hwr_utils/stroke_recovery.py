@@ -88,8 +88,8 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
         img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
         img = img[::-1, :]
         img = cv2.resize(img, (60, 60))
-        plt.imshow(img, cmap="gray")
-        
+        plt.imshow(img, cmap="gray", origin='lower')
+        #plt.gca().invert_yaxis()
         # move all points positive, fit to square, apply padding, scale up
         x -= min(x)
         y -= min(y)
@@ -335,3 +335,12 @@ def extract_gts(path, instances = 50, max_stroke_count=None):
         output_xs_to_ys.append(x_range/y_range)
 
     return output_gts, output_stroke_lists, output_xs_to_ys
+
+
+if __name__=="__main__":
+    os.chdir("../data")
+    with open("online_coordinate_data/3_stroke_16_v2/train_online_coords.json") as f:
+        output_dict = json.load(f)
+
+    instance = output_dict[11]
+    render_points_on_image(instance['gt'], img_path=instance['image_path'], x_to_y=instance["x_to_y"])
