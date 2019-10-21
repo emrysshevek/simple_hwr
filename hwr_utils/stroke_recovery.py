@@ -87,7 +87,7 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
         img_path = Path(img_path)
         img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
         img = img[::-1, :]
-        img = cv2.resize(img, (60, 60))
+        img = cv2.resize(img, (60, 60)) # TODO pipe image_height in here to resize to instead of hardcoded
         plt.imshow(img, cmap="gray")
         
         # move all points positive, fit to square, apply padding, scale up
