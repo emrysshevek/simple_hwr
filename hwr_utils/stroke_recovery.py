@@ -38,8 +38,9 @@ import random
 
 pad_dpi = {"padding":.05, "dpi":71}
 
-def prep_figure(dpi=71):
-    plt.figure(figsize=(1, 1), dpi=dpi)
+
+def prep_figure(dpi=71, size=(1,1)):
+    plt.figure(figsize=size, dpi=dpi)
     plt.axis('off')
     plt.axis('square')
 
@@ -68,6 +69,24 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight')
         plt.close()
+
+
+def plot_stroke_points(x,y, start_points, square=False):
+    x_middle_strokes = x[np.where(start_points == 0)]
+    y_middle_strokes = y[np.where(start_points == 0)]
+    x_start_strokes = x[np.where(start_points == 1)]
+    y_start_strokes = y[np.where(start_points == 1)]
+
+    plt.scatter(x_middle_strokes, y_middle_strokes, s=4)
+    plt.scatter(x_start_strokes, y_start_strokes, s=4)
+
+    for (x1, y1), (x2, y2) in zip(zip(x_middle_strokes, y_middle_strokes),
+                                  zip(x_middle_strokes[1:], y_middle_strokes[1:])):
+        xdiff = (x2 - x1)
+        ydiff = (y2 - y1)
+        dx = xdiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
+        dy = ydiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
+        plt.arrow(x1, y1, dx, dy, color="blue", head_width = 1.4, head_length = 0.8, length_includes_head = True)
 
 
 def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=None):
@@ -105,21 +124,7 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
         #x = (x + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
         #y = (y + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
 
-    x_middle_strokes = x[np.where(start_points == 0)]
-    y_middle_strokes = y[np.where(start_points == 0)]
-    x_start_strokes = x[np.where(start_points == 1)]
-    y_start_strokes = y[np.where(start_points == 1)]
-
-    plt.scatter(x_middle_strokes, y_middle_strokes, s=4)
-    plt.scatter(x_start_strokes, y_start_strokes, s=4)
-
-    for (x1, y1), (x2, y2) in zip(zip(x_middle_strokes, y_middle_strokes), 
-                                  zip(x_middle_strokes[1:], y_middle_strokes[1:])):
-        xdiff = (x2 - x1)
-        ydiff = (y2 - y1)
-        dx = xdiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
-        dy = ydiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
-        plt.arrow(x1, y1, dx, dy, color="blue", head_width = 1.4, head_length = 0.8, length_includes_head = True)
+    plot_stroke_points(x,y,start_points)
 
     if save_path:
         plt.savefig(save_path)

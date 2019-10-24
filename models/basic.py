@@ -83,7 +83,7 @@ class BidirectionalRNN(nn.Module):
         T, b, h = recurrent.size()
         t_rec = recurrent.view(T * b, h)
 
-        output = self.embedding(t_rec)  # [T * b, nOut]
+        output = self.embedding(t_rec)  # [T * b, nOut], T*b is the batch size for a FC
         output = output.view(T, b, -1)
 
         return output
