@@ -80,13 +80,17 @@ def plot_stroke_points(x,y, start_points, square=False):
     plt.scatter(x_middle_strokes, y_middle_strokes, s=4)
     plt.scatter(x_start_strokes, y_start_strokes, s=4)
 
-    for (x1, y1), (x2, y2) in zip(zip(x_middle_strokes, y_middle_strokes),
-                                  zip(x_middle_strokes[1:], y_middle_strokes[1:])):
+    max_y = np.max(y)
+    head_length = .01*max_y
+    head_width = .01*max_y
+    for i, ((x1, y1), (x2, y2)) in enumerate(zip(zip(x, y),zip(x[1:], y[1:]))):
+        if start_points[1:][i]:
+            continue
         xdiff = (x2 - x1)
         ydiff = (y2 - y1)
-        dx = xdiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
-        dy = ydiff / math.sqrt(xdiff**2 + ydiff**2) * 1.5
-        plt.arrow(x1, y1, dx, dy, color="blue", head_width = 1.4, head_length = 0.8, length_includes_head = True)
+        dx = xdiff / 2 #+ x1
+        dy = ydiff / 2 #+ y1
+        plt.arrow(x1, y1, dx, dy, color="blue", length_includes_head = True, head_length = head_length, head_width=head_width) # head_width = 1.4,
 
 
 def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=None):
