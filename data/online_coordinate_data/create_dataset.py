@@ -32,7 +32,6 @@ class CreateDataset:
         self.instances=instances
         self.render_images=render_images
 
-
     def process_one(self, item):
         file_name = Path(item["image_path"]).stem
         rel_path = Path(item["image_path"]).relative_to(self.original_img_folder).with_suffix(".xml")
@@ -41,17 +40,17 @@ class CreateDataset:
         # For each item, we can extract multiple stroke_lists by using a sliding
         # window across the image.  Thus multiple json items will point to the same
         # image, but different strokes within that image.
-        gt_lists, stroke_lists, xs_to_ys = extract_gts(xml_path,
-                                                       instances=instances,
-                                                       max_stroke_count=self.max_strokes)
+        stroke_list, _ = read_stroke_xml(xml_path)
+        stroke_dict = prep_stroke_dict(stroke_list, time_interval=0, scale_time_distance=True)
+        all_substrokes = get_all_substrokes(stroke_dict, length=self.max_strokes)
+
+        if item["dataset"] in ["test", "val1", "val2"]:
+            dataset = "test"
+        else:
+            dataset = "train"
+
         new_items = []
-        for i, (gts, stroke_list, x_to_y) in enumerate(zip(gt_lists, stroke_lists, xs_to_ys)):
-
-            if item["dataset"] in ["test", "val1", "val2"]:
-                dataset = "test"
-            else:
-                dataset = "train"
-
+        for sub_stroke_dict in all_substrokes:
             img_path = (self.new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
 
             new_item = {
