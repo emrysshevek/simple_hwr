@@ -159,24 +159,24 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     t_list = np.append(t_list, t_list[-1] + 20)
     x_to_y = np.max(x_list) / np.max(y_list)
 
-    output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes })
+    output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes})
     return output
 
 def get_all_substrokes(stroke_dict, length=3):
     if length is None:
         return [stroke_dict]
     start_args = np.where(stroke_dict.start_strokes==1)[0]
-    print(start_args)
+
     for i in range(start_args.shape[0]-length): # remember, last start_stroke is really the end stroke
         start_idx = start_args[i]
         end_idx = start_args[i+length]
 
-        t = stroke_dict.t[start_idx:end_idx]
-        x = stroke_dict.x[start_idx:end_idx]
-        y = stroke_dict.y[start_idx:end_idx]
-        raw = stroke_dict.raw[start_idx:end_idx]
+        t = stroke_dict.t[start_idx:end_idx].copy()
+        x = stroke_dict.x[start_idx:end_idx].copy()
+        y = stroke_dict.y[start_idx:end_idx].copy()
+        raw = stroke_dict.raw[i:i+length]
         start_strokes = stroke_dict.start_strokes[start_idx:end_idx]
-        start_times =   stroke_dict.start_times[i:i+length+1]
+        start_times =   stroke_dict.start_times[i:i+length+1].copy()
 
         y, scale_param = normalize(y)
         x, scale_param = normalize(x, scale_param)
@@ -185,7 +185,6 @@ def get_all_substrokes(stroke_dict, length=3):
         start_time = t[0]
         t -= start_time
         start_times -= start_time
-
         output = edict({"x": x,
                      "y": y,
                      "t": t,
@@ -193,6 +192,7 @@ def get_all_substrokes(stroke_dict, length=3):
                      "start_strokes": start_strokes,
                      "x_to_y":x_to_y,
                      "raw":raw})
+        assert start_times[0]==t[0]
         yield output
 
 def normalize(x_list, scale_param=None):
