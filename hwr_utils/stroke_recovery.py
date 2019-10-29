@@ -153,13 +153,14 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
         t_list = t_list * time_factor
         start_times = start_times * time_factor
 
+
     # Have interpolation not move after last point
     x_list = np.append(x_list, x_list[-1])
     y_list = np.append(y_list, y_list[-1])
     t_list = np.append(t_list, t_list[-1] + 20)
     x_to_y = np.max(x_list) / np.max(y_list)
 
-    output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes})
+    output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1], "trange":start_times[-1]-start_times[0]})
     return output
 
 def get_all_substrokes(stroke_dict, length=3):

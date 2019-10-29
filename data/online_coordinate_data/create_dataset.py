@@ -5,6 +5,7 @@ import cv2
 import matplotlib.pyplot as plt
 import sys
 import pickle
+from easydict import EasyDict as edict
 
 sys.path.insert(0, "../../")
 from hwr_utils.stroke_recovery import *
@@ -63,7 +64,19 @@ class CreateDataset:
         self.render_images=render_images
 
     #@error_handler
-    def process_one(self, item):
+    #@staticmethod
+
+    # def process_one(self, item):
+    #     #the_dict = edict(self.__dict__)
+    #     return self._process_one(self, item)
+
+    # def process_one(self, item):
+    #     return self.process_one(item)
+
+    @staticmethod
+    def process_one(item):
+        self = item
+
         file_name = Path(item["image_path"]).stem
         rel_path = Path(item["image_path"]).relative_to(self.original_img_folder).with_suffix(".xml")
         xml_path = self.xml_folder / rel_path
@@ -72,8 +85,8 @@ class CreateDataset:
         # window across the image.  Thus multiple json items will point to the same
         # image, but different strokes within that image.
         stroke_list, _ = read_stroke_xml(xml_path)
-        stroke_dict = prep_stroke_dict(stroke_list, time_interval=0, scale_time_distance=True)
-        all_substrokes = get_all_substrokes(stroke_dict, length=self.max_strokes)
+        stroke_dict = prep_stroke_dict(stroke_list, time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
+        all_substrokes = get_all_substrokes(stroke_dict, length=self.max_strokes) # subdivide file into smaller sets
 
         if item["dataset"] in ["test", "val1", "val2"]:
             dataset = "test"
@@ -84,6 +97,11 @@ class CreateDataset:
 
         for i, sub_stroke_dict in enumerate(all_substrokes):
             x_to_y = sub_stroke_dict.x_to_y
+
+            # Don't warp images too much
+            if self.square and x_to_y < .5 or x_to_y > 2:
+                continue
+
             img_path = (self.new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
 
             new_item = {
@@ -100,9 +118,6 @@ class CreateDataset:
             # Create images
             ratio = 1 if self.square else x_to_y
 
-            # Don't warp images too much
-            if self.square and x_to_y < .5 or x_to_y > 2:
-                continue
             if self.render_images:
                 draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=img_path, line_width=.8)
             new_items.append(new_item)
@@ -120,15 +135,9 @@ class CreateDataset:
                 no_errors = False
             else:
                 all_results.append(result)
-            if i > 10:
-                break
         return all_results
 
-    def not_parallel(self):
-        data_dict = self.data_dict
-
-        all_results = self.loop(tqdm(data_dict), func=self.process_one)
-
+    def final_process(self, all_results):
         for d in all_results:
             for item in d:
                 if item["dataset"]=="train":
@@ -145,41 +154,34 @@ class CreateDataset:
         self.prep_for_json(self.output_dict["test"])
 
         print("Creating train_online_coords.json and test_online_coords.json...")
-        json.dump(self.output_dict["train"], (self.output_folder / "train_online_coords.json").open("w"), indent=1)
-        json.dump(self.output_dict["test"], (self.output_folder / "test_online_coords.json").open("w"), indent=1)
+        json.dump(self.output_dict["train"], (self.output_folder / "train_online_coords.json").open("w"))
+        json.dump(self.output_dict["test"], (self.output_folder / "test_online_coords.json").open("w"))
 
         return self.output_dict
 
-
-    def parallel(self):
+    def parallel(self, max_iter=None, parallel=True):
         data_dict = self.data_dict
-        all_results = []
-        poolcount = multiprocessing.cpu_count()
-        pool = multiprocessing.Pool(processes=poolcount)
+        if max_iter:
+            data_dict = data_dict[:max_iter]
 
-        #data_dict = data_dict[:30]
-        temp_results = pool.imap_unordered(self.process_one, tqdm(data_dict))  # iterates through everything all at once
-        pool.close()
+        ### Add all the hyperparameters to the item instead of keeping them in a class, seems to be faster
+        hyper_param_dict = self.__dict__
+        del hyper_param_dict["data_dict"]
+        for i, item in enumerate(data_dict):
+            item.update(hyper_param_dict)
+            data_dict[i] = edict(item)
 
-        # Loop through results as they come in
-        no_errors = True
-        all_results = self.loop(temp_results)
+        if parallel:
+            poolcount = multiprocessing.cpu_count()-1
+            pool = multiprocessing.Pool(processes=poolcount)
+            all_results = pool.imap_unordered(self.process_one, tqdm(data_dict))  # iterates through everything all at once
+            #all_results = pool.starmap(self.process_one, zip(tqdm(data_dict), hyper_param_dict))  # iterates through everything all at once
 
-        for d in all_results:
-            for item in d:
-                if item["dataset"]=="train":
-                    self.output_dict["train"].append(item)
-                elif item["dataset"] == "test":
-                    self.output_dict["test"].append(item)
+            pool.close()
+        else:
+            all_results = self.loop(tqdm(data_dict), func=self.process_one)
 
-        self.prep_for_json(self.output_dict["train"])
-        self.prep_for_json(self.output_dict["test"])
-
-        print("Creating train_online_coords.json and test_online_coords.json...")
-        json.dump(self.output_dict["train"], (self.output_folder / "train_online_coords.json").open("w"), indent=2)
-        json.dump(self.output_dict["test"], (self.output_folder / "test_online_coords.json").open("w"), indent=2)
-
-        return self.output_dict
+        return self.final_process(all_results)
 
     def prep_for_json(self, iterable):
         if isinstance(iterable, list):
@@ -201,4 +203,4 @@ if __name__ == "__main__":
     instances = 64
     data_set = CreateDataset(max_strokes=stroke, square=True, instances=instances,
                                  output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=True)
-    data_set.not_parallel()
+    data_set.parallel(max_iter=None, parallel=True)

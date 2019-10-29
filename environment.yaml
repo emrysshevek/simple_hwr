@@ -1,4 +1,4 @@
-name: hwr
+#name: hwr
 channels:
   - pytorch
   - conda-forge
@@ -32,12 +32,11 @@ dependencies:
     - torchvision==0.2.2.post3
     - wget
     - git+https://github.com/Tahlor/robust_loss_pytorch
-    - git+https://github.com/mblondel/soft-dtw
 prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr
 
 
 #git clone https://github.com/mblondel/soft-dtw.git
-#
+#     - git+https://github.com/mblondel/soft-dtw
 #cd soft-dtw
 #make cython
 #python setup.py build

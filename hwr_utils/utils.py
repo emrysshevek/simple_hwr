@@ -575,7 +575,7 @@ def load_model(config):
             config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
         except:
             warnings.warn("Unable to load from visdom.json; does the file exist?")
-            ## RECREAT VISDOM FROM FILE IF VISDOM IS NOT FOUND
+            ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
 
     # Load Loss History
