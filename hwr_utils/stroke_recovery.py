@@ -86,7 +86,7 @@ def create_functions_from_strokes(stroke_dict):
     return x_func, y_func
 
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
-    """ Takes in a stroke dictionary for one image
+    """ Takes in a "raw" stroke dictionary for one image
 
         time_interval (float): duration of upstroke events; None=original duration
         Returns:
@@ -102,7 +102,7 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 
     # Epsilon is the amount of time before or after a stroke for the interpolation
     # Time between strokes must be greater than epsilon, or interpolated points between strokes will result
-    if time_interval < epsilon:
+    if time_interval is None or time_interval < epsilon:
         time_interval = epsilon * 3
 
     distance = 0
@@ -134,14 +134,16 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 
     # Add the last time to the start times
     start_times += [t_list_add[-1]]
-    start_strokes += [1]
+    start_strokes += [0]
 
     ## Normalize
     y_list = np.asarray(y_list)
     x_list = np.asarray(x_list)
-    t_list = np.asarray(t_list)
+
+    assert t_list[0] == start_times[0] # first time should be first start time
+    t_list = np.asarray(t_list) - t_list[0]
     start_strokes = np.asarray(start_strokes)
-    start_times = np.asarray(start_times)
+    start_times = np.asarray(start_times) - start_times[0] # zero start
 
     y_list, scale_param = normalize(y_list)
     x_list, scale_param = normalize(x_list, scale_param)
@@ -168,7 +170,7 @@ def get_all_substrokes(stroke_dict, length=3):
         return [stroke_dict]
     start_args = np.where(stroke_dict.start_strokes==1)[0]
 
-    for i in range(start_args.shape[0]-length): # remember, last start_stroke is really the end stroke
+    for i in range(start_args.shape[0]-length-1): # remember, last start_stroke is really the end stroke
         start_idx = start_args[i]
         end_idx = start_args[i+length]
 
@@ -246,9 +248,10 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
 
     # print(function_x, function_y, time, start_stroke_idx)
     # time[start_stroke_idx] - start times
-    is_start_time = np.zeros(time.shape)
-    is_start_time[start_stroke_idx] = 1
-    return function_x(time), function_y(time), is_start_time
+    is_start_stroke = np.zeros(time.shape)
+    is_start_stroke[start_stroke_idx] = 1
+    #print(time)
+    return function_x(time), function_y(time), is_start_stroke
 
 if __name__=="__main__":
     os.chdir("../data")

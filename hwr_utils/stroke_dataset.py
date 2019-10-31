@@ -22,21 +22,27 @@ class StrokeRecoveryDataset(Dataset):
                  max_images_to_load=None,
                  logger=None, **kwargs):
 
-        self.data = self.load_data(root, max_images_to_load, data_paths)
         self.collate = collate_stroke
         self.root = root
         self.num_of_channels = num_of_channels
         self.img_height = img_height
         self.interval = .05
         self.noise = None
+        self.data = self.load_data(root, max_images_to_load, data_paths)
+
 
     def resample_one(self, item):
-        output = stroke_recovery.prep_stroke_dict(item) # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
+        output = stroke_recovery.prep_stroke_dict(item["raw"]) # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output)
         #t = np.linspace(output.tmin, output.tmax, output.trange/output.interval)
         number_of_samples = int(output.trange/self.interval)
-        x, y, is_start_time = stroke_recovery.sample(x_func, y_func, number_of_samples, noise=self.noise)
-        item.gts = {"x":x, "y":y, "is_start_time":is_start_time}
+        x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, output.start_times, number_of_samples=number_of_samples, noise=self.noise)
+
+        # Create GT matrix
+        end_of_sequence_flag = np.zeros(x.shape[0])
+        end_of_sequence_flag[-1] = 1
+        gt = np.array([x, y, is_start_stroke, end_of_sequence_flag])
+        item["gt"] = gt # {"x":x, "y":y, "is_start_time":is_start_stroke, "full": gt}
         return item
 
     def resample_data(self, data_list, parallel=True):
@@ -44,7 +50,7 @@ class StrokeRecoveryDataset(Dataset):
         if parallel:
             poolcount = max(1, multiprocessing.cpu_count()-3)
             pool = multiprocessing.Pool(processes=poolcount)
-            all_results = pool.imap_unordered(self.resample_one, tqdm(data_list))  # iterates through everything all at once
+            all_results = list(pool.imap_unordered(self.resample_one, tqdm(data_list)))  # iterates through everything all at once
             pool.close()
         else:
             all_results = []
@@ -67,9 +73,8 @@ class StrokeRecoveryDataset(Dataset):
         if images_to_load:
             data = data[:images_to_load]
         print("Dataloader size", len(data))
-
-
-
+        data = self.resample_data(data, parallel=False)
+        print("Done resampling", len(data))
         return data
 
     def __len__(self):
@@ -97,12 +102,15 @@ class StrokeRecoveryDataset(Dataset):
         img = img.astype(np.float32)
         img = img / 128.0 - 1.0
 
-        gt = np.array(item['gt']).transpose([1,0])
-
+        ## DEFAULT GT ARRAY
+        # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
+        gt = np.asarray(item["gt"]).transpose([1,0]) # LENGTH, VOCAB
+        print(gt)
+        
         return {
             "line_img": img,
             "gt": gt,
-            "path": image_path,
+            "path": image_path
         }
 
 def collate_stroke(batch, device="cpu"):

@@ -28,6 +28,7 @@ data/prepare_IAM_Lines/xml*
 data/prepare_IAM_Lines/raw_gts*
 data/prepare_IAM_Lines/gts/
 data/online_coordinate_data/*/
+data/indian/
 data/prepare_online_data/lineImages*
 data/prepare_online_data/original-xml*
 data/prepare_online_data/writers.xml

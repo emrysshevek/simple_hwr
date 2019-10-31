@@ -7,12 +7,11 @@ from models.stroke_recovery_loss import StrokeLoss
 import torch
 from models.CoordConv import CoordConv
 from crnn import TrainerStrokeRecovery
-from hwr_utils.hw_dataset import StrokeRecoveryDataset
+from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 from robust_loss_pytorch import AdaptiveLossFunction
-
 
 # pip install git+https://github.com/jonbarron/robust_loss_pytorch
 
@@ -77,11 +76,11 @@ from robust_loss_pytorch import AdaptiveLossFunction
 torch.cuda.empty_cache()
 
 class StrokeRecoveryModel(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size=5):
         super().__init__()
 
         self.cnn = CNN(nc=1, first_conv_op=CoordConv, cnn_type="default64")
-        self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=5, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
+        self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid =torch.nn.Sigmoid().to(device)
 
     def forward(self, input):
@@ -145,20 +144,15 @@ device=torch.device("cuda")
 output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
 
 output.mkdir(parents=True, exist_ok=True)
-model = StrokeRecoveryModel().to(device)
-
 
 #loss_fnc = StrokeLoss(loss_type="robust").main_loss
 loss_fnc = StrokeLoss(loss_type="None").main_loss
 
-optimizer = torch.optim.Adam(model.parameters(), lr=.0005)
-scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_fnc)
+folder = Path("online_coordinate_data/3_stroke_64_v2")
+test_size = 50
+train_size = 50
 batch_size=32
 
-folder = Path("online_coordinate_data/3_stroke_64_v2")
-test_size = 2000
-train_size = None
 train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                         img_height = 60,
                         num_of_channels = 1,
@@ -184,6 +178,15 @@ test_dataloader = DataLoader(test_dataset,
                               num_workers=3,
                               collate_fn=train_dataset.collate,
                               pin_memory=False)
+
+example = next(iter(test_dataloader))
+vocab_size = example["gt"].shape[0]
+
+model = StrokeRecoveryModel(vocab_size=vocab_size).to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=.0005)
+scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
+trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_fnc)
+
 
 for i in range(0,80):
     epoch = i

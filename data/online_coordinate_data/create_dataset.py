@@ -41,6 +41,21 @@ def error_handler(func):
 
 
 class CreateDataset:
+    """ Create a list of dictionaries with the following keys:
+                "full_img_path": str of path to image,
+                "xml_path": str of path to XML,
+                "image_path": str of path to image relative to project,
+                "dataset": str training/test,
+                "x": list of x coordinates, rescaled to be square with Y
+                "y": list of y coordinates, normalized to 0-1
+                "t": list of t coordinates, normalized to stroke length
+                "start_times": start_times,
+                "start_strokes": start_strokes,
+                "x_to_y": ratio of x len to y len
+                "raw": original stroke data from XML
+
+        Export as JSON/Pickle
+    """
 
     def __init__(self, max_strokes=3, square=True, instances=50, output_folder='.',
                    xml_folder="../prepare_online_data/line-level-xml/lineStrokes",
@@ -108,12 +123,9 @@ class CreateDataset:
                 "full_img_path": item["image_path"],
                 "xml_path": xml_path.resolve().relative_to(self.data_folder).as_posix(),
                 "image_path": img_path.relative_to(self.data_folder).as_posix(),
-                "dataset": dataset,
-                "gt": sub_stroke_dict,
-                "stroke_list": sub_stroke_dict.raw,
-                "x_to_y": sub_stroke_dict.x_to_y,
-                "start_times": sub_stroke_dict.start_times.tolist()
+                "dataset": dataset
             }
+            new_item.update(sub_stroke_dict)
 
             # Create images
             ratio = 1 if self.square else x_to_y
@@ -125,6 +137,15 @@ class CreateDataset:
 
     @staticmethod
     def loop(temp_results, func=None):
+        """ The non parallel version, better for error tracking
+
+        Args:
+            temp_results:
+            func:
+
+        Returns:
+
+        """
         all_results = []
         no_errors = True
         for i, result in enumerate(temp_results):
@@ -202,5 +223,5 @@ if __name__ == "__main__":
     stroke = 3
     instances = 64
     data_set = CreateDataset(max_strokes=stroke, square=True, instances=instances,
-                                 output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=True)
+                                 output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=False)
     data_set.parallel(max_iter=None, parallel=True)
