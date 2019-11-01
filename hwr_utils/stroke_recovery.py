@@ -168,18 +168,19 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 def get_all_substrokes(stroke_dict, length=3):
     if length is None:
         return [stroke_dict]
-    start_args = np.where(stroke_dict.start_strokes==1)[0]
+    start_args = np.where(stroke_dict.start_strokes==1)[0] # returns an "array" of the list, just take first index
+    start_args = np.append(start_args, None) # last start arg should be the end of the sequence
 
-    for i in range(start_args.shape[0]-length-1): # remember, last start_stroke is really the end stroke
-        start_idx = start_args[i]
-        end_idx = start_args[i+length]
+    for stroke_number in range(start_args.shape[0]-length): # remember, last start_stroke is really the end stroke
+        start_idx = start_args[stroke_number]
+        end_idx = start_args[stroke_number+length]
 
         t = stroke_dict.t[start_idx:end_idx].copy()
         x = stroke_dict.x[start_idx:end_idx].copy()
         y = stroke_dict.y[start_idx:end_idx].copy()
-        raw = stroke_dict.raw[i:i+length]
+        raw = stroke_dict.raw[stroke_number:stroke_number+length]
         start_strokes = stroke_dict.start_strokes[start_idx:end_idx]
-        start_times =   stroke_dict.start_times[i:i+length+1].copy()
+        start_times =   stroke_dict.start_times[stroke_number:stroke_number+length+1].copy()
 
         y, scale_param = normalize(y)
         x, scale_param = normalize(x, scale_param)
@@ -249,7 +250,8 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     # print(function_x, function_y, time, start_stroke_idx)
     # time[start_stroke_idx] - start times
     is_start_stroke = np.zeros(time.shape)
-    is_start_stroke[start_stroke_idx] = 1
+    is_start_stroke[start_stroke_idx[:-1]] = 1 # the last "start stroke time" is not the last element, not a start stroke
+
     #print(time)
     return function_x(time), function_y(time), is_start_stroke
 

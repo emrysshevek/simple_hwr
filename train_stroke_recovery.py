@@ -114,7 +114,7 @@ def test(dataloader):
     loss_list = []
     for i, item in enumerate(dataloader):
         #print(item)
-        targs = item["gt"]
+        targs = item["gt_list"]
         line_imgs = item["line_imgs"].to(device)
         loss, preds = trainer.test(line_imgs, targs)
         loss_list += [loss]
@@ -148,7 +148,10 @@ output.mkdir(parents=True, exist_ok=True)
 #loss_fnc = StrokeLoss(loss_type="robust").main_loss
 loss_fnc = StrokeLoss(loss_type="None").main_loss
 
-folder = Path("online_coordinate_data/3_stroke_64_v2")
+folder = Path("online_coordinate_data/3_stroke_32_v2")
+folder = Path("online_coordinate_data/3_stroke_vSmall")
+#folder = Path("online_coordinate_data/3_stroke_vFull")
+
 test_size = 50
 train_size = 50
 batch_size=32
@@ -194,3 +197,8 @@ for i in range(0,80):
     print(f"Epoch: {i}, Training Loss: {loss}")
     test_loss = test(test_dataloader)
     print(f"Epoch: {i}, Test Loss: {test_loss}")
+
+
+## Bezier curve
+# Have network predict whether it has reached the end of a stroke or not
+# If it has not reached the end of a stroke, the starting point = previous end point

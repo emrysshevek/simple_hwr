@@ -32,8 +32,10 @@ dependencies:
     - torchvision==0.2.2.post3
     - wget
     - git+https://github.com/Tahlor/robust_loss_pytorch
-prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr
+#prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr
 
+# conda env create -f environment.yaml --name munit2
+# conda env create -f environment.yaml --prefix ../env/hwr5
 
 #git clone https://github.com/mblondel/soft-dtw.git
 #     - git+https://github.com/mblondel/soft-dtw

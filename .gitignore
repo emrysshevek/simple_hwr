@@ -13,28 +13,30 @@ results/
 # configs/
 
 # Data
-data/rerendered_online_data/
-data/prepare_IAM_Lines/offlineCropped/
-data/prepare_font_data/fonts/
-data/prepare_font_data/output/
-data/prepare_font_data/validation.*
-data/prepare_font_data/words.*
-data/prepare_font_data/training.*
-data/prepare_IAM_Lines/lines*
-data/prepare_IAM_Lines/words*
-data/prepare_IAM_Lines/task/
-data/prepare_IAM_Lines/processed/
-data/prepare_IAM_Lines/xml*
-data/prepare_IAM_Lines/raw_gts*
-data/prepare_IAM_Lines/gts/
-data/online_coordinate_data/*/
-data/indian/
-data/prepare_online_data/lineImages*
-data/prepare_online_data/original-xml*
-data/prepare_online_data/writers.xml
-data/prepare_online_data/line-level-xml*
-data/prepare_online_data/training_test_splits/
-data/prepare_online_data/online_augmentation.json
+#data/rerendered_online_data/
+#data/prepare_IAM_Lines/offlineCropped/
+#data/prepare_font_data/fonts/
+#data/prepare_font_data/output/
+#data/prepare_font_data/validation.*
+#data/prepare_font_data/words.*
+#data/prepare_font_data/training.*
+#data/prepare_IAM_Lines/lines*
+#data/prepare_IAM_Lines/words*
+#data/prepare_IAM_Lines/task/
+#data/prepare_IAM_Lines/processed/
+#data/prepare_IAM_Lines/xml*
+#data/prepare_IAM_Lines/raw_gts*
+#data/prepare_IAM_Lines/gts/
+#data/online_coordinate_data/*/
+#data/indian/
+#data/prepare_online_data/lineImages*
+#data/prepare_online_data/original-xml*
+#data/prepare_online_data/writers.xml
+#data/prepare_online_data/line-level-xml*
+#data/prepare_online_data/training_test_splits/
+#data/prepare_online_data/online_augmentation.json
+data/
+
 writer_IDs.pickle
 
 slurm_scripts/scripts

@@ -57,25 +57,37 @@ class CreateDataset:
         Export as JSON/Pickle
     """
 
-    def __init__(self, max_strokes=3, square=True, instances=50, output_folder='.',
-                   xml_folder="../prepare_online_data/line-level-xml/lineStrokes",
-                   json_path="../prepare_online_data/online_augmentation.json",
-                   img_folder="prepare_online_data/lineImages", render_images=True):
-        # Loop through files
-        # Find image paths
-        # create dicitonary
-        self.json_path = Path(json_path)
-        self.xml_folder = Path(xml_folder)
-        self.original_img_folder = Path(img_folder)
-        self.output_folder = Path(output_folder)
-        self.new_img_folder = (Path(output_folder) / "images").resolve()
-        self.data_folder = Path("..").resolve()
+    def __init__(self, max_strokes=3, square=True, output_folder_name='.',
+                 xml_folder="prepare_online_data/line-level-xml/lineStrokes",
+                 json_path="prepare_online_data/online_augmentation.json",
+                 img_folder="prepare_online_data/lineImages",
+                 data_folder="../../data",
+                 render_images=True):
+
+        # Specify data folder:
+            # xml, json, and default images relative to the data folder
+            # output folder is also relative to the data folder
+
+        self.project_root = Path("../..").resolve()
+        self.absolute_data_folder = Path(data_folder).resolve()
+
+        # Abbreviated data folder
+        self.relative_data_folder = self.absolute_data_folder.relative_to(self.project_root)
+
+        self.json_path = self.absolute_data_folder / json_path
+        self.xml_folder = self.absolute_data_folder / xml_folder
+        self.original_img_folder = img_folder # Needs to be relative path to data folder
+
+        #if self.absolute_data_folder not in Path(output_folder).parents:
+        current_folder = Path(".").resolve().name
+        self.output_folder = self.absolute_data_folder / current_folder / output_folder_name
+        print("Output:", self.output_folder.resolve())
+        self.new_img_folder = (self.output_folder / "images").resolve()
         self.new_img_folder.mkdir(exist_ok=True, parents=True)
         self.data_dict = json.load(self.json_path.open("r"))
         self.output_dict = {"train": [], "test": []}
         self.max_strokes=max_strokes
         self.square=square
-        self.instances=instances
         self.render_images=render_images
 
     #@error_handler
@@ -91,7 +103,6 @@ class CreateDataset:
     @staticmethod
     def process_one(item):
         self = item
-
         file_name = Path(item["image_path"]).stem
         rel_path = Path(item["image_path"]).relative_to(self.original_img_folder).with_suffix(".xml")
         xml_path = self.xml_folder / rel_path
@@ -121,8 +132,8 @@ class CreateDataset:
 
             new_item = {
                 "full_img_path": item["image_path"],
-                "xml_path": xml_path.resolve().relative_to(self.data_folder).as_posix(),
-                "image_path": img_path.relative_to(self.data_folder).as_posix(),
+                "xml_path": xml_path.resolve().relative_to(self.absolute_data_folder).as_posix(),
+                "image_path": img_path.relative_to(self.absolute_data_folder).as_posix(),
                 "dataset": dataset
             }
             new_item.update(sub_stroke_dict)
@@ -220,8 +231,8 @@ class CreateDataset:
 #def out_pickle(f)
 
 if __name__ == "__main__":
-    stroke = 3
-    instances = 64
-    data_set = CreateDataset(max_strokes=stroke, square=True, instances=instances,
-                                 output_folder=f"./{stroke}_stroke_{instances}_v2", render_images=False)
-    data_set.parallel(max_iter=None, parallel=True)
+    strokes = 3
+    variant = "Full"
+    instances = None
+    data_set = CreateDataset(max_strokes=strokes, square=True, output_folder_name=f"./{strokes}_stroke_v{variant}", render_images=True)
+    data_set.parallel(max_iter=instances, parallel=True)

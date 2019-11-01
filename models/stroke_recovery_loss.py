@@ -46,8 +46,8 @@ class StrokeLoss:
             #return logp_loss * 0.6 + angle_loss * 0.4 + abs(preds[:, :, 2:] - targs[:, :, 2:]).sum()
 
             loss = 0
-            for i in range(len(preds)):
-                x1 = np.ascontiguousarray(preds[i, :, :2].detach().numpy()).astype("float64")
+            for i in range(len(preds)): # loop through timesteps
+                x1 = np.ascontiguousarray(preds[i, :, :2].detach().numpy()).astype("float64") # time step, batch, (x,y)
                 x2 = np.ascontiguousarray(targs[i, :, :2].detach().numpy()).astype("float64")
                 dist, cost, a, b = dtw.dtw2d(x1, x2)
                 loss += abs(preds[i, a, :] - targs[i, b, :]).sum()

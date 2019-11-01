@@ -71,9 +71,11 @@ class StrokeRecoveryDataset(Dataset):
                 data.extend(new_data)
 
         if images_to_load:
+            print("Original dataloader size", len(data))
             data = data[:images_to_load]
         print("Dataloader size", len(data))
-        data = self.resample_data(data, parallel=False)
+        if "gt" not in data[0].keys():
+            data = self.resample_data(data, parallel=False)
         print("Done resampling", len(data))
         return data
 
@@ -105,15 +107,18 @@ class StrokeRecoveryDataset(Dataset):
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
         gt = np.asarray(item["gt"]).transpose([1,0]) # LENGTH, VOCAB
+        #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke
+        print(gt.shape)
         print(gt)
-        
+        # (32, 5)
+
         return {
             "line_img": img,
             "gt": gt,
             "path": image_path
         }
 
-def collate_stroke(batch, device="cpu"):
+def collate_stroke_old(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -147,12 +152,64 @@ def collate_stroke(batch, device="cpu"):
 
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
+
+    print(all_labels) # ]])]
     labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
     return {
         "line_imgs": line_imgs,
         "gt": labels,
+        "label_lengths": label_lengths,
+        "paths": [b["path"] for b in batch],
+    }
+
+
+def collate_stroke(batch, device="cpu"):
+    batch = [b for b in batch if b is not None]
+    #These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+        print("Problem with collating!!! See hw_dataset.py")
+        print(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    dim0 = batch[0]['line_img'].shape[0] # height
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # width
+    dim2 = batch[0]['line_img'].shape[2] # channel
+
+    all_labels = []
+    label_lengths = []
+
+    # Make input square (variable vidwth
+    input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        input_batch[i,:,:b_img.shape[1],:] = b_img
+
+        l = batch[i]['gt']
+        all_labels.append(l)
+        label_lengths.append(len(l))
+
+    list_all_labels = all_labels
+    all_labels = np.concatenate(all_labels) # flatten
+    all_labels = np.array(all_labels) # make into an array
+
+    #print("ALL", all_labels.shape)
+    label_lengths = np.array(label_lengths)
+
+    line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+
+    print(all_labels) # ]])]
+    labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
+    label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "gt": labels,
+        "gt_list": list_all_labels,
         "label_lengths": label_lengths,
         "paths": [b["path"] for b in batch],
     }
