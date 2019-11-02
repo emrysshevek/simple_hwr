@@ -164,8 +164,20 @@ def collate_stroke_old(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
     }
 
-
 def collate_stroke(batch, device="cpu"):
+    """ Pad ground truths with 0's
+        Report lengths to get accurate average loss
+
+    Args:
+        batch:
+        device:
+
+    Returns:
+
+    """
+
+
+
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -189,27 +201,98 @@ def collate_stroke(batch, device="cpu"):
         input_batch[i,:,:b_img.shape[1],:] = b_img
 
         l = batch[i]['gt']
+        print("Shape:", l.shape)
         all_labels.append(l)
         label_lengths.append(len(l))
 
-    list_all_labels = all_labels
-    all_labels = np.concatenate(all_labels) # flatten
-    all_labels = np.array(all_labels) # make into an array
+    ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
+    # list_all_labels = all_labels
+    # all_labels = np.concatenate(all_labels) # flatten
+    # all_labels = np.array(all_labels) # make into an array
+
+    all_labels = pad(all_labels, lengths=label_lengths, variable_length_axis=0)
 
     #print("ALL", all_labels.shape)
-    label_lengths = np.array(label_lengths)
+    label_lengths = np.asarray(label_lengths)
 
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
 
-    print(all_labels) # ]])]
     labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
     return {
         "line_imgs": line_imgs,
         "gt": labels,
-        "gt_list": list_all_labels,
+        "gt_list": all_labels,
         "label_lengths": label_lengths,
         "paths": [b["path"] for b in batch],
     }
+
+def pad(list_of_numpy_arrays, lengths=None, variable_length_axis=1):
+    # Get original dimensions
+    batch_size = len(list_of_numpy_arrays)
+    dims = list(list_of_numpy_arrays[0].shape)
+
+    # Get the variable lengths
+    if lengths is None:
+        lengths = [l.shape[variable_length_axis] for l in list_of_numpy_arrays]  # only iteration
+    maxlen = max(lengths)
+    dims[variable_length_axis] = maxlen
+
+    # Reshape
+    list_of_numpy_arrays = [np.asarray(l).reshape(-1) for l in list_of_numpy_arrays]
+
+    # Create output array and mask
+    output_dims = batch_size, np.product(dims)
+    other_dims = int(np.product(dims)/maxlen)
+    arr = np.zeros(output_dims) # BATCH, VOCAB, LENGTH
+    mask = np.arange(maxlen) < np.array(lengths)[:, None]  # BATCH, MAX LENGTH
+    mask = np.tile(mask, other_dims).reshape(output_dims)
+    arr[mask] = np.concatenate(list_of_numpy_arrays)  # fast 1d assignment
+
+    return arr.reshape(batch_size, *dims)
+
+def pad2(batch, variable_width_dim=1):
+    dims = list(batch[0].shape)
+    max_length = max([b.shape[variable_width_dim] for b in batch])
+    dims[variable_width_dim] = max_length
+
+    input_batch = np.full((len(batch), *dims), PADDING_CONSTANT).astype(np.float32)
+
+    for i in range(len(batch)):
+        b_img = batch[i]
+        input_batch[i,:,:b_img.shape[variable_width_dim]] = b_img
+    return input_batch
+
+def test_padding(pad_list, func):
+    start = timer()
+    for m in pad_list:
+        x = func(m)
+    # print(x.shape)
+    # print(x[-1,-1])
+    end = timer()
+    print(end - start)  # Time in seconds, e.g. 5.38091952400282
+
+if __name__=="__main__":
+    # x = [np.array([[1,2,3,4],[4,5,3,5]]),np.array([[1,2,3],[4,5,3]]),np.array([[1,2],[4,5]])]
+    # print(pad(x))
+    from timeit import default_timer as timer
+
+    vocab = 4
+    iterations = 10000
+    batch = 32
+    min_length = 32
+    max_length = 64
+
+    the_list = []
+
+    for i in range(0,iterations): # iterations
+        sub_list = []
+        for m in range(0,batch): # batch size
+            length = np.random.randint(min_length, max_length)
+            sub_list.append(np.random.rand(vocab, length))
+        the_list.append(sub_list)
+
+    test_padding(the_list, pad)
+    test_padding(the_list, pad2)
