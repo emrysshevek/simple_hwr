@@ -108,8 +108,8 @@ class StrokeRecoveryDataset(Dataset):
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
         gt = np.asarray(item["gt"]).transpose([1,0]) # LENGTH, VOCAB
         #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke
-        print(gt.shape)
-        print(gt)
+        # print(gt.shape)
+        # print(gt)
         # (32, 5)
 
         return {
@@ -176,8 +176,6 @@ def collate_stroke(batch, device="cpu"):
 
     """
 
-
-
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
@@ -186,6 +184,7 @@ def collate_stroke(batch, device="cpu"):
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
+    batch_size = len(batch)
     dim0 = batch[0]['line_img'].shape[0] # height
     dim1 = max([b['line_img'].shape[1] for b in batch]) # width
     dim2 = batch[0]['line_img'].shape[2] # channel
@@ -194,23 +193,21 @@ def collate_stroke(batch, device="cpu"):
     label_lengths = []
 
     # Make input square (variable vidwth
-    input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+
+    input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+    max_label = max([b['gt'].shape[0] for b in batch]) # width
+    labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(np.float32)
 
     for i in range(len(batch)):
         b_img = batch[i]['line_img']
-        input_batch[i,:,:b_img.shape[1],:] = b_img
+        input_batch[i,:,: b_img.shape[1],:] = b_img
 
         l = batch[i]['gt']
         print("Shape:", l.shape)
-        all_labels.append(l)
-        label_lengths.append(len(l))
-
-    ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
-    # list_all_labels = all_labels
-    # all_labels = np.concatenate(all_labels) # flatten
-    # all_labels = np.array(all_labels) # make into an array
-
-    all_labels = pad(all_labels, lengths=label_lengths, variable_length_axis=0)
+        #all_labels.append(l)
+        #label_lengths.append(len(l))
+        ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
+        labels[i,:len(l), :] = l
 
     #print("ALL", all_labels.shape)
     label_lengths = np.asarray(label_lengths)
@@ -218,7 +215,7 @@ def collate_stroke(batch, device="cpu"):
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
 
-    labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
+    labels = torch.from_numpy(labels.astype(np.float32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
     return {
@@ -229,40 +226,69 @@ def collate_stroke(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
     }
 
-def pad(list_of_numpy_arrays, lengths=None, variable_length_axis=1):
-    # Get original dimensions
-    batch_size = len(list_of_numpy_arrays)
-    dims = list(list_of_numpy_arrays[0].shape)
+# def pad(list_of_numpy_arrays, lengths=None, variable_length_axis=1):
+#     # Get original dimensions
+#     batch_size = len(list_of_numpy_arrays)
+#     dims = list(list_of_numpy_arrays[0].shape)
+#
+#     # Get the variable lengths
+#     if lengths is None:
+#         lengths = [l.shape[variable_length_axis] for l in list_of_numpy_arrays]  # only iteration
+#     maxlen = max(lengths)
+#     dims[variable_length_axis] = maxlen
+#
+#     # Reshape
+#     list_of_numpy_arrays = [np.asarray(l).reshape(-1) for l in list_of_numpy_arrays]
+#
+#     # Create output array and mask
+#     output_dims = batch_size, np.product(dims)
+#     other_dims = int(np.product(dims)/maxlen)
+#     arr = np.zeros(output_dims) # BATCH, VOCAB, LENGTH
+#     mask = np.arange(maxlen) < np.array(lengths)[:, None]  # BATCH, MAX LENGTH
+#     mask = np.tile(mask, other_dims).reshape(output_dims)
+#     arr[mask] = np.concatenate(list_of_numpy_arrays)  # fast 1d assignment
+#     return arr.reshape(batch_size, *dims)
 
-    # Get the variable lengths
-    if lengths is None:
-        lengths = [l.shape[variable_length_axis] for l in list_of_numpy_arrays]  # only iteration
-    maxlen = max(lengths)
-    dims[variable_length_axis] = maxlen
+def put_at(start, stop, axis=1):
+    if axis < 0:
+        return (Ellipsis, ) + (slice(start, stop),) + (slice(None),) * abs(-1-axis)
+    else:
+        return (slice(None),) * (axis) + (slice(start,stop),)
 
-    # Reshape
-    list_of_numpy_arrays = [np.asarray(l).reshape(-1) for l in list_of_numpy_arrays]
+## Hard coded -- ~20% faster
+# def pad3(batch, variable_width_dim=1):
+#     dims = list(batch[0].shape)
+#     max_length = max([b.shape[variable_width_dim] for b in batch])
+#     dims[variable_width_dim] = max_length
+#
+#     input_batch = np.full((len(batch), *dims), PADDING_CONSTANT).astype(np.float32)
+#
+#     for i in range(len(batch)):
+#         b_img = batch[i]
+#         img_length = b_img.shape[variable_width_dim]
+#         input_batch[i][ :, :img_length] = b_img
+#     return input_batch
 
-    # Create output array and mask
-    output_dims = batch_size, np.product(dims)
-    other_dims = int(np.product(dims)/maxlen)
-    arr = np.zeros(output_dims) # BATCH, VOCAB, LENGTH
-    mask = np.arange(maxlen) < np.array(lengths)[:, None]  # BATCH, MAX LENGTH
-    mask = np.tile(mask, other_dims).reshape(output_dims)
-    arr[mask] = np.concatenate(list_of_numpy_arrays)  # fast 1d assignment
+## Variable, foot loop based
+def pad(batch, variable_width_dim=1):
+    """ Outer dimension asumed to be batch, variable width dimension excluding batch
 
-    return arr.reshape(batch_size, *dims)
+    Args:
+        batch:
+        variable_width_dim:
 
-def pad2(batch, variable_width_dim=1):
+    Returns:
+
+    """
     dims = list(batch[0].shape)
     max_length = max([b.shape[variable_width_dim] for b in batch])
     dims[variable_width_dim] = max_length
-
     input_batch = np.full((len(batch), *dims), PADDING_CONSTANT).astype(np.float32)
 
     for i in range(len(batch)):
         b_img = batch[i]
-        input_batch[i,:,:b_img.shape[variable_width_dim]] = b_img
+        img_length = b_img.shape[variable_width_dim]
+        input_batch[i][put_at(0, img_length, axis=variable_width_dim)] = b_img
     return input_batch
 
 def test_padding(pad_list, func):
@@ -273,6 +299,7 @@ def test_padding(pad_list, func):
     # print(x[-1,-1])
     end = timer()
     print(end - start)  # Time in seconds, e.g. 5.38091952400282
+    return x #[0,0]
 
 if __name__=="__main__":
     # x = [np.array([[1,2,3,4],[4,5,3,5]]),np.array([[1,2,3],[4,5,3]]),np.array([[1,2],[4,5]])]
@@ -280,7 +307,7 @@ if __name__=="__main__":
     from timeit import default_timer as timer
 
     vocab = 4
-    iterations = 10000
+    iterations = 100
     batch = 32
     min_length = 32
     max_length = 64
@@ -294,5 +321,7 @@ if __name__=="__main__":
             sub_list.append(np.random.rand(vocab, length))
         the_list.append(sub_list)
 
-    test_padding(the_list, pad)
-    test_padding(the_list, pad2)
+    #test_padding(the_list, pad)
+    x = test_padding(the_list, pad)
+    y = test_padding(the_list, pad2)
+    assert np.allclose(x,y)
