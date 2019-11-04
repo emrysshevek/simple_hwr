@@ -75,7 +75,7 @@ class StrokeRecoveryDataset(Dataset):
             data = data[:images_to_load]
         print("Dataloader size", len(data))
         if "gt" not in data[0].keys():
-            data = self.resample_data(data, parallel=False)
+            data = self.resample_data(data, parallel=True)
         print("Done resampling", len(data))
         return data
 
@@ -153,7 +153,6 @@ def collate_stroke_old(batch, device="cpu"):
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
 
-    print(all_labels) # ]])]
     labels = torch.from_numpy(all_labels.astype(np.float32)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
@@ -203,11 +202,11 @@ def collate_stroke(batch, device="cpu"):
         input_batch[i,:,: b_img.shape[1],:] = b_img
 
         l = batch[i]['gt']
-        print("Shape:", l.shape)
         #all_labels.append(l)
         #label_lengths.append(len(l))
         ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
+        all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
 
     #print("ALL", all_labels.shape)
     label_lengths = np.asarray(label_lengths)
@@ -220,8 +219,8 @@ def collate_stroke(batch, device="cpu"):
 
     return {
         "line_imgs": line_imgs,
-        "gt": labels,
-        "gt_list": all_labels,
+        "gt": labels, # Numpy Array, with padding
+        "gt_list": all_labels, # List of numpy arrays
         "label_lengths": label_lengths,
         "paths": [b["path"] for b in batch],
     }

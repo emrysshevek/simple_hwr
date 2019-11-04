@@ -6,9 +6,11 @@ from pydtw import dtw
 from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
 from sdtw import SoftDTW
+import multiprocessing
+from hwr_utils.stroke_dataset import pad
 
 class StrokeLoss:
-    def __init__(self, loss_type="robust"):
+    def __init__(self, loss_type="robust", parallel=True):
         super(StrokeLoss, self).__init__()
         #device = torch.device("cuda")
         if loss_type == "robust":
@@ -19,23 +21,30 @@ class StrokeLoss:
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
+        self.parallel = parallel
+        self.poolcount = max(1, multiprocessing.cpu_count()-3)
 
-    def main_loss(self, preds, targs, label_lengths=16):
+    def main_loss(self, preds, targs, label_lengths=None, vocab_size=4):
         """ Preds: [x], [y], [start stroke], [end stroke], [end of sequence]
 
         Args:
             preds: Will be in the form [batch, width, alphabet]
-            targs:
+            targs: Pass in the whole dictionary, so we can get lengths, etc., whatever we need
 
         Returns:
 
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
+        if isinstance(targs, dict):
+            label_lengths = targs["label_lengths"]
+            targs = targs["gt_list"]
+        else:
+            label_lengths = [1] * len(targs)
 
         if self.bonus_loss:
-            _preds = preds.reshape(-1,5)
-            _targs = targs.reshape(-1,5)
+            _preds = preds.reshape(-1,vocab_size)
+            _targs = targs.reshape(-1,vocab_size)
             return torch.sum(self.bonus_loss((_preds-_targs)))
         else:
             #location_loss = abs(preds - targs).sum()
@@ -44,17 +53,29 @@ class StrokeLoss:
             #print(f"{location_loss:.1f} {angle_loss:.1f} {logp_loss:.1f}")
             #return logp_loss * 0.8 + angle_loss * 0.2
             #return logp_loss * 0.6 + angle_loss * 0.4 + abs(preds[:, :, 2:] - targs[:, :, 2:]).sum()
-
-            loss = 0
-            for i in range(len(preds)): # loop through timesteps
-                x1 = np.ascontiguousarray(preds[i, :, :2].detach().numpy()).astype("float64") # time step, batch, (x,y)
-                x2 = np.ascontiguousarray(targs[i, :, :2].detach().numpy()).astype("float64")
-                dist, cost, a, b = dtw.dtw2d(x1, x2)
-                loss += abs(preds[i, a, :] - targs[i, b, :]).sum()
-            print(loss)
+            loss = self.loop(preds, targs)
             return loss
 
-    '''
+    def loop(self, preds, targs):
+        if self.parallel:
+            pool = multiprocessing.Pool(processes=self.poolcount)
+            all_results = list(pool.imap_unordered(self.resample_one, data_list))  # iterates through everything all at once
+            pool.close()
+        else:
+            loss = 0
+            #preds = pad(preds, )
+
+            for i in range(len(preds)): # loop through BATCH
+                a, b = self.dtw(preds[i], targs[i])
+                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i] # Cost is weighted by how many GT stroke points, i.e. how long it is
+        return loss
+
+    def dtw(self, pred, targ):
+        x1 = np.ascontiguousarray(pred[:, :2].detach().numpy()).astype("float64")  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ[:, :2].detach().numpy()).astype("float64")
+        dist, cost, a, b = dtw.dtw2d(x1, x2)
+        return a,b
+'''
     OLD attempts at loss
     def angle_loss(self, preds, targs):
         #end_strokes = (targs[:, :, 3] != 1)[:, :-1]
@@ -111,11 +132,13 @@ class StrokeLoss:
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN
     from torch import nn
+    vocab_size = 4
     batch = 3
+    time = 16
     y = torch.rand(batch, 1, 60, 60)
-    targs = torch.rand(batch, 16, 5)
+    targs = torch.rand(batch, time, vocab_size)
     cnn = CNN(nc=1)
-    rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=5, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
+    rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
     cnn_output = cnn(y)
     rnn_output = rnn(cnn_output).permute(1, 0, 2)
     print(rnn_output.shape) # BATCH, TIME, VOCAB

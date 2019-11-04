@@ -98,11 +98,10 @@ def run_epoch(dataloader, report_freq=500):
     #     targs = torch.rand(batch, 16, 5)
     instances = 0
     for i, item in enumerate(dataloader):
-        targs = item["gt"] #.to(device)
         line_imgs = item["line_imgs"].to(device)
         current_batch_size = line_imgs.shape[0]
         instances += current_batch_size
-        loss, preds, *_ = trainer.train(line_imgs, targs)
+        loss, preds, *_ = trainer.train(line_imgs, item["gt_list"])
         loss_list += [loss]
         if i % report_freq == 0 and i > 0:
             print(i, np.mean(loss_list[-report_freq:])/batch_size)
@@ -119,7 +118,7 @@ def test(dataloader):
         loss, preds = trainer.test(line_imgs, targs)
         loss_list += [loss]
     preds_to_graph = preds.permute([0, 2, 1])
-    graph(preds_to_graph, item, type="test")
+    graph(preds_to_graph, item, _type="test")
 
     return np.mean(loss_list)/batch_size
 
@@ -149,12 +148,12 @@ output.mkdir(parents=True, exist_ok=True)
 loss_fnc = StrokeLoss(loss_type="None").main_loss
 
 folder = Path("online_coordinate_data/3_stroke_32_v2")
-folder = Path("online_coordinate_data/3_stroke_vSmall")
-#folder = Path("online_coordinate_data/3_stroke_vFull")
+#folder = Path("online_coordinate_data/3_stroke_vSmall")
+folder = Path("online_coordinate_data/3_stroke_vFull")
 
-test_size = 50
-train_size = 50
-batch_size=32
+test_size = 2000
+train_size = None
+batch_size=64
 
 train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                         img_height = 60,
@@ -182,11 +181,10 @@ test_dataloader = DataLoader(test_dataset,
                               collate_fn=train_dataset.collate,
                               pin_memory=False)
 
-example = next(iter(test_dataloader))
-vocab_size = example["gt"].shape[0]
-
+example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
+vocab_size = example["gt"].shape[-1]
 model = StrokeRecoveryModel(vocab_size=vocab_size).to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=.0005)
+optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
 trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_fnc)
 
