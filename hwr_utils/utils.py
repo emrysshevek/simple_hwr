@@ -19,9 +19,9 @@ from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
 from hwr_utils.stat import Stat
 
-def to_numpy(tensor):
+def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
-        return tensor.detach().cpu().numpy()
+        return tensor.detach().cpu().numpy().astype(astype)
     else:
         return tensor
 

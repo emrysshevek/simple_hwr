@@ -7,6 +7,7 @@ from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
 from sdtw import SoftDTW
 import multiprocessing
+from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_dataset import pad
 
 class StrokeLoss:
@@ -53,28 +54,62 @@ class StrokeLoss:
             #print(f"{location_loss:.1f} {angle_loss:.1f} {logp_loss:.1f}")
             #return logp_loss * 0.8 + angle_loss * 0.2
             #return logp_loss * 0.6 + angle_loss * 0.4 + abs(preds[:, :, 2:] - targs[:, :, 2:]).sum()
-            loss = self.loop(preds, targs)
+            loss = self.loop(preds, targs, label_lengths)
             return loss
 
-    def loop(self, preds, targs):
+    def loop(self, preds, targs, label_lengths):
+        loss = 0
         if self.parallel:
             pool = multiprocessing.Pool(processes=self.poolcount)
-            all_results = list(pool.imap_unordered(self.resample_one, data_list))  # iterates through everything all at once
+            as_and_bs = pool.imap(self.dtw, iter(zip(
+                preds.detach(),
+                targs, label_lengths)))  # iterates through everything all at once
             pool.close()
-        else:
-            loss = 0
-            #preds = pad(preds, )
+            #print(as_and_bs[0])
+            for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
+                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
 
+        else:
             for i in range(len(preds)): # loop through BATCH
-                a, b = self.dtw(preds[i], targs[i])
-                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i] # Cost is weighted by how many GT stroke points, i.e. how long it is
+                a,b = self.dtw((preds[i], targs[i], label_lengths[i]))
+                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
-    def dtw(self, pred, targ):
-        x1 = np.ascontiguousarray(pred[:, :2].detach().numpy()).astype("float64")  # time step, batch, (x,y)
-        x2 = np.ascontiguousarray(targ[:, :2].detach().numpy()).astype("float64")
+    @staticmethod
+    def dtw(input):
+        """
+        Args:
+            input (tuple): targ, pred, label_length
+
+        Returns:
+
+        """
+        pred, targ, label_length = input
+        pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64")
+        x1 = np.ascontiguousarray(pred[:, :2])  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ[:, :2])
         dist, cost, a, b = dtw.dtw2d(x1, x2)
+
+        # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a,b
+
+    def soft_dtw(self):
+
+        pass
+
+        # Time series 1: numpy array, shape = [m, d] where m = length and d = dim
+        # Time series 2: numpy array, shape = [n, d] where n = length and d = dim
+
+        # D can also be an arbitrary distance matrix: numpy array, shape [m, n]
+        D = SquaredEuclidean(X, Y)
+        sdtw = SoftDTW(D, gamma=1.0)
+        # soft-DTW discrepancy, approaches DTW as gamma -> 0
+        value = sdtw.compute()
+        # gradient w.r.t. D, shape = [m, n], which is also the expected alignment matrix
+        E = sdtw.grad()
+        # gradient w.r.t. X, shape = [m, d]
+        G = D.jacobian_product(E)
+
 '''
     OLD attempts at loss
     def angle_loss(self, preds, targs):
@@ -109,25 +144,6 @@ class StrokeLoss:
                 loss += loss_part
         return -loss
     '''
-
-
-
-    def soft_dtw(self):
-        pass
-
-        # Time series 1: numpy array, shape = [m, d] where m = length and d = dim
-        # Time series 2: numpy array, shape = [n, d] where n = length and d = dim
-
-        # D can also be an arbitrary distance matrix: numpy array, shape [m, n]
-        D = SquaredEuclidean(X, Y)
-        sdtw = SoftDTW(D, gamma=1.0)
-        # soft-DTW discrepancy, approaches DTW as gamma -> 0
-        value = sdtw.compute()
-        # gradient w.r.t. D, shape = [m, n], which is also the expected alignment matrix
-        E = sdtw.grad()
-        # gradient w.r.t. X, shape = [m, d]
-        G = D.jacobian_product(E)
-
 
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN

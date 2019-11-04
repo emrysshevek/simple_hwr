@@ -30,7 +30,6 @@ class StrokeRecoveryDataset(Dataset):
         self.noise = None
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-
     def resample_one(self, item):
         output = stroke_recovery.prep_stroke_dict(item["raw"]) # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output)

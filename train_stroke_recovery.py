@@ -11,6 +11,8 @@ from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
+from timeit import default_timer as timer
+
 from robust_loss_pytorch import AdaptiveLossFunction
 
 # pip install git+https://github.com/jonbarron/robust_loss_pytorch
@@ -97,6 +99,7 @@ def run_epoch(dataloader, report_freq=500):
     #     line_imgs = torch.rand(batch, 1, 60, 60)
     #     targs = torch.rand(batch, 16, 5)
     instances = 0
+    start_time = timer()
     for i, item in enumerate(dataloader):
         line_imgs = item["line_imgs"].to(device)
         current_batch_size = line_imgs.shape[0]
@@ -105,6 +108,10 @@ def run_epoch(dataloader, report_freq=500):
         loss_list += [loss]
         if i % report_freq == 0 and i > 0:
             print(i, np.mean(loss_list[-report_freq:])/batch_size)
+
+    end_time = timer()
+    print("Epoch duration:", end_time-start_time)
+
     preds_to_graph = preds.permute([0, 2, 1])
     graph(preds_to_graph, item, _type="train")
     return np.mean(loss_list)/batch_size
@@ -148,8 +155,8 @@ output.mkdir(parents=True, exist_ok=True)
 loss_fnc = StrokeLoss(loss_type="None").main_loss
 
 folder = Path("online_coordinate_data/3_stroke_32_v2")
-#folder = Path("online_coordinate_data/3_stroke_vSmall")
-folder = Path("online_coordinate_data/3_stroke_vFull")
+folder = Path("online_coordinate_data/3_stroke_vSmall")
+#folder = Path("online_coordinate_data/3_stroke_vFull")
 
 test_size = 2000
 train_size = None
