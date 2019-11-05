@@ -6,12 +6,12 @@ from pydtw import dtw
 from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
 from sdtw import SoftDTW
-import multiprocessing
+import torch.multiprocessing as multiprocessing
 from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_dataset import pad
 
 class StrokeLoss:
-    def __init__(self, loss_type="robust", parallel=True):
+    def __init__(self, loss_type="robust", parallel=False):
         super(StrokeLoss, self).__init__()
         #device = torch.device("cuda")
         if loss_type == "robust":
@@ -23,7 +23,8 @@ class StrokeLoss:
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
         self.parallel = parallel
-        self.poolcount = max(1, multiprocessing.cpu_count()-3)
+        self.poolcount = max(1, multiprocessing.cpu_count()-8)
+        self.poolcount = 2
 
     def main_loss(self, preds, targs, label_lengths=None, vocab_size=4):
         """ Preds: [x], [y], [start stroke], [end stroke], [end of sequence]
@@ -59,19 +60,23 @@ class StrokeLoss:
 
     def loop(self, preds, targs, label_lengths):
         loss = 0
+        #preds2 = [to_numpy(x) for x in preds.detach()]
+        #pool = self.pool
         if self.parallel:
             pool = multiprocessing.Pool(processes=self.poolcount)
-            as_and_bs = pool.imap(self.dtw, iter(zip(
-                preds.detach(),
-                targs, label_lengths)))  # iterates through everything all at once
+            as_and_bs = pool.imap(StrokeLoss.dtw, iter(zip(
+                to_numpy(preds),
+                targs)), chunksize=32)  # iterates through everything all at once
             pool.close()
             #print(as_and_bs[0])
             for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
 
         else:
+            # pool = multiprocessing.Pool(processes=self.poolcount)
+            # pool.close()
             for i in range(len(preds)): # loop through BATCH
-                a,b = self.dtw((preds[i], targs[i], label_lengths[i]))
+                a,b = self.dtw((preds[i], targs[i]))
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
@@ -84,10 +89,10 @@ class StrokeLoss:
         Returns:
 
         """
-        pred, targ, label_length = input
+        pred, targ = input
         pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64")
-        x1 = np.ascontiguousarray(pred[:, :2])  # time step, batch, (x,y)
-        x2 = np.ascontiguousarray(targ[:, :2])
+        x1 = np.ascontiguousarray(pred[:, :])  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ[:, :])
         dist, cost, a, b = dtw.dtw2d(x1, x2)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is

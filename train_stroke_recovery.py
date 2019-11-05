@@ -156,7 +156,7 @@ loss_fnc = StrokeLoss(loss_type="None").main_loss
 
 folder = Path("online_coordinate_data/3_stroke_32_v2")
 folder = Path("online_coordinate_data/3_stroke_vSmall")
-#folder = Path("online_coordinate_data/3_stroke_vFull")
+folder = Path("online_coordinate_data/3_stroke_vFull")
 
 test_size = 2000
 train_size = None

@@ -125,7 +125,7 @@ class CreateDataset:
             x_to_y = sub_stroke_dict.x_to_y
 
             # Don't warp images too much
-            if self.square and x_to_y < .5 or x_to_y > 2:
+            if self.square and (x_to_y < .5 or x_to_y > 2):
                 continue
 
             img_path = (self.new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
@@ -231,8 +231,16 @@ class CreateDataset:
 #def out_pickle(f)
 
 if __name__ == "__main__":
-    strokes = 3
-    variant = "Full"
+    strokes = 8
+    square = False
     instances = None
-    data_set = CreateDataset(max_strokes=strokes, square=True, output_folder_name=f"./{strokes}_stroke_v{variant}", render_images=True)
+
+    variant=""
+    if square:
+        variant = "Square"
+    if instances is None:
+        variant += "Full"
+    else:
+        variant += f"Small_{instance}"
+    data_set = CreateDataset(max_strokes=strokes, square=square, output_folder_name=f"./{strokes}_stroke_v{variant}", render_images=True)
     data_set.parallel(max_iter=instances, parallel=True)

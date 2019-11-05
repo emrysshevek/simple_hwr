@@ -171,6 +171,10 @@ def get_all_substrokes(stroke_dict, length=3):
     start_args = np.where(stroke_dict.start_strokes==1)[0] # returns an "array" of the list, just take first index
     start_args = np.append(start_args, None) # last start arg should be the end of the sequence
 
+    # If fewer strokes, just return the whole thing
+    if start_args.shape[0] <= length:
+        return stroke_dict
+
     for stroke_number in range(start_args.shape[0]-length): # remember, last start_stroke is really the end stroke
         start_idx = start_args[stroke_number]
         end_idx = start_args[stroke_number+length]

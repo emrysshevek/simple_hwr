@@ -73,21 +73,21 @@ def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=N
 
 pad_dpi = {"padding":.05, "dpi":71}
 
-def prep_figure(dpi=71, size=(1,1)):
+def prep_figure(dpi=71, size=(5,1)):
     plt.figure(figsize=size, dpi=dpi)
     plt.axis('off')
     plt.axis('square')
 
 def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     # plt.NullFormatter()
-    if save_path:
-        prep_figure(pad_dpi["dpi"])
     if line_width is None:
         line_width = max(random.gauss(1, .5), .4)
-
     if x_to_y != 1:
         for stroke in stroke_list:
             stroke["x"] = [item * x_to_y for item in stroke["x"]]
+
+    if save_path:
+        prep_figure(pad_dpi["dpi"], size=(int(x_to_y+.99),1))
 
     for stroke in stroke_list:
         plt.plot(stroke["x"], stroke["y"], linewidth=line_width, color="black")
