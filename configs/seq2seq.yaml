@@ -1,62 +1,75 @@
-### TESTING
-TESTING: false # Load as little as possible for fast prototyping
-SMALL_TRAINING: true
+## TESTING
+TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
+SMALL_TRAINING: false  # Load 1 batch; will not save output
+GPU: true             # Use GPU if available
+TEST_FREQ: 1         # epoch frequency for running test set
+plot_freq: 50         # print updates, update plots every 50 batches
+images_to_load: 160  # use an integer to load e.g. first 16 images
+
+## Things that shouldn't matter much:
+# Random shuffling
+# Number of channels (3 vs 1)
+# Batch size 8 vs 16
 
 # Load model
-load_path: # results/seq2seq/20190913_103617-seq2seq_lr_0.0001_bs_16_warp_True_arch_seq2seq/seq2seq_model.pt
+load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 #load_path: /media/data/GitHub/simple_hwr/results/baseline/20190625_092305-lr_0.001_bs_16_warp_True_arch_basic_encoder/baseline_model.pt
 test_only: false                             # Do not train
 
 # General
-experiment: seq2seq
-name: seq2seq # unknown_experiment
+experiment: test
+name: test
 output_folder: ./results
-epochs_to_run: 500
+epochs_to_run: 200
 save_freq: 5
 use_visdom: true
 debug: off
-GPU: true
+decoder_type: naive # beam
+optimizer_type: adam
+
 # results_dir:
 # log_dir:
 
+# Validation
+validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
+
 # Training data
 training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json]
-training_root: ../simple_hwr/data
+training_root: data
 training_shuffle: true
 training_warp: true
-online_augmentation: false
-writer_id_pickles: [prepare_IAM_Lines/writer_IDs.pickle]
 
 # Testing data
 testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
-testing_root: ../simple_hwr/data
-testing_shuffle: false
+testing_root: data
+testing_shuffle: true
+n_warp_iterations: 0
 testing_warp: false
-output_predictions: true                    # Output incorrect test predictions
-
-# Testing augmentations
-testing_augmentation: true
-testing_language_model: true
-testing_profile_normalization: true
+testing_occlude: false
+output_predictions: false                    # Output incorrect test predictions
 
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
-input_height: 60                             # Input dimension of image (will be cropped by default?)
+input_height: 64                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
+rnn_layers: 2
+rnn_type: lstm                               # gru, lstm
+cnn: crcr                                    # default, resnet, intermediates
 
-# Seq2Seq params
+# Seq2Seq params (only used when seq2seq is true)
 seq2seq: true
 max_seq_len: 100
-teacher_force_rate: 1.0
-teacher_force_decay: 0.9
-teacher_step_size: 1000
-label_smoothing: true
+teacher_force_rate: 0.9
+teacher_force_decay: 1
+teacher_step_size: 10
+label_smoothing: false
 smoothing: 0.4
-cnn_load_path: ../taylor_simple_hwr/results/BEST/20190807_104745-smallv2/ONLY_THE_STATE.pt
-freeze_cnn: true
+encoder_load_path:  # results/encoder/20191021_104448-encoder/BSF/encoder_model.pt
+freeze_encoder: false
+hybrid_loss: 0.5
 
 # Recognizer parameters
 recognizer_dropout: .5                       # Dropout in recognizer LSTM
@@ -65,10 +78,19 @@ recognizer_dropout: .5                       # Dropout in recognizer LSTM
 writer_dropout: 0.4                          # Probability of being "dropped out" in writer LSTM+MLP
 writer_rnn_dimension: 128                    # Dimension of LSTM state vector
 writer_rnn_output_size: 256                  # LSTM output dimension for writer classifier
-mlp_layers: [64,embedding,64]                # Layer dimensions for MLP writer classifier
+mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer classifier
 embedding_size: 32                           # The size of the embedding layer in the MLP
 
 # LR schedule
-learning_rate: 1e-4          # LR
-scheduler_step: 150           # Every X steps, multiply LR by gamma
+learning_rate: 1e-3          # LR
+scheduler_step: 10           # Every X steps, multiply LR by gamma
 scheduler_gamma: .9          # LR decay rate
+
+#learning_rate: 5e-4          # LR
+#scheduler_step: 2         # Every X steps, multiply LR by gamma
+#scheduler_gamma: .95          # LR decay rate
+
+# Occlusion
+occlusion_size: 0          # Square dimension in pixels of region to occlude
+occlusion_freq: 0          # percent of pixels to occlude
+occlusion_level: 0       # level of dimming; 1=white, 0=no change

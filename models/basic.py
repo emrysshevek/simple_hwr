@@ -52,6 +52,7 @@ class MLP(nn.Module):
             embedding = self.classifier[0:self.embedding_idx](input)
             return embedding
 
+
 class BidirectionalRNN(nn.Module):
 
     def __init__(self, nIn, nHidden, nOut, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM):

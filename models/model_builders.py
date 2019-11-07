@@ -1,12 +1,14 @@
 import torch
 from torch import nn
 
-from models.crnn import basic_CRNN, LabelSmoothing
+from models.crnn import basic_CRNN, LabelSmoothing, Encoder
 from models.deprecated_crnn import CRNN, CRNN_with_writer_classifier, CRNN_2Stage, Nudger
-from models.attention import Attention
+from models.attention import Attention, MonotonicAttention, MoChA
 from models.decoder import Decoder
 from models.language_model import DeepFusion
 from models.seq2seq import Seq2Seq
+
+from utils.hwr_utils import load_encoder_state
 
 
 def check_inputs(config):
@@ -32,39 +34,40 @@ def check_inputs(config):
 def create_CRNN(config):
     check_inputs(config)
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-                      recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-                      rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
+    # crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
+    #                   alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+    #                   recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
+    #                   rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
+    crnn = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
     return crnn
 
 
 def create_seq2seq_recognizer(config):
     check_inputs(config)
 
-    encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-                         alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
-                         recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-                         rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
+    # encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
+    #                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
+    #                      recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
+    #                      rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
 
-    if config['cnn_load_path']:
-        pretrained_state_dict = {name: val for name, val in torch.load(config['cnn_load_path']).items() if
-                                 'cnn' in name}
-        encoder.load_state_dict(pretrained_state_dict, strict=False)
+    encoder = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
 
-    attention = Attention(embed_dim=config['alphabet_size'])
+    if config['encoder_load_path']:
+        pretrained_state_dict = load_encoder_state(config)
+        encoder.load_state_dict(pretrained_state_dict)
+
+    # attention = Attention(embed_dim=config['alphabet_size'])
+    attention = Attention(input_dim=config['alphabet_size'], embed_dim=128, device=config['device'])
 
     decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
-                      context_dim=config['alphabet_size'], n_layers=5, hidden_dim=config['alphabet_size'],
+                      context_dim=config['alphabet_size'], n_layers=1, hidden_dim=config['alphabet_size'],
                       char_freq=None)
 
-    lm = DeepFusion(char_freq=None, vocab_size=config['alphabet_size'], n_layers=5)
-
-    seq2seq = Seq2Seq(encoder, attention, decoder, lm, output_max_len=config['max_seq_len'],
+    seq2seq = Seq2Seq(encoder, attention, decoder, output_max_len=config['max_seq_len'],
                       vocab_size=config['alphabet_size'], sos_token=config['sos_idx'])
 
-    if config['freeze_cnn']:
-        for param in seq2seq.encoder.cnn.parameters():
+    if config['freeze_encoder']:
+        for param in seq2seq.encoder.parameters():
             param.requires_grad = False
 
     return seq2seq

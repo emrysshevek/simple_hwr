@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 from torch import nn
 from torch.autograd import Variable
 #from torchvision.models import resnet
@@ -11,6 +13,43 @@ from models.deprecated_crnn import *
 
 
 MAX_LENGTH = 60
+
+
+class Encoder(nn.Module):
+
+    def __init__(self, output_dim, dropout=0.5):
+        super(Encoder, self).__init__()
+        self.cnn = nn.Sequential(OrderedDict([
+            ('conv1', nn.Conv2d(in_channels=1, out_channels=8, kernel_size=(6, 4), stride=(4, 2))),
+            ('relu1', nn.LeakyReLU()),
+            ('conv2', nn.Conv2d(in_channels=8, out_channels=32, kernel_size=(6, 4), stride=(1, 1), padding=(1, 1))),
+            ('relu2', nn.LeakyReLU()),
+            ('pool1', nn.MaxPool2d(kernel_size=(4, 2), stride=(4, 2))),
+            ('conv3', nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(3, 3), stride=(1, 1))),
+            ('relu3', nn.LeakyReLU()),
+            ('pool2', nn.MaxPool2d(kernel_size=(1, 2), stride=(1, 2)))
+        ]))
+        self.rnn = nn.LSTM(input_size=64, hidden_size=128, num_layers=3, dropout=dropout, bidirectional=True, batch_first=True)
+        self.conv4 = nn.Conv2d(in_channels=1, out_channels=output_dim, kernel_size=(256, 1), stride=(1, 1))
+
+    def forward(self, x, online=None, classifier_output=None):
+        """
+
+        :param x: [batch_size, n_channels, height, width]
+        :param online:
+        :param classifier_output:
+        :return x: [seq_len, batch_size, vocab_dim]
+        :return rnn_input: [batch_size, seq_len, vocab_dim]
+        """
+
+        rnn_input = self.cnn(x).squeeze().permute(0, 2, 1)
+        # print(rnn_input.shape)
+        x, _ = self.rnn(rnn_input)
+        x = x.permute(0, 2, 1).unsqueeze(dim=1)
+        # print(x.shape)
+        x = self.conv4(x).squeeze().permute(2, 0, 1)
+        # print(x.shape)
+        return x, rnn_input
 
 
 class basic_CRNN(nn.Module):

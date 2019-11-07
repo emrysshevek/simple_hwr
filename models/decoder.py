@@ -18,18 +18,23 @@ class Decoder(nn.Module):
         self.linear_proj = nn.Linear(hidden_dim, vocab_size)
 
     def forward(self, character, context, hidden=None):
+        """
+
+        :param character: [batch_size, vocab_size]
+        :param context:
+        :param hidden:
+        :return:
+        """
+
         character = character.argmax(dim=1)
         character_embedding = self.embedding(character)
-
         rnn_input = torch.cat([character_embedding, context], dim=1)
         assert rnn_input.shape[1] == self.rnn_input_dim
         rnn_input = rnn_input.view(1, -1, self.rnn_input_dim)
 
-        decoder_state, hidden = self.rnn(rnn_input, hidden)
+        output, hidden = self.rnn(rnn_input, hidden)
 
-        output = self.linear_proj(decoder_state).squeeze()
+        # output = self.linear_proj(decoder_state).squeeze()
 
-        # if self.char_freq is not None:
-        #     output = output * self.char_freq
-
-        return output, decoder_state, hidden
+        # return output, decoder_state, hidden
+        return output, hidden

@@ -11,12 +11,14 @@ from utils.hwr_utils import calculate_cer
 
 
 class TrainerSeq2Seq(json.JSONEncoder):
-    def __init__(self, model, optimizer, config, criterion):
+    def __init__(self, model, optimizer, config, ctc_criterion, decoder_criterion):
         self.model = model
         self.optimizer = optimizer
         self.config = config
-        self.criterion = criterion
+        self.ctc_criterion = ctc_criterion
+        self.decoder_criterion = decoder_criterion
 
+        self.hybrid_loss = 0 if not config['hybrid_loss'] else config['hybrid_loss']
         self.idx_to_char = config["idx_to_char"]
         self.teach_force_rate = config['teacher_force_rate']
         self.teacher_force_decay = config['teacher_force_decay']
@@ -62,17 +64,23 @@ class TrainerSeq2Seq(json.JSONEncoder):
         formatted_labels = self.format_labels(labels, label_lengths)
 
         teacher_force_rate = self.teach_force_rate * (self.teacher_force_decay ** (step // self.teacher_step_size))
-        text_sequence = self.model(line_imgs, online, formatted_labels, teacher_force_rate).cpu()
+        encoder_output, text_sequence = self.model(line_imgs, online, formatted_labels, teacher_force_rate)
+        encoder_output = encoder_output.cpu()
+        text_sequence = text_sequence.cpu()
         batch_size, seq_len, vocab_size = text_sequence.shape
         pred_strs = self.stringify(text_sequence)
 
         assert np.array_equal(text_sequence.shape, (*formatted_labels.shape, len(self.idx_to_char)))
 
         self.config["logger"].debug("Calculating Loss: {}".format(step))
-        loss = self.criterion(text_sequence.view(-1, vocab_size), formatted_labels.view(-1))
+        decoder_loss = self.decoder_criterion(text_sequence.view(-1, vocab_size), formatted_labels.view(-1))
+        preds_size = Variable(torch.IntTensor([encoder_output.size(0)] * encoder_output.size(1)))
+        ctc_loss = self.ctc_criterion(encoder_output, labels, preds_size, label_lengths)
+        loss = (self.hybrid_loss * ctc_loss) + ((1-self.hybrid_loss) * decoder_loss)
 
         self.optimizer.zero_grad()
         loss.backward(retain_graph=retain_graph)
+        nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4)
         self.optimizer.step()
 
         loss = loss.item()
@@ -101,7 +109,7 @@ class TrainerSeq2Seq(json.JSONEncoder):
         else:
             self.model.eval()
 
-        pred_seqs = self.model(line_imgs, online)
+        encoder_output, pred_seqs = self.model(line_imgs, online)
         pred_strs = self.stringify(pred_seqs)
 
         # Error Rate

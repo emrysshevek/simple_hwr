@@ -66,8 +66,9 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
             break
 
         if i == len(dataloader) - 1:
-            LOGGER.info(f'\tPrediction:   [{pred_strs[0]}]')
-            LOGGER.info(f'\tGround Truth: [{gts[0]}]')
+            idx = np.random.randint(len(gts))
+            LOGGER.info(f'\tPrediction:   [{pred_strs[idx]}]')
+            LOGGER.info(f'\tGround Truth: [{gts[idx]}]')
 
     accumulate_stats(config)
 
@@ -218,6 +219,11 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
 
+        if i == len(dataloader) - 1:
+            idx = np.random.randint(len(gts))
+            LOGGER.info(f'\tPrediction:   [{first_pred_str[idx]}]')
+            LOGGER.info(f'\tGround Truth: [{gts[idx]}]')
+
     training_cer_list = config["stats"][config["designated_training_cer"]].y
 
     if not training_cer_list:
@@ -251,7 +257,8 @@ def make_dataloaders(config, device="cpu"):
                                   shuffle=config["training_shuffle"],
                                   num_workers=threads,
                                   collate_fn=lambda x:hw_dataset.collate(x,device=device),
-                                  pin_memory=device=="cpu")
+                                  pin_memory=device=="cpu",
+                                  drop_last=True)
 
     # Handle basic vs with warp iterations
     if config["testing_occlude"]:
@@ -283,7 +290,8 @@ def make_dataloaders(config, device="cpu"):
                                  batch_size=config["batch_size"],
                                  shuffle=config["testing_shuffle"],
                                  num_workers=threads,
-                                 collate_fn=collate_fn)
+                                 collate_fn=collate_fn,
+                                 drop_last=True)
 
     if "validation_jsons" in config:
         validation_dataset = HwDataset(config["validation_jsons"], config["char_to_idx"], img_height=config["input_height"],
@@ -341,6 +349,7 @@ def build_model(config_path):
     config["global_step"] = 0
     config["global_instances_counter"] = 0
     device, dtype = check_gpu(config)
+    config['device'] = device
 
     # Use small batch size when using CPU/testing
     if config["TESTING"]:
@@ -363,14 +372,13 @@ def build_model(config_path):
     config["decoder"] = Decoder(idx_to_char=config["idx_to_char"], beam=use_beam)
 
     # Prep optimizer
-    if not config['seq2seq']:
-        ctc = torch.nn.CTCLoss()
-        log_softmax = torch.nn.LogSoftmax(dim=2).to(device)
-        criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
-    elif config['label_smoothing']:
-        criterion = crnn.LabelSmoothing(len(config['idx_to_char']), config['pad_idx'], config['smoothing'])
+    ctc = torch.nn.CTCLoss()
+    log_softmax = torch.nn.LogSoftmax(dim=2).to(device)
+    ctc_criterion = lambda x, y, z, t: ctc(log_softmax(x), y, z, t)
+    if config['label_smoothing']:
+        decoder_criterion = crnn.LabelSmoothing(len(config['idx_to_char']), config['pad_idx'], config['smoothing'])
     else:
-        criterion = nn.CrossEntropyLoss(ignore_index=config['pad_idx'])
+        decoder_criterion = nn.CrossEntropyLoss(ignore_index=config['pad_idx'])
 
     LOGGER.info("Building model...")
     # Create classifier
@@ -404,7 +412,7 @@ def build_model(config_path):
                 "train_cer":[],
                 "test_cer":[],
                 "validation_cer":[],
-                "criterion":criterion,
+                "criterion":ctc_criterion,
                 "device":device,
                 "dtype":dtype,
                 }
@@ -449,12 +457,12 @@ def build_model(config_path):
     # Create trainer
     if config["style_encoder"] == "2StageNudger":
         train_baseline = False if config["load_path"] else True
-        config["trainer"] = trainers.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
+        config["trainer"] = trainers.TrainerNudger(hw, config["nudger_optimizer"], config, ctc_criterion,
                                                train_baseline=train_baseline)
     elif config['seq2seq']:
-        config['trainer'] = trainers.TrainerSeq2Seq(hw, optimizer, config, criterion)
+        config['trainer'] = trainers.TrainerSeq2Seq(hw, optimizer, config, ctc_criterion, decoder_criterion)
     else:
-        config["trainer"] = trainers.TrainerBaseline(hw, optimizer, config, criterion)
+        config["trainer"] = trainers.TrainerBaseline(hw, optimizer, config, ctc_criterion)
 
     # Alternative Models
     if config["style_encoder"] == "basic_encoder":
@@ -469,7 +477,9 @@ def main():
     global config, LOGGER
     opts = parse_args()
     config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = build_model(opts.config)
-
+    from torch.utils.tensorboard import SummaryWriter
+    writer = SummaryWriter()
+    writer.add_graph(config['model'])
     # Improve
     if config["improve_image"]:
         training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"],
@@ -492,7 +502,7 @@ def main():
             config["train_cer"].append(training_cer)
 
             # CER plot
-            if config["current_epoch"] % config["TEST_FREQ"]== 0:
+            if config["current_epoch"] % config["TEST_FREQ"] == 0:
                 validation_cer = test(config["model"], validation_dataloader, config["idx_to_char"], config["device"], config, validation=True)
                 LOGGER.info("Validation CER: {}".format(validation_cer))
                 config["validation_cer"].append(validation_cer)

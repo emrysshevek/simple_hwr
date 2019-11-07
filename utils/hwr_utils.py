@@ -460,6 +460,14 @@ class CharAcc:
                 self.false_positive[self.char_to_idx[guess_char]] += 1
                 self.false_negative[self.char_to_idx[true_char]] += 1
 
+
+def load_encoder_state(config):
+    if config['encoder_load_path']:
+        path = config['encoder_load_path']
+        state = torch.load(path)
+        return state['model']
+
+
 def load_model(config):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
