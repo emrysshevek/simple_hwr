@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class Attention(nn.Module):
@@ -15,14 +16,27 @@ class Attention(nn.Module):
         self.linear_proj = nn.Linear(2*input_dim, input_dim)
 
     def forward(self, encoder_outputs, decoder_h, prev_alpha=None, mode='hard'):
-        context, attn_weights = self.attn(encoder_outputs, decoder_h, prev_alpha, mode='hard')
+        context, attn_weights = self.attn(encoder_outputs, decoder_h, prev_alpha, mode=mode)
         context = self.linear_proj(torch.cat([context, decoder_h.squeeze()], dim=-1))
         return context, attn_weights
 
 
-import torch
-from torch import nn
-import torch.nn.functional as F
+class MultiHeadAttention(nn.Module):
+    def __init__(self, embed_dim, num_heads, dropout=0.5):
+        super(MultiHeadAttention, self).__init__()
+        self.layers = nn.ModuleList(nn.MultiheadAttention(embed_dim, num_heads, dropout))
+
+    def clone(self, tensor, n):
+        return [tensor.clone() for i in range(n)]
+
+    def forward(self, encoder_outputs, decoder_h, previous_alpha=None, mode=None):
+        q, k, v = self.clone(encoder_outputs, 3)
+        for layer in self.layers[:-1]:
+            result, weights = layer(q, k, v)
+            q, k, v = self.clone(result, 3)
+        q = decoder_h
+        attn, weights = self.layers[-1](q, k, v)
+        return attn
 
 
 class Energy(nn.Module):
