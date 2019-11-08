@@ -11,8 +11,10 @@ class Attention(nn.Module):
         self.embed_dim = embed_dim
         if attn == 'mono':
             self.attn = MonotonicAttention(input_dim, embed_dim, device=device)
-        else:
+        elif attn == 'chunk':
             self.attn = MoChA(input_dim, embed_dim, device=device)
+        elif attn == 'self':
+            self.attn = MultiHeadAttention(input_dim, num_heads=1)
         self.linear_proj = nn.Linear(2*input_dim, input_dim)
 
     def forward(self, encoder_outputs, decoder_h, prev_alpha=None, mode='hard'):
@@ -24,19 +26,20 @@ class Attention(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, embed_dim, num_heads, dropout=0.5):
         super(MultiHeadAttention, self).__init__()
-        self.layers = nn.ModuleList(nn.MultiheadAttention(embed_dim, num_heads, dropout))
+        self.embed_dim = embed_dim
+        self.layers = nn.ModuleList([nn.MultiheadAttention(embed_dim, num_heads, dropout)])
 
     def clone(self, tensor, n):
         return [tensor.clone() for i in range(n)]
 
     def forward(self, encoder_outputs, decoder_h, previous_alpha=None, mode=None):
-        q, k, v = self.clone(encoder_outputs, 3)
+        q, k, v = self.clone(encoder_outputs.transpose(0, 1), 3)
         for layer in self.layers[:-1]:
             result, weights = layer(q, k, v)
             q, k, v = self.clone(result, 3)
-        q = decoder_h
+        q = decoder_h.transpose(0,1).clone()
         attn, weights = self.layers[-1](q, k, v)
-        return attn
+        return attn.squeeze(), weights
 
 
 class Energy(nn.Module):
