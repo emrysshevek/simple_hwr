@@ -47,7 +47,8 @@ class TrainerSeq2Seq(json.JSONEncoder):
             assert len(label) == label_len
             pos += label_len
             label = torch.cat([sos_label, label, eos_label])
-            seq_labels[i, :len(label)] = label
+            length = min(max_seq_len, len(label))
+            seq_labels[i, :length] = label[:length]
         return seq_labels
 
     def stringify(self, pred_sequences):

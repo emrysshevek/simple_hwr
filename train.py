@@ -477,9 +477,7 @@ def main():
     global config, LOGGER
     opts = parse_args()
     config, train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = build_model(opts.config)
-    from torch.utils.tensorboard import SummaryWriter
-    writer = SummaryWriter()
-    writer.add_graph(config['model'])
+
     # Improve
     if config["improve_image"]:
         training_cer = improver(config["model"], test_dataloader, config["criterion"], config["optimizer"],
