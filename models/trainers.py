@@ -31,6 +31,12 @@ class TrainerSeq2Seq(json.JSONEncoder):
         pred_len = pred.shape[-1]
 
     def format_labels(self, labels, label_lengths):
+        '''
+        Convert list labels into matrix, add start and end tokens
+        :param labels:
+        :param label_lengths:
+        :return:
+        '''
         max_seq_len = self.config['max_seq_len']
         seq_labels = torch.full((len(label_lengths), max_seq_len), fill_value=self.config['pad_idx'], dtype=torch.long, device=labels.device)
         sos_label = torch.tensor([self.config['sos_idx']], dtype=torch.long, device=labels.device)

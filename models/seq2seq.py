@@ -56,6 +56,7 @@ class Seq2Seq(nn.Module):
                 sequence.append(tokenized_output)
 
             if np.random.rand() < teacher_force_rate:
+                # labels starts with SOS, grab the next correct label to predict
                 teacher_input = labels[:, i+1].to(device)
                 output = self.one_hot(teacher_input)
 
