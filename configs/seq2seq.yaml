@@ -63,8 +63,8 @@ cnn: crcr                                    # default, resnet, intermediates
 seq2seq: true
 max_seq_len: 100
 teacher_force_rate: 0.9
-teacher_force_decay: 1
-teacher_step_size: 10
+teacher_force_decay: 0.9
+teacher_step_size: 100
 label_smoothing: false
 smoothing: 0.4
 encoder_load_path:  # results/encoder/20191021_104448-encoder/BSF/encoder_model.pt
