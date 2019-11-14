@@ -66,17 +66,17 @@ class TrainerSeq2Seq(json.JSONEncoder):
         return pred_strs
 
     def train(self, line_imgs, online, labels, label_lengths, gts, retain_graph=False, step=0):
-        self.model.train()
-
         formatted_labels = self.format_labels(labels, label_lengths)
 
         teacher_force_rate = self.teach_force_rate * (self.teacher_force_decay ** (step // self.teacher_step_size))
+
         encoder_output, text_sequence = self.model(line_imgs, online, formatted_labels, teacher_force_rate)
         encoder_output = encoder_output.cpu()
         text_sequence = text_sequence.cpu()
-        batch_size, seq_len, vocab_size = text_sequence.shape
+
         pred_strs = self.stringify(text_sequence)
 
+        batch_size, seq_len, vocab_size = text_sequence.shape
         assert np.array_equal(text_sequence.shape, (*formatted_labels.shape, len(self.idx_to_char)))
 
         self.config["logger"].debug("Calculating Loss: {}".format(step))
@@ -131,7 +131,6 @@ class TrainerSeq2Seq(json.JSONEncoder):
             self.config["stats"][f"{prefix}Validation Error Rate"].accumulate(err, weight)
         else:
             self.config["stats"][f"{prefix}Test Error Rate"].accumulate(err, weight, self.config["current_epoch"])
-
 
 
 class TrainerBaseline(json.JSONEncoder):
