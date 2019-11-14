@@ -24,10 +24,12 @@ class Attention(nn.Module):
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, embed_dim, num_heads, dropout=0.5):
+    def __init__(self, embed_dim, num_heads, num_layers=5, dropout=0.5):
         super(MultiHeadAttention, self).__init__()
         self.embed_dim = embed_dim
-        self.layers = nn.ModuleList([nn.MultiheadAttention(embed_dim, num_heads, dropout)])
+        self.n_heads = num_heads
+        self.n_layers = num_layers
+        self.layers = nn.ModuleList([nn.MultiheadAttention(embed_dim, num_heads, dropout) for i in range(num_layers)])
 
     def clone(self, tensor, n):
         return [tensor.clone() for i in range(n)]

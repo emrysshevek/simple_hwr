@@ -44,8 +44,8 @@ class Seq2Seq(nn.Module):
 
         prev_attn = None
         for i in range(self.output_max_len-1):
-            decoder_state, hidden = self.decoder(output, context, hidden)
             context, prev_attn = self.attention(encoder_output.permute(1, 0, 2), decoder_state.permute(1, 0, 2), prev_attn, mode='soft' if train else 'hard')
+            decoder_state, hidden = self.decoder(output, context, hidden)
             # print(context)
             output = self.linear_out(torch.cat([decoder_state.squeeze(), context], dim=-1))
             tokenized_output = torch.argmax(output, dim=1)

@@ -34,23 +34,23 @@ def check_inputs(config):
 def create_CRNN(config):
     check_inputs(config)
     # For apples-to-apples comparison, CNN outsize is OUT_SIZE + EMBEDDING_SIZE
-    # crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-    #                   alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
-    #                   recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-    #                   rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
-    crnn = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
+    crnn = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
+                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
+                      recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
+                      rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
+    # crnn = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
     return crnn
 
 
 def create_seq2seq_recognizer(config):
     check_inputs(config)
 
-    # encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-    #                      alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
-    #                      recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
-    #                      rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
+    encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
+                         alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
+                         recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
+                         rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
 
-    encoder = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
+    # encoder = Encoder(output_dim=config['alphabet_size'], dropout=config['recognizer_dropout'])
 
     if config['encoder_load_path']:
         pretrained_state_dict = load_encoder_state(config)
