@@ -233,7 +233,7 @@ class CreateDataset:
 if __name__ == "__main__":
     strokes = 8
     square = False
-    instances = None
+    instances = 1
 
     variant=""
     if square:
@@ -241,6 +241,6 @@ if __name__ == "__main__":
     if instances is None:
         variant += "Full"
     else:
-        variant += f"Small_{instance}"
+        variant += f"Small_{instances}"
     data_set = CreateDataset(max_strokes=strokes, square=square, output_folder_name=f"./{strokes}_stroke_v{variant}", render_images=True)
     data_set.parallel(max_iter=instances, parallel=True)

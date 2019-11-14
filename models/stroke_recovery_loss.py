@@ -8,17 +8,15 @@ from robust_loss_pytorch import AdaptiveLossFunction
 from sdtw import SoftDTW
 import torch.multiprocessing as multiprocessing
 from hwr_utils.utils import to_numpy
-from hwr_utils.stroke_dataset import pad
+from hwr_utils.stroke_recovery import relativefy
+from hwr_utils.stroke_dataset import pad, create_gts
 
 class StrokeLoss:
-    def __init__(self, loss_type="robust", parallel=False):
+    def __init__(self, parallel=False, vocab_size=4):
         super(StrokeLoss, self).__init__()
         #device = torch.device("cuda")
-        if loss_type == "robust":
-            self.bonus_loss = AdaptiveLossFunction(num_dims=5, float_dtype=np.float32, device='cpu').lossfun
-        else:
-            self.bonus_loss = None
-
+        self.vocab_size = vocab_size
+        self.barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
@@ -26,9 +24,9 @@ class StrokeLoss:
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
 
-    def main_loss(self, preds, targs, label_lengths=None, vocab_size=4):
-        """ Preds: [x], [y], [start stroke], [end stroke], [end of sequence]
-
+    def main_loss(self, loss_fn, preds, targs, label_lengths=None):
+        """ Preds: BATCH, TIME, VOCAB SIZE
+                    VOCAB: x, y, start stroke, end_of_sequence
         Args:
             preds: Will be in the form [batch, width, alphabet]
             targs: Pass in the whole dictionary, so we can get lengths, etc., whatever we need
@@ -38,82 +36,92 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
-        if isinstance(targs, dict):
+        if loss_fn is None:
+            loss_fn = StrokeLoss.dtw
+
+        ## RESAMPLE THE GTs to match
+        if loss_fn==self.variable_l1:
+            loss_fn = self.l1
+            batch = targs
+            device = preds.device
+            targs = []
+            label_lengths = []
+            for i in range(0, preds.shape[0]):
+                pred_length = preds[i].shape[0]
+                t = create_gts(batch["x_func"][i], batch["y_func"][i], batch["start_times"][i],
+                                  number_of_samples=pred_length, noise=None, relative_x_positions=batch["x_relative"]) #.transpose([1,0])
+                t = torch.from_numpy(t.astype(np.float32)).to(device)
+                targs.append(t)
+                label_lengths.append(pred_length)
+        elif isinstance(targs, dict):
             label_lengths = targs["label_lengths"]
             targs = targs["gt_list"]
         else:
-            label_lengths = [1] * len(targs)
+            label_lengths = [t.shape[0] for t in targs]
 
-        if self.bonus_loss:
-            _preds = preds.reshape(-1,vocab_size)
-            _targs = targs.reshape(-1,vocab_size)
-            return torch.sum(self.bonus_loss((_preds-_targs)))
-        else:
-            #location_loss = abs(preds - targs).sum()
-            #logp_loss = self.log_prob_loss(preds, targs)
-            #angle_loss = self.angle_loss(preds, targs)
-            #print(f"{location_loss:.1f} {angle_loss:.1f} {logp_loss:.1f}")
-            #return logp_loss * 0.8 + angle_loss * 0.2
-            #return logp_loss * 0.6 + angle_loss * 0.4 + abs(preds[:, :, 2:] - targs[:, :, 2:]).sum()
-            loss = self.loop(preds, targs, label_lengths)
-            return loss
+        loss = loss_fn(preds, targs, label_lengths)
+        return loss
 
-    def loop(self, preds, targs, label_lengths):
+    def dtw(self, preds, targs, label_lengths):
         loss = 0
-        #preds2 = [to_numpy(x) for x in preds.detach()]
-        #pool = self.pool
         if self.parallel:
             pool = multiprocessing.Pool(processes=self.poolcount)
-            as_and_bs = pool.imap(StrokeLoss.dtw, iter(zip(
+            as_and_bs = pool.imap(self.dtw_single, iter(zip(
                 to_numpy(preds),
                 targs)), chunksize=32)  # iterates through everything all at once
             pool.close()
             #print(as_and_bs[0])
             for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
-
         else:
-            # pool = multiprocessing.Pool(processes=self.poolcount)
-            # pool.close()
             for i in range(len(preds)): # loop through BATCH
-                a,b = self.dtw((preds[i], targs[i]))
+                a,b = self.dtw_single((preds[i], targs[i]))
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
     @staticmethod
-    def dtw(input):
+    def dtw_single(_input):
         """
         Args:
-            input (tuple): targ, pred, label_length
+            _input (tuple): targ, pred, label_length
 
         Returns:
 
         """
-        pred, targ = input
+        pred, targ = _input
         pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64")
-        x1 = np.ascontiguousarray(pred[:, :])  # time step, batch, (x,y)
-        x2 = np.ascontiguousarray(targ[:, :])
+        x1 = np.ascontiguousarray(pred[:, :2])  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ[:, :2])
         dist, cost, a, b = dtw.dtw2d(x1, x2)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a,b
 
-    def soft_dtw(self):
+    def barron_loss(self, preds, targs, label_lengths=None):
+        _preds = preds.reshape(-1, self.vocab_size)
+        _targs = targs.reshape(-1, self.vocab_size)
+        return torch.sum(self.barron_loss_fn((_preds - _targs)))/np.sum(label_lengths)
 
+    @staticmethod
+    def variable_l1(preds, batch, label_lengths):
         pass
+    #     loss = 0
+    #     print(batch)
+    #     print(preds)
+    #     Stop
+    #     for i, pred in enumerate(preds):
+    #         pred_length = preds.shape[1]
+    #         targ = create_gts(batch["x_func"][i], batch["y_func"][i], batch["start_times"][i], number_of_samples=pred_length, noise=None, relative_x_positions=batch["x_relative"])
+    #         loss += torch.sum(abs(pred-targ))/label_lengths[i]
+    #     return loss
 
-        # Time series 1: numpy array, shape = [m, d] where m = length and d = dim
-        # Time series 2: numpy array, shape = [n, d] where n = length and d = dim
+    @staticmethod
+    def l1(preds, targs, label_lengths):
+        loss = 0
+        for i, pred in enumerate(preds):
+            loss += torch.sum(abs(pred-targs[i]))/label_lengths[i]
+        return loss
 
-        # D can also be an arbitrary distance matrix: numpy array, shape [m, n]
-        D = SquaredEuclidean(X, Y)
-        sdtw = SoftDTW(D, gamma=1.0)
-        # soft-DTW discrepancy, approaches DTW as gamma -> 0
-        value = sdtw.compute()
-        # gradient w.r.t. D, shape = [m, n], which is also the expected alignment matrix
-        E = sdtw.grad()
-        # gradient w.r.t. X, shape = [m, d]
-        G = D.jacobian_product(E)
 
 '''
     OLD attempts at loss
@@ -157,7 +165,7 @@ if __name__ == "__main__":
     batch = 3
     time = 16
     y = torch.rand(batch, 1, 60, 60)
-    targs = torch.rand(batch, time, vocab_size)
+    targs = torch.rand(batch, time, vocab_size) # BATCH, TIME, VOCAB
     cnn = CNN(nc=1)
     rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
     cnn_output = cnn(y)

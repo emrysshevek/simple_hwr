@@ -4,11 +4,14 @@ import torch.nn as nn
 '''
 An alternative implementation for PyTorch with auto-infering the x-y dimensions.
 '''
+
 class AddCoords(nn.Module):
 
-    def __init__(self, with_r=False):
+    def __init__(self, with_r=False, zero_center=True, rectangle_x=False):
         super().__init__()
         self.with_r = with_r
+        self.rectangle_x = rectangle_x
+        self.zero_center = zero_center
 
     def forward(self, input_tensor):
         """
@@ -20,11 +23,17 @@ class AddCoords(nn.Module):
         xx_channel = torch.arange(x_dim).repeat(1, y_dim, 1)
         yy_channel = torch.arange(y_dim).repeat(1, x_dim, 1).transpose(1, 2)
 
+        # Rescale from 0 to 1
         xx_channel = xx_channel.float() / (x_dim - 1)
         yy_channel = yy_channel.float() / (y_dim - 1)
 
-        xx_channel = xx_channel * 2 - 1
-        yy_channel = yy_channel * 2 - 1
+        # Rescale from -1 to 1
+        if self.zero_center:
+            yy_channel = yy_channel * 2 - 1
+            xx_channel = xx_channel * 2 - 1
+
+        if self.rectangle_x:
+            xx_channel *= x_dim / y_dim
 
         xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
         yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)

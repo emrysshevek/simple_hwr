@@ -142,7 +142,7 @@ class TrainerBaseline(json.JSONEncoder):
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1)))
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the size?
 
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         pred_strs = list(self.decoder.decode_training(output_batch))
@@ -345,13 +345,12 @@ class TrainerStrokeRecovery:
     def default(self, o):
         return None
 
-    def train(self, line_imgs, gt, **kwargs):
+    def train(self, loss_fn, line_imgs, gt, **kwargs):
         self.model.train()
 
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-
-        stroke_loss = self.loss_criterion(output_batch, gt)
+        stroke_loss = self.loss_criterion.main_loss(loss_fn, output_batch, gt)
 
         # Backprop
         #self.logger.debug("Backpropping: {}".format(step))
@@ -361,12 +360,12 @@ class TrainerStrokeRecovery:
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
         return loss, output_batch, None
 
-    def test(self, line_imgs, gt, validation=False, **kwargs):
+    def test(self, loss_fn, line_imgs, gt, validation=False, **kwargs):
         self.model.eval()
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
-        stroke_loss = self.loss_criterion(output_batch, gt)
+        stroke_loss = self.loss_criterion.main_loss(loss_fn, output_batch, gt)
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
         return loss, output_batch
 

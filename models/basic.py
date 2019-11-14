@@ -148,7 +148,7 @@ class CNN(nn.Module):
             leakyRelu:
         """
         super().__init__()
-        self.conv_op = first_conv_op
+        self.first_conv_op = first_conv_op
         self.cnnOutSize = cnnOutSize
         #self.average_pool = nn.AdaptiveAvgPool2d((512,2))
         self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
@@ -183,7 +183,7 @@ class CNN(nn.Module):
         cnn = nn.Sequential()
 
         def convRelu(i, batchNormalization=False):
-            conv_op = nn.Conv2d if i>0 else self.conv_op
+            conv_op = nn.Conv2d if i>0 else self.first_conv_op
 
             if self.verbose and False:
                 cnn.add_module(f"printBefore{i}", PrintLayer(name=f"printBefore{i}"))
@@ -231,7 +231,7 @@ class CNN(nn.Module):
         cnn = nn.Sequential()
 
         def convRelu(i, batchNormalization=False):
-            conv_op = nn.Conv2d if i>0 else self.conv_op
+            conv_op = nn.Conv2d if i>0 else self.first_conv_op
 
             if self.verbose and False:
                 cnn.add_module(f"printBefore{i}", PrintLayer(name=f"printBefore{i}"))
@@ -266,8 +266,7 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
         convRelu(6, True)  # 16, 512, 2, 451
-        cnn.add_module("upsample", Interpolate(size=[2,64], scale_factor=None, mode='bilinear', align_corners=True))
-
+        cnn.add_module("upsample", Interpolate(size=None, scale_factor=[1,2], mode='bilinear', align_corners=True))
         return cnn
 
     """
