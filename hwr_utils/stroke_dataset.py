@@ -25,6 +25,7 @@ class StrokeRecoveryDataset(Dataset):
                  root= project_root / "data",
                  max_images_to_load=None,
                  x_relative_positions=True,
+                 cnn=None,
                  logger=None, **kwargs):
 
         # Make it an iterable
@@ -38,7 +39,7 @@ class StrokeRecoveryDataset(Dataset):
         self.interval = .05
         self.noise = None
         self.x_relative_positions = x_relative_positions
-
+        self.cnn = cnn
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
@@ -52,7 +53,7 @@ class StrokeRecoveryDataset(Dataset):
         """
         output = stroke_recovery.prep_stroke_dict(item["raw"])  # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output)
-        number_of_samples = int(output.trange / self.interval)
+        number_of_samples = item["number_of_samples"] if "number_of_samples" in item.keys() else int(output.trange / self.interval)
         gt = create_gts(x_func, y_func, start_times=output.start_times, number_of_samples=number_of_samples, noise=self.noise, relative_x_positions=self.x_relative_positions)
         item["gt"] = gt  # {"x":x, "y":y, "is_start_time":is_start_stroke, "full": gt}
         item["x_func"] = x_func
@@ -84,13 +85,18 @@ class StrokeRecoveryDataset(Dataset):
                     new_data = [item for key, item in new_data.items()]
 
                 data.extend(new_data)
+        # Calculate how many points are needed
+        if self.cnn:
+            add_output_size_to_data(data, self.cnn)
 
         if images_to_load:
             print("Original dataloader size", len(data))
             data = data[:images_to_load]
         print("Dataloader size", len(data))
+
         if "gt" not in data[0].keys():
-            data = self.resample_data(data, parallel=True)
+            ### PARALLEL
+            data = self.resample_data(data, parallel=False)
         print("Done resampling", len(data))
         return data
 
@@ -203,6 +209,46 @@ def put_at(start, stop, axis=1):
         return (Ellipsis, ) + (slice(start, stop),) + (slice(None),) * abs(-1-axis)
     else:
         return (slice(None),) * (axis) + (slice(start,stop),)
+
+
+def calculate_output_size(data, cnn):
+    """ For each possible width, calculate the CNN output width
+    Args:
+        data:
+
+    Returns:
+
+    """
+    all_possible_widths = set()
+    for i in data:
+        all_possible_widths.add(i)
+
+    width_to_output_mapping={}
+    for i in all_possible_widths:
+        t = torch.zeros(1, 1, 32, i)
+        shape = cnn(t).shape
+        width_to_output_mapping[i] = shape[0]
+    return width_to_output_mapping
+
+def add_output_size_to_data(data, cnn):
+    """ Calculate how wide the GTs should be based on the output width of the CNN
+    Args:
+        data:
+
+    Returns:
+
+    """
+    cnn.to("cpu")
+    width_to_output_mapping = {}
+    for instance in data:
+        width = instance["shape"][-1]
+
+        if width not in width_to_output_mapping:
+            t = torch.zeros(1, 1, 32, width)
+            shape = cnn(t).shape
+            width_to_output_mapping[width] = shape[0]
+        instance["number_of_samples"]=width_to_output_mapping[width]
+    cnn.to("cuda")
 
 ## Hard coded -- ~20% faster
 # def pad3(batch, variable_width_dim=1):

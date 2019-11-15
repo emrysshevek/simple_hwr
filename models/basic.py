@@ -139,7 +139,7 @@ class PrintLayer(nn.Module):
 class CNN(nn.Module):
     def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, cnn_type="default", first_conv_op=nn.Conv2d, verbose=False):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
-
+            BATCH, CHANNELS, HEIGHT, WIDTH
         The CNN learns some kind of sequential ordering because the maps are fed into the LSTM sequentially.
 
         Args:

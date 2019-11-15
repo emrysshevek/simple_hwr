@@ -114,13 +114,15 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
         ## Undo relative positions for X for graphing
         if x_relative_positions:
             coords[0] = relativefy(coords[0], reverse=True)
-
+        if not is_gt:
+            print(name, coords.shape)
         render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"temp{i}_{name}{suffix}.png")
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
         img_path = el
         name=Path(batch["paths"][i]).stem
+        print(name, "image width", batch["line_imgs"].shape)
         subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
         subgraph(preds, img_path, name, is_gt=False)
         if i > 8:
@@ -141,18 +143,23 @@ def main():
     folder = Path("online_coordinate_data/3_stroke_vSmall")
     #folder = Path("online_coordinate_data/3_stroke_vFull")
     folder = Path("online_coordinate_data/8_stroke_vFull")
-    #folder = Path("online_coordinate_data/8_stroke_vSmall_16")
+    folder = Path("online_coordinate_data/8_stroke_vSmall_16")
 
     test_size = 2000
     train_size = None
     batch_size=32
     x_relative_positions=True
+    vocab_size = 4
 
+    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device).to(device)
+    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
+    print("Current dataset: ", folder)
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1,
                             max_images_to_load = train_size,
-                            x_relative_positions=x_relative_positions
+                            x_relative_positions=x_relative_positions,
+                            cnn=cnn
                             )
 
     train_dataloader = DataLoader(train_dataset,
@@ -166,7 +173,8 @@ def main():
                             img_height = 60,
                             num_of_channels = 1.,
                             max_images_to_load = test_size,
-                            x_relative_positions=x_relative_positions
+                            x_relative_positions=x_relative_positions,
+                            cnn=cnn
                             )
 
     test_dataloader = DataLoader(test_dataset,
@@ -176,9 +184,8 @@ def main():
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
-    example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
-    vocab_size = example["gt"].shape[-1]
-    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device).to(device)
+    # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
+    # vocab_size = example["gt"].shape[-1]
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_obj)

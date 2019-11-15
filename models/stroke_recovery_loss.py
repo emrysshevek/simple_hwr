@@ -21,8 +21,10 @@ class StrokeLoss:
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
         self.parallel = parallel
+
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
+        self.truncate_preds = True
 
     def main_loss(self, loss_fn, preds, targs, label_lengths=None):
         """ Preds: BATCH, TIME, VOCAB SIZE
@@ -37,7 +39,7 @@ class StrokeLoss:
 
         """
         if loss_fn is None:
-            loss_fn = StrokeLoss.dtw
+            loss_fn = self.variable_l1 # StrokeLoss.dtw
 
         ## RESAMPLE THE GTs to match
         if loss_fn==self.variable_l1:
@@ -79,7 +81,24 @@ class StrokeLoss:
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
+    def truncate_preds_func(func):
+        """ The images have a bunch of padded space. We don't care about what is predicted after a certain point.
+            So if we're using preds that have been resampled based on image width, truncate the prediction to match
+
+        Returns:
+
+        """
+        def wrapper(self,  *args, **kwargs):
+            if self.truncate_preds:
+                # BATCH, TIME, VOCAB
+                preds = kwargs["preds"]
+                targs = kwargs["targs"]
+                kwargs["preds"]= preds[:, :targs.shape[1], :]
+            return func(self, *args, **kwargs)
+        return wrapper
+
     @staticmethod
+    @truncate_preds_func
     def dtw_single(_input):
         """
         Args:
@@ -97,12 +116,15 @@ class StrokeLoss:
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a,b
 
-    def barron_loss(self, preds, targs, label_lengths=None):
-        _preds = preds.reshape(-1, self.vocab_size)
-        _targs = targs.reshape(-1, self.vocab_size)
+    def barron_loss(self, preds, targs, label_lengths):
+        # BATCH, TIME, VOCAB
+        vocab_size = preds.shape[-1]
+        _preds = preds.reshape(-1, vocab_size)
+        _targs = targs.reshape(-1, vocab_size)
         return torch.sum(self.barron_loss_fn((_preds - _targs)))/np.sum(label_lengths)
 
     @staticmethod
+    @truncate_preds_func
     def variable_l1(preds, batch, label_lengths):
         pass
     #     loss = 0
@@ -116,12 +138,12 @@ class StrokeLoss:
     #     return loss
 
     @staticmethod
+    @truncate_preds_func
     def l1(preds, targs, label_lengths):
         loss = 0
         for i, pred in enumerate(preds):
             loss += torch.sum(abs(pred-targs[i]))/label_lengths[i]
         return loss
-
 
 '''
     OLD attempts at loss
@@ -161,19 +183,18 @@ class StrokeLoss:
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN
     from torch import nn
+
     vocab_size = 4
     batch = 3
     time = 16
     y = torch.rand(batch, 1, 60, 60)
-    targs = torch.rand(batch, time, vocab_size) # BATCH, TIME, VOCAB
+    targs = torch.rand(batch, time, vocab_size)  # BATCH, TIME, VOCAB
     cnn = CNN(nc=1)
     rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
     cnn_output = cnn(y)
     rnn_output = rnn(cnn_output).permute(1, 0, 2)
-    print(rnn_output.shape) # BATCH, TIME, VOCAB
-    loss = StrokeLoss(loss_type="")
-    loss = loss.main_loss(rnn_output, targs)
+    print(rnn_output.shape)  # BATCH, TIME, VOCAB
+    loss = StrokeLoss()
+    loss = loss.main_loss(None, rnn_output, targs)
     print(loss)
-
-
 
