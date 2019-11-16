@@ -88,6 +88,7 @@ class StrokeRecoveryDataset(Dataset):
         # Calculate how many points are needed
         if self.cnn:
             add_output_size_to_data(data, self.cnn)
+            self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
             print("Original dataloader size", len(data))
@@ -237,16 +238,16 @@ def add_output_size_to_data(data, cnn):
     Returns:
 
     """
-    cnn.to("cpu")
+    #cnn.to("cpu")
     width_to_output_mapping = {}
     for instance in data:
         width = instance["shape"][1] # H,W,Channels
         if width not in width_to_output_mapping:
-            t = torch.zeros(1, 1, 60, width)
+            t = torch.zeros(1, 1, 32, width).to("cuda")
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
         instance["number_of_samples"]=width_to_output_mapping[width]
-    cnn.to("cuda")
+    #cnn.to("cuda")
 
 ## Hard coded -- ~20% faster
 # def pad3(batch, variable_width_dim=1):
