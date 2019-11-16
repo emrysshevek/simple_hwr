@@ -39,7 +39,6 @@ def error_handler(func):
 
     return wrapper
 
-
 class CreateDataset:
     """ Create a list of dictionaries with the following keys:
                 "full_img_path": str of path to image,

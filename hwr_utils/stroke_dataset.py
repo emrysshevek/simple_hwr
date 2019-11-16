@@ -95,8 +95,7 @@ class StrokeRecoveryDataset(Dataset):
         print("Dataloader size", len(data))
 
         if "gt" not in data[0].keys():
-            ### PARALLEL
-            data = self.resample_data(data, parallel=False)
+            data = self.resample_data(data, parallel=True)
         print("Done resampling", len(data))
         return data
 
@@ -227,7 +226,7 @@ def calculate_output_size(data, cnn):
     for i in all_possible_widths:
         t = torch.zeros(1, 1, 32, i)
         shape = cnn(t).shape
-        width_to_output_mapping[i] = shape[0]
+        width_to_output_mapping[i] = shape[-1]
     return width_to_output_mapping
 
 def add_output_size_to_data(data, cnn):
@@ -241,10 +240,9 @@ def add_output_size_to_data(data, cnn):
     cnn.to("cpu")
     width_to_output_mapping = {}
     for instance in data:
-        width = instance["shape"][-1]
-
+        width = instance["shape"][1] # H,W,Channels
         if width not in width_to_output_mapping:
-            t = torch.zeros(1, 1, 32, width)
+            t = torch.zeros(1, 1, 60, width)
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
         instance["number_of_samples"]=width_to_output_mapping[width]
@@ -337,7 +335,7 @@ def collate_stroke(batch, device="cpu"):
 
         l = batch[i]['gt']
         #all_labels.append(l)
-        #label_lengths.append(len(l))
+        label_lengths.append(len(l))
         ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))

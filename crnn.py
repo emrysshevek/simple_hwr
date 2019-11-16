@@ -345,12 +345,34 @@ class TrainerStrokeRecovery:
     def default(self, o):
         return None
 
-    def train(self, loss_fn, line_imgs, gt, **kwargs):
-        self.model.train()
+    @staticmethod
+    def truncate(preds, label_lengths):
+        preds = [preds[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
+        #targs = [targs[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
+        return preds
 
+    def train(self, loss_fn, item, **kwargs):
+        """ Item is the whole thing from the dataloader
+
+        Args:
+            loss_fn:
+            item:
+            **kwargs:
+
+        Returns:
+
+        """
+        line_imgs = item["line_imgs"].to(device)
+        label_lengths = item["label_lengths"]
+        gt = item["gt_list"]
+        self.model.train()
         pred_logits = self.model(line_imgs).cpu()
+
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-        stroke_loss = self.loss_criterion.main_loss(loss_fn, output_batch, gt)
+
+        ## Shorten
+        preds = self.truncate(output_batch, label_lengths)
+        stroke_loss = self.loss_criterion.main_loss(loss_fn, preds, gt, label_lengths)
 
         # Backprop
         #self.logger.debug("Backpropping: {}".format(step))
@@ -358,16 +380,16 @@ class TrainerStrokeRecovery:
         stroke_loss.backward()
         self.optimizer.step()
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, output_batch, None
+        return loss, preds, None
 
     def test(self, loss_fn, line_imgs, gt, validation=False, **kwargs):
         self.model.eval()
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-
-        stroke_loss = self.loss_criterion.main_loss(loss_fn, output_batch, gt)
+        preds = self.truncate(output_batch, label_lengths)
+        stroke_loss = self.loss_criterion.main_loss(loss_fn, preds, gt)
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, output_batch
+        return loss, preds
 
     def update_test_cer(self, validation, err, weight, prefix=""):
         if validation:

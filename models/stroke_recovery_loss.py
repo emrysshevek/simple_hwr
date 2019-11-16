@@ -26,7 +26,7 @@ class StrokeLoss:
         self.poolcount = 2
         self.truncate_preds = True
 
-    def main_loss(self, loss_fn, preds, targs, label_lengths=None):
+    def main_loss(self, loss_fn, preds, targs, label_lengths):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -38,8 +38,8 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
-        if loss_fn is None:
-            loss_fn = self.variable_l1 # StrokeLoss.dtw
+        if loss_fn is None or True: #TEMP
+            loss_fn = self.l1 # StrokeLoss.dtw
 
         ## RESAMPLE THE GTs to match
         if loss_fn==self.variable_l1:
@@ -58,7 +58,7 @@ class StrokeLoss:
         elif isinstance(targs, dict):
             label_lengths = targs["label_lengths"]
             targs = targs["gt_list"]
-        else:
+        elif label_lengths is None:
             label_lengths = [t.shape[0] for t in targs]
 
         loss = loss_fn(preds, targs, label_lengths)
@@ -88,13 +88,19 @@ class StrokeLoss:
         Returns:
 
         """
-        def wrapper(self,  *args, **kwargs):
-            if self.truncate_preds:
+
+        # REMOVE PRINT OUTS
+        # DON'T RESAMPLE? HM...
+        # Check parallel
+        def wrapper(*args, **kwargs):
+            if False: # FIX THIS - only if self.truncate
                 # BATCH, TIME, VOCAB
-                preds = kwargs["preds"]
-                targs = kwargs["targs"]
-                kwargs["preds"]= preds[:, :targs.shape[1], :]
-            return func(self, *args, **kwargs)
+                kwargs["preds"] = preds = args[0] if len(args)>0 else kwargs["preds"]
+                kwargs["targs"] = targs = args[1] if len(args)>1 else kwargs["targs"]
+                kwargs["label_lengths"] = label_lengths = args[2] if len(args) > 2 else kwargs["label_lengths"]
+                kwargs["preds"]= [preds[i][:label_lengths[i], :] for i in range(0,len(label_lengths))]
+                kwargs["targs"]= [targs[i][:label_lengths[i], :] for i in range(0,len(label_lengths))]
+            return func(*args, **kwargs)
         return wrapper
 
     @staticmethod

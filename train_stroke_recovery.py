@@ -21,6 +21,9 @@ torch.cuda.empty_cache()
 # L1 loss, DTW
 # Dataset size
 
+### PREDS -- truncate right away if that's what we're doing!
+
+
 class StrokeRecoveryModel(nn.Module):
     def __init__(self, vocab_size=5, device="cuda"):
         super().__init__()
@@ -52,12 +55,13 @@ def run_epoch(dataloader, report_freq=500):
         instances += current_batch_size
 
         # Feed the right targets
-        if loss_fn==loss_obj.dtw:
-            loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
-        elif loss_fn==loss_obj.variable_l1:
-            loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
-        else:
-            raise Exception("Unknown loss")
+        # if loss_fn==loss_obj.dtw:
+        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
+        # elif loss_fn==loss_obj.variable_l1:
+        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
+        # else:
+        #     raise Exception("Unknown loss")
+        loss, preds, *_ = trainer.train(loss_fn, item)
 
         loss_list += [loss]
         if i % report_freq == 0 and i > 0:
@@ -66,7 +70,8 @@ def run_epoch(dataloader, report_freq=500):
     end_time = timer()
     print("Epoch duration:", end_time-start_time)
 
-    preds_to_graph = preds.permute([0, 2, 1])
+    #preds_to_graph = preds.permute([0, 2, 1])
+    preds_to_graph = [p.permute([1, 0]) for p in preds]
     graph(item, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions)
     return np.mean(loss_list)/batch_size
 
@@ -78,15 +83,16 @@ def test(dataloader):
         targs = item["gt_list"]
         line_imgs = item["line_imgs"].to(device)
 
-        if loss_fn==loss_obj.dtw:
-            loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
-        elif loss_fn==loss_obj.variable_l1:
-            loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
-        else:
-            raise Exception("Unknown loss")
+        # if loss_fn==loss_obj.dtw:
+        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
+        # elif loss_fn==loss_obj.variable_l1:
+        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
+        # else:
+        #     raise Exception("Unknown loss")
+        loss, preds, *_ = trainer.train(loss_fn, item)
 
         loss_list += [loss]
-    preds_to_graph = preds.permute([0, 2, 1])
+    preds_to_graph = [p.permute([1, 0]) for p in preds]
     graph(item, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions)
     return np.mean(loss_list)/batch_size
 
@@ -114,15 +120,13 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
         ## Undo relative positions for X for graphing
         if x_relative_positions:
             coords[0] = relativefy(coords[0], reverse=True)
-        if not is_gt:
-            print(name, coords.shape)
+
         render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"temp{i}_{name}{suffix}.png")
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
         img_path = el
         name=Path(batch["paths"][i]).stem
-        print(name, "image width", batch["line_imgs"].shape)
         subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
         subgraph(preds, img_path, name, is_gt=False)
         if i > 8:
@@ -143,12 +147,12 @@ def main():
     folder = Path("online_coordinate_data/3_stroke_vSmall")
     #folder = Path("online_coordinate_data/3_stroke_vFull")
     folder = Path("online_coordinate_data/8_stroke_vFull")
-    folder = Path("online_coordinate_data/8_stroke_vSmall_16")
+    #folder = Path("online_coordinate_data/8_stroke_vSmall_16")
 
     test_size = 2000
     train_size = None
     batch_size=32
-    x_relative_positions=True
+    x_relative_positions=False
     vocab_size = 4
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device).to(device)
