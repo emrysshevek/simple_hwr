@@ -7,11 +7,20 @@ An alternative implementation for PyTorch with auto-infering the x-y dimensions.
 
 class AddCoords(nn.Module):
 
-    def __init__(self, with_r=False, zero_center=True, rectangle_x=False):
+    def __init__(self, with_r=False, zero_center=True, rectangle_x=False, both_x=False):
+        """ Include a rectangle and non-rectangle x
+
+        Args:
+            with_r:
+            zero_center:
+            rectangle_x:
+            both_x:
+        """
         super().__init__()
         self.with_r = with_r
         self.rectangle_x = rectangle_x
         self.zero_center = zero_center
+        self.both = both_x
 
     def forward(self, input_tensor):
         """
@@ -32,16 +41,29 @@ class AddCoords(nn.Module):
             yy_channel = yy_channel * 2 - 1
             xx_channel = xx_channel * 2 - 1
 
-        if self.rectangle_x:
-            xx_channel *= x_dim / y_dim
+        if self.both:
+            xx_rec_channel = xx_channel * x_dim / y_dim
 
-        xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
-        yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+            xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+            yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+            xx_rec_channel = xx_rec_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
 
-        ret = torch.cat([
-            input_tensor,
-            xx_channel.type_as(input_tensor),
-            yy_channel.type_as(input_tensor)], dim=1)
+            ret = torch.cat([
+                input_tensor,
+                xx_channel.type_as(input_tensor),
+                xx_rec_channel.type_as(input_tensor),
+                yy_channel.type_as(input_tensor)], dim=1)
+        else:
+            if self.rectangle_x:
+                xx_channel *= x_dim / y_dim
+
+            xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+            yy_channel = yy_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+
+            ret = torch.cat([
+                input_tensor,
+                xx_channel.type_as(input_tensor),
+                yy_channel.type_as(input_tensor)], dim=1)
 
         if self.with_r:
             rr = torch.sqrt(torch.pow(xx_channel.type_as(input_tensor) - 0.5, 2) + torch.pow(yy_channel.type_as(input_tensor) - 0.5, 2))
@@ -51,12 +73,12 @@ class AddCoords(nn.Module):
 
 
 class CoordConv(nn.Module):
-    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, **kwargs):
+    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, rectangle_x=False, both_x=False, **kwargs):
         super().__init__()
-        self.addcoords = AddCoords(with_r=with_r)
+        self.addcoords = AddCoords(with_r=with_r, rectangle_x=rectangle_x, both_x=both_x)
         self.verbose = verbose
         in_size = in_channels+2
-        if with_r:
+        if with_r or both_x:
             in_size += 1
         self.conv = nn.Conv2d(in_size, out_channels, **kwargs)
 
@@ -71,7 +93,7 @@ class CoordConv(nn.Module):
 
 def test_cnn():
     import torch
-    from models.basic import BidirectionalRNN, CNN, CCNN
+    from models.basic import BidirectionalRNN, CNN
     import torch.nn as nn
 
     cnn = CCNN(nc=1, conv_op=CoordConv, verbose=False)

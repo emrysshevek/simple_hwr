@@ -1,0 +1,59 @@
+# Load model
+load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
+test_only: false # Do not train
+
+# General
+output_folder: ./results
+epochs_to_run: 200
+save_freq: 5
+use_visdom: true
+debug: off
+
+# Training data
+dataset_folder: online_coordinate_data/8_stroke_vSmall_16
+#dataset_folder: online_coordinate_data/8_stroke_vFull
+
+
+#training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
+#training_root: data
+#training_shuffle: true
+##training_warp: false
+#
+## Validation
+#validation_jsons: [prepare_IAM_Lines/gts/lines/txt/val1.json, prepare_IAM_Lines/gts/lines/txt/val2.json]
+
+# Testing data
+testing_jsons: [prepare_IAM_Lines/gts/lines/txt/test.json]
+
+# LR schedule
+learning_rate: 1e-3          # LR
+scheduler_step: 10         # Every X steps, multiply LR by gamma
+scheduler_gamma: .95          # LR decay rate
+
+## Loss options:
+  # Based on width of image, determine how many outputs there should be
+    # batches make predictions square, ONLY evaluate based on the expected GT length
+  # DTW - have as many GTs as you want; bound alignments somehow?
+  # (Old option: resample the GTs after the prediction is known)
+  # (Future option: with attention, have the GTs to be just be sampled regularly)
+
+test_size: 2000
+train_size: null
+batch_size: 32
+x_relative_positions: False
+vocab_size: 4
+
+## Loss function
+loss_fn: l1
+loss_fn2: dtw
+first_loss_epochs: 1
+
+# CoordConv
+  # x-scaled from -1 to 1
+  # x-scaled to be same scale as y
+
+# Relative X coordinates
+  # Only predict relative (bad)
+  # Predict both??
+  # Only predict absolute
+

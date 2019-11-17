@@ -38,7 +38,7 @@ class StrokeRecoveryModel(nn.Module):
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
         return rnn_output
 
-def run_epoch(dataloader, report_freq=500):
+def run_epoch(dataloader, report_freq=500, loss_fn=loss_obj.l1):
     loss_list = []
 
     # for i in range(0, 16):
@@ -46,21 +46,11 @@ def run_epoch(dataloader, report_freq=500):
     #     targs = torch.rand(batch, 16, 5)
     instances = 0
     start_time = timer()
-    print(epoch)
-    loss_fn = loss_obj.dtw if epoch > 5 else loss_obj.variable_l1
-    loss_fn = loss_obj.variable_l1
-    for i, item in enumerate(dataloader):
-        line_imgs = item["line_imgs"].to(device)
-        current_batch_size = line_imgs.shape[0]
-        instances += current_batch_size
+    print("Epoch: ", epoch)
 
-        # Feed the right targets
-        # if loss_fn==loss_obj.dtw:
-        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
-        # elif loss_fn==loss_obj.variable_l1:
-        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
-        # else:
-        #     raise Exception("Unknown loss")
+    for i, item in enumerate(dataloader):
+        current_batch_size = item["line_imgs"].shape[0]
+        instances += current_batch_size
         loss, preds, *_ = trainer.train(loss_fn, item)
 
         loss_list += [loss]
@@ -75,20 +65,10 @@ def run_epoch(dataloader, report_freq=500):
     graph(item, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions)
     return np.mean(loss_list)/batch_size
 
-def test(dataloader):
-    loss_fn = loss_obj.variable_l1
+def test(dataloader, loss_fn):
     loss_list = []
     for i, item in enumerate(dataloader):
         #print(item)
-        targs = item["gt_list"]
-        line_imgs = item["line_imgs"].to(device)
-
-        # if loss_fn==loss_obj.dtw:
-        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item["gt_list"])
-        # elif loss_fn==loss_obj.variable_l1:
-        #     loss, preds, *_ = trainer.train(loss_fn, line_imgs, item)
-        # else:
-        #     raise Exception("Unknown loss")
         loss, preds, *_ = trainer.train(loss_fn, item)
 
         loss_list += [loss]
@@ -133,27 +113,31 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
             break
 
 def main():
-    global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions
+    global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config
     torch.cuda.empty_cache()
+
+    config = utils.load_config("./configs/stroke_config/baseline.yaml", hwr=False)
+
+    test_size = config.test_size
+    train_size = config.train_size
+    batch_size = config.batch_size
+    x_relative_positions= config.x_relative_positions
+    vocab_size = config.vocab_size
+
     device=torch.device("cuda")
     #device=torch.device("cpu")
 
-    output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
-
+    #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
+    output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
     loss_obj = StrokeLoss()
-
-    folder = Path("online_coordinate_data/3_stroke_32_v2")
-    folder = Path("online_coordinate_data/3_stroke_vSmall")
-    #folder = Path("online_coordinate_data/3_stroke_vFull")
-    folder = Path("online_coordinate_data/8_stroke_vFull")
-    #folder = Path("online_coordinate_data/8_stroke_vSmall_16")
-
-    test_size = 2000
-    train_size = None
-    batch_size=32
-    x_relative_positions=False
-    vocab_size = 4
+    config.loss_obj = loss_obj
+    # folder = Path("online_coordinate_data/3_stroke_32_v2")
+    # folder = Path("online_coordinate_data/3_stroke_vSmall")
+    # folder = Path("online_coordinate_data/3_stroke_vFull")
+    # folder = Path("online_coordinate_data/8_stroke_vFull")
+    # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
+    folder = config.dataset_folder
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
@@ -193,14 +177,27 @@ def main():
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_obj)
+    loss_fn = get_loss(config.loss_fn)
     globals().update(locals())
     for i in range(0,200):
         epoch = i+1
-        loss = run_epoch(train_dataloader)
+        loss = run_epoch(train_dataloader, loss_fn=loss_fn)
         print(f"Epoch: {epoch}, Training Loss: {loss}")
-        test_loss = test(test_dataloader)
+        test_loss = test(test_dataloader, loss_fn=loss_fn)
         print(f"Epoch: {epoch}, Test Loss: {test_loss}")
+        if config.first_loss_epochs and epoch == config.first_loss_epochs:
+            loss_fn = get_loss(config.loss_fn2)
 
+def get_loss(loss_fn):
+    if loss_fn.lower() == "l1":
+        loss_fn =  config.loss_obj.l1
+    elif loss_fn.lower() == "variable_l1":
+        loss_fn = config.loss_obj.variable_l1
+    elif loss_fn.lower() == "dtw":
+        loss_fn = config.loss_obj.dtw
+    else:
+        raise Exception("Unknown loss")
+    return loss_fn
 
     ## Bezier curve
     # Have network predict whether it has reached the end of a stroke or not
@@ -208,3 +205,9 @@ def main():
 
 if __name__=="__main__":
     main()
+    
+    # TO DO:
+        # Finish implementing config
+        # save the model!
+        # logging
+        # don't pass the loss function arround, just have the oloss object take care of it

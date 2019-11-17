@@ -180,7 +180,54 @@ def incrementer(root, base):
     new_folder.mkdir(parents=True, exist_ok=True)
     return new_folder
 
-def load_config(config_path):
+hwr_defaults = {"load_path":False,
+            "training_shuffle": False,
+            "testing_shuffle": False,
+            "test_only": False,
+            "TESTING": False,
+            "GPU": True,
+            "SKIP_TESTING": False,
+            "OVERFIT": False,
+            "TEST_FREQ": 1,
+            "SMALL_TRAINING": False,
+            "images_to_load": None,
+            "plot_freq": 50,
+            "rnn_layers": 2,
+            "nudger_rnn_layers": 2,
+            "nudger_rnn_dimension": 512,
+            "improve_image": False,
+            "decoder_type" : "naive",
+            "rnn_type": "lstm",
+            "cnn": "default",
+            "online_flag": True,
+            "save_count": 0,
+            "training_blur": False,
+            "training_blur_level": 1.5,
+            "training_random_distortions": False,
+            "training_distortion_sigma": 6.0,
+            "testing_blur": False,
+            "testing_blur_level": 1.5,
+            "testing_random_distortions": False,
+            "testing_distortion_sigma": 6.0,
+            "occlusion_size": None,
+            "occlusion_freq": None,
+            "logging": "info",
+            "n_warp_iterations": 11,
+            "testing_occlude": False,
+            "testing_warp": False,
+            "optimizer_type": "adam",
+            "occlusion_level": .4,
+            "exclude_offline": False,
+            "validation_jsons": [],
+            "elastic_transform": False,
+            "coord_conv": False
+            }
+
+stroke_defaults = {"SMALL_TRAINING": False,
+                    "logging": "info",
+                }
+
+def load_config(config_path, hwr=True):
     config_path = Path(config_path)
     project_path = Path(os.path.realpath(__file__)).parent.parent.absolute()
     config_root = project_path / "configs"
@@ -200,49 +247,8 @@ def load_config(config_path):
     config = edict(read_config(config_path))
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
     config["project_path"] = project_path
-    defaults = {"load_path":False,
-                "training_shuffle": False,
-                "testing_shuffle": False,
-                "test_only": False,
-                "TESTING": False,
-                "GPU": True,
-                "SKIP_TESTING": False,
-                "OVERFIT": False,
-                "TEST_FREQ": 1,
-                "SMALL_TRAINING": False,
-                "images_to_load": None,
-                "plot_freq": 50,
-                "rnn_layers": 2,
-                "nudger_rnn_layers": 2,
-                "nudger_rnn_dimension": 512,
-                "improve_image": False,
-                "decoder_type" : "naive",
-                "rnn_type": "lstm",
-                "cnn": "default",
-                "online_flag": True,
-                "save_count": 0,
-                "training_blur": False,
-                "training_blur_level": 1.5,
-                "training_random_distortions": False,
-                "training_distortion_sigma": 6.0,
-                "testing_blur": False,
-                "testing_blur_level": 1.5,
-                "testing_random_distortions": False,
-                "testing_distortion_sigma": 6.0,
-                "occlusion_size": None,
-                "occlusion_freq": None,
-                "logging": "info",
-                "n_warp_iterations": 11,
-                "testing_occlude": False,
-                "testing_warp": False,
-                "optimizer_type": "adam",
-                "occlusion_level": .4,
-                "exclude_offline": False,
-                "validation_jsons": [],
-                "elastic_transform": False,
-                "coord_conv": False
-                }
 
+    defaults = hwr_defaults if hwr else stroke_defaults
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
@@ -266,14 +272,6 @@ def load_config(config_path):
     config["experiment"] = str(experiment)
     log_print(f"Experiment: {experiment}, Results Directory: {output_root}")
 
-    # hyper_parameter_str='{}_lr_{}_bs_{}_warp_{}_arch_{}'.format(
-    #      config["name"],
-    #      config["learning_rate"],
-    #      config["batch_size"],
-    #      config["training_warp"],
-    #      config["style_encoder"]
-    #  )
-
     hyper_parameter_str='{}'.format(
          config["name"],
      )
@@ -282,7 +280,7 @@ def load_config(config_path):
         time.strftime("%Y%m%d_%H%M%S"),
         hyper_parameter_str)
 
-    if config["TESTING"] or config["SMALL_TRAINING"]:
+    if config["SMALL_TRAINING"]:
         train_suffix = "TEST_"+train_suffix
 
     config["full_specs"] = train_suffix
@@ -324,7 +322,8 @@ def load_config(config_path):
     except Exception as e:
         log_print(f"Could not copy config file: {e}")
 
-    config = make_config_consistent(config)
+    if hwr:
+        config = make_config_consistent_hwr(config)
 
     logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
@@ -339,7 +338,7 @@ def load_config(config_path):
     #make_lower(config)
     return config
 
-def make_config_consistent(config):
+def make_config_consistent_hwr(config):
     if config["SMALL_TRAINING"] or config["TESTING"]:
         config["images_to_load"] = config["batch_size"]
 

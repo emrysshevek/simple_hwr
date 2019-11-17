@@ -26,6 +26,22 @@ class StrokeLoss:
         self.poolcount = 2
         self.truncate_preds = True
 
+    @staticmethod
+    def resample_gt(self, preds, targs):
+        batch = targs
+        device = preds.device
+        targs = []
+        label_lengths = []
+        for i in range(0, preds.shape[0]):
+            pred_length = preds[i].shape[0]
+            t = create_gts(batch["x_func"][i], batch["y_func"][i], batch["start_times"][i],
+                           number_of_samples=pred_length, noise=None,
+                           relative_x_positions=batch["x_relative"])  # .transpose([1,0])
+            t = torch.from_numpy(t.astype(np.float32)).to(device)
+            targs.append(t)
+            label_lengths.append(pred_length)
+        return targs, label_lengths
+
     def main_loss(self, loss_fn, preds, targs, label_lengths):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
@@ -38,29 +54,11 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
-        if loss_fn is None or True: #TEMP
-            loss_fn = self.l1 # StrokeLoss.dtw
-
-        ## RESAMPLE THE GTs to match
-        if loss_fn==self.variable_l1:
-            loss_fn = self.l1
-            batch = targs
-            device = preds.device
-            targs = []
-            label_lengths = []
-            for i in range(0, preds.shape[0]):
-                pred_length = preds[i].shape[0]
-                t = create_gts(batch["x_func"][i], batch["y_func"][i], batch["start_times"][i],
-                                  number_of_samples=pred_length, noise=None, relative_x_positions=batch["x_relative"]) #.transpose([1,0])
-                t = torch.from_numpy(t.astype(np.float32)).to(device)
-                targs.append(t)
-                label_lengths.append(pred_length)
-        elif isinstance(targs, dict):
-            label_lengths = targs["label_lengths"]
-            targs = targs["gt_list"]
-        elif label_lengths is None:
-            label_lengths = [t.shape[0] for t in targs]
-
+        # elif isinstance(targs, dict):
+        #     label_lengths = targs["label_lengths"]
+        #     targs = targs["gt_list"]
+        # elif label_lengths is None:
+        #     label_lengths = [t.shape[0] for t in targs]
         loss = loss_fn(preds, targs, label_lengths)
         return loss
 
@@ -81,6 +79,7 @@ class StrokeLoss:
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
+    ## THIS IS HAPPENING IN THE TRAINER!
     def truncate_preds_func(func):
         """ The images have a bunch of padded space. We don't care about what is predicted after a certain point.
             So if we're using preds that have been resampled based on image width, truncate the prediction to match
@@ -104,7 +103,6 @@ class StrokeLoss:
         return wrapper
 
     @staticmethod
-    @truncate_preds_func
     def dtw_single(_input):
         """
         Args:
@@ -130,21 +128,11 @@ class StrokeLoss:
         return torch.sum(self.barron_loss_fn((_preds - _targs)))/np.sum(label_lengths)
 
     @staticmethod
-    @truncate_preds_func
-    def variable_l1(preds, batch, label_lengths):
-        pass
-    #     loss = 0
-    #     print(batch)
-    #     print(preds)
-    #     Stop
-    #     for i, pred in enumerate(preds):
-    #         pred_length = preds.shape[1]
-    #         targ = create_gts(batch["x_func"][i], batch["y_func"][i], batch["start_times"][i], number_of_samples=pred_length, noise=None, relative_x_positions=batch["x_relative"])
-    #         loss += torch.sum(abs(pred-targ))/label_lengths[i]
-    #     return loss
+    def variable_l1(preds, targs, label_lengths):
+        targs, label_lengths = StrokeLoss.resample_gt(preds, targs)
+        return StrokeLoss.l1(preds, targs, label_lengths)
 
     @staticmethod
-    @truncate_preds_func
     def l1(preds, targs, label_lengths):
         loss = 0
         for i, pred in enumerate(preds):
