@@ -5,7 +5,8 @@ import torch.nn as nn
 from pydtw import dtw
 from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
-from sdtw import SoftDTW
+#from sdtw import SoftDTW
+import bezier
 import torch.multiprocessing as multiprocessing
 from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_dataset import pad
@@ -49,12 +50,6 @@ class StrokeLoss:
             _targs = targs.reshape(-1,vocab_size)
             return torch.sum(self.bonus_loss((_preds-_targs)))
         else:
-            #location_loss = abs(preds - targs).sum()
-            #logp_loss = self.log_prob_loss(preds, targs)
-            #angle_loss = self.angle_loss(preds, targs)
-            #print(f"{location_loss:.1f} {angle_loss:.1f} {logp_loss:.1f}")
-            #return logp_loss * 0.8 + angle_loss * 0.2
-            #return logp_loss * 0.6 + angle_loss * 0.4 + abs(preds[:, :, 2:] - targs[:, :, 2:]).sum()
             loss = self.loop(preds, targs, label_lengths)
             return loss
 
@@ -71,14 +66,37 @@ class StrokeLoss:
             #print(as_and_bs[0])
             for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
                 loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
-
         else:
             # pool = multiprocessing.Pool(processes=self.poolcount)
             # pool.close()
+            
+            samples = self.sample_from_curves(preds)
+            #samples_np = to_numpy(samples, astype="float64")
+            #print("pre: ", len(targs), targs[0].shape)
+            #targs_np = np.array([x.tolist() for x in targs])
+            #samples_np = np.ascontiguousarray(samples_np[:, :, :])
+            #print(targs_np)
+            #print("Targs np shape: ", targs_np.shape)
+            #targs_np = np.ascontiguousarray(targs_np[:, :, :])
             for i in range(len(preds)): # loop through BATCH
-                a,b = self.dtw((preds[i], targs[i]))
-                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
+                
+                #a, b = dtw2d.dtw(samples_np[i], targs_np[i, :, :2])
+                a, b = self.dtw((samples[i], targs[i][:, :2]))
+                loss += abs(samples[i][a, :] - targs[i][b, :2]).sum() / label_lengths[i]
+                #a,b = self.dtw((preds[i], targs[i]))
+                #loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
+        print("loss: ", loss)
         return loss
+
+    @staticmethod
+    def sample_from_curves(preds):
+        bezier_coefs = torch.t(torch.Tensor([[(1 - t)**2, 2*t*(1 - t), t**2] for t in np.linspace(0.0, 1.0, 5)])).unsqueeze(0)
+        #bezier_coefs = torch.t(torch.Tensor([[(1 - t)**3, 3*t*(1 - t)**2, 3*t*(1 - t)**2, t**3] for t in np.linspace(0.0, 1.0, 12)]))
+        xs = torch.matmul(preds[:, :, :3], bezier_coefs)
+        ys = torch.matmul(preds[:, :, 3:], bezier_coefs)
+        zipped = torch.stack((xs, ys), 3)
+        samples = zipped.view(zipped.shape[0], zipped.shape[1] * zipped.shape[2], zipped.shape[3])
+        return samples
 
     @staticmethod
     def dtw(input):
@@ -114,41 +132,6 @@ class StrokeLoss:
         E = sdtw.grad()
         # gradient w.r.t. X, shape = [m, d]
         G = D.jacobian_product(E)
-
-'''
-    OLD attempts at loss
-    def angle_loss(self, preds, targs):
-        #end_strokes = (targs[:, :, 3] != 1)[:, :-1]
-        pred_diffs = preds[:, 1:, :2] - preds[:, :-1, :2]
-        targ_diffs = targs[:, 1:, :2] - targs[:, :-1, :2]
-
-
-        # set diffs to 0 at end_stroke indices
-        #pred_diffs[:, :, 0] *= end_strokes
-        #pred_diffs[:, :, 1] *= end_strokes
-        #targ_diffs[:, :, 0] *= end_strokes
-        #targ_diffs[:, :, 1] *= end_strokes
-
-        #print(pred_diffs.shape, targ_diffs.shape)
-
-
-        # get the indices of the slopes that shouldn't be connected and remove that slope
-        loss = self.cosine_distance(pred_diffs, targ_diffs)
-        return loss.sum() * 25 # constant to make it start out roughly equal to the location loss
-
-    def log_prob_loss(self, preds, targs):
-        pred_diffs = preds[:, 1:, :2] - preds[:, :-1, :2]
-        targ_diffs = targs[:, 1:, :2] - targs[:, :-1, :2]
-        targ_slopes = targ_diffs[:, :, 0] / targ_diffs[:, :, 1]
-        loss = 0
-        for i in range(len(targ_diffs)):
-            for j in range(len(targ_diffs[i])):
-                # Get variances according to diffs
-                bivariate = torch.distributions.multivariate_normal.MultivariateNormal(targs[i][j][:2], torch.eye(2))
-                loss_part = bivariate.log_prob(preds[i][j][:2])
-                loss += loss_part
-        return -loss
-    '''
 
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN

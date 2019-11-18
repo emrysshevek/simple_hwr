@@ -112,7 +112,8 @@ def run_epoch(dataloader, report_freq=500):
     end_time = timer()
     print("Epoch duration:", end_time-start_time)
 
-    preds_to_graph = preds.permute([0, 2, 1])
+    # COMMENTED THIS
+    preds_to_graph = preds #preds_to_graph = preds.permute([0, 2, 1])
     graph(preds_to_graph, item, _type="train")
     return np.mean(loss_list)/batch_size
 
@@ -124,7 +125,8 @@ def test(dataloader):
         line_imgs = item["line_imgs"].to(device)
         loss, preds = trainer.test(line_imgs, targs)
         loss_list += [loss]
-    preds_to_graph = preds.permute([0, 2, 1])
+    # COMMENTED THIS
+    preds_to_graph = preds#preds_to_graph = preds.permute([0, 2, 1])
     graph(preds_to_graph, item, _type="test")
 
     return np.mean(loss_list)/batch_size
@@ -134,8 +136,20 @@ def graph(preds, batch, _type="test"):
     (output / _epoch / _type).mkdir(parents=True, exist_ok=True)
     for i, el in enumerate(batch["paths"]):
         img_path = el
-        pred = utils.to_numpy(preds[i])
-        pred[2:,:] = np.round(pred[2:,:])
+        ## CHANGES
+        bezier_coefs = torch.t(torch.Tensor([[(1 - t)**2, 2*t*(1 - t), t**2] for t in np.linspace(0.0, 1.0, 10)]))
+        #bezier_coefs = torch.t(torch.Tensor([[(1 - t)**3, 3*t*(1 - t)**2, 3*t*(1 - t)**2, t**3] for t in np.linspace(0.0, 1.0, 10)]))
+        xs = torch.matmul(preds[i][:, :3], bezier_coefs)
+        ys = torch.matmul(preds[i][:, 3:], bezier_coefs)
+        zipped = torch.stack((xs, ys), 2)
+        pred = zipped.view(zipped.shape[0] * zipped.shape[1], zipped.shape[2])
+        zs = torch.zeros(2, pred.shape[0])
+        pred = torch.t(pred).detach()
+        pred = torch.cat((pred, zs), dim = 0)
+        ## END CHANGES BEGIN COMMENT
+        #pred = utils.to_numpy(preds[i])
+        #pred[2:,:] = np.round(pred[2:,:])
+        ## END COMMENT
         gts = utils.to_numpy(batch["gt"][i]).transpose()
 
         render_points_on_image(gts=pred, img_path=img_path, save_path=output / _epoch / _type / f"temp{i}.png")
@@ -158,7 +172,7 @@ folder = Path("online_coordinate_data/3_stroke_32_v2")
 folder = Path("online_coordinate_data/3_stroke_vSmall")
 folder = Path("online_coordinate_data/3_stroke_vFull")
 
-test_size = 2000
+test_size = 20
 train_size = None
 batch_size=64
 
@@ -189,14 +203,15 @@ test_dataloader = DataLoader(test_dataset,
                               pin_memory=False)
 
 example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
-vocab_size = example["gt"].shape[-1]
+vocab_size = 6#example["gt"].shape[-1]
+print("VOCAB SIZE: ", vocab_size)
 model = StrokeRecoveryModel(vocab_size=vocab_size).to(device)
 optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
 scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
 trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_fnc)
 
 
-for i in range(0,80):
+for i in range(0,100):
     epoch = i
     loss = run_epoch(train_dataloader)
     print(f"Epoch: {i}, Training Loss: {loss}")

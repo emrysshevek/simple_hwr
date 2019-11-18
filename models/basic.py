@@ -266,7 +266,7 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
         convRelu(6, True)  # 16, 512, 2, 451
-        cnn.add_module("upsample", Interpolate(size=[2,64], scale_factor=None, mode='bilinear', align_corners=True))
+        #cnn.add_module("upsample", Interpolate(size=[2,8], scale_factor=None, mode='bilinear', align_corners=True))
 
         return cnn
 

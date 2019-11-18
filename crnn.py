@@ -4,6 +4,7 @@ from models.deprecated_crnn import *
 from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
+from scipy.spatial import KDTree
 from hwr_utils import utils
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -365,6 +366,8 @@ class TrainerStrokeRecovery:
         self.model.eval()
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+
+        # TODO now instead of stroke_loss, do KD tree evaluation + dtw?
 
         stroke_loss = self.loss_criterion(output_batch, gt)
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
