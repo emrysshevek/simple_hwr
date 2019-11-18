@@ -1,4 +1,5 @@
 # Load model
+TESTING: true
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 
@@ -10,9 +11,8 @@ use_visdom: true
 debug: off
 
 # Training data
-dataset_folder: online_coordinate_data/8_stroke_vSmall_16
-#dataset_folder: online_coordinate_data/8_stroke_vFull
-
+#dataset_folder: online_coordinate_data/8_stroke_vSmall_16
+dataset_folder: online_coordinate_data/8_stroke_vFull
 
 #training_jsons: [prepare_IAM_Lines/gts/lines/txt/training.json, prepare_online_data/online_augmentation.json]
 #training_root: data
@@ -46,14 +46,15 @@ vocab_size: 4
 ## Loss function
 loss_fn: l1
 loss_fn2: dtw
-first_loss_epochs: 1
+first_loss_epochs: 20
 
 # CoordConv
   # x-scaled from -1 to 1
   # x-scaled to be same scale as y
+coordconv: true
+coordconv_abs: true # scale x-coordconv to be on the same scale as y
+coordconv_default: true # x-coordinates on -1 to 1 range
+coordconv_0_center: true # 0 center
 
 # Relative X coordinates
-  # Only predict relative (bad)
-  # Predict both??
-  # Only predict absolute
-
+relative_x: false # true, false, both; predict both

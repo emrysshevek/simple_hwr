@@ -137,7 +137,7 @@ class PrintLayer(nn.Module):
 
 
 class CNN(nn.Module):
-    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, cnn_type="default", first_conv_op=nn.Conv2d, verbose=False):
+    def __init__(self, cnnOutSize=1024, nc=3, leakyRelu=False, cnn_type="default", first_conv_op=nn.Conv2d, first_conv_opts=None, verbose=False):
         """ Height must be set to be consistent; width is variable, longer images are fed into BLSTM in longer sequences
             BATCH, CHANNELS, HEIGHT, WIDTH
         The CNN learns some kind of sequential ordering because the maps are fed into the LSTM sequentially.
@@ -149,6 +149,7 @@ class CNN(nn.Module):
         """
         super().__init__()
         self.first_conv_op = first_conv_op
+        self.first_conv_opts = first_conv_opts
         self.cnnOutSize = cnnOutSize
         #self.average_pool = nn.AdaptiveAvgPool2d((512,2))
         self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
@@ -183,7 +184,13 @@ class CNN(nn.Module):
         cnn = nn.Sequential()
 
         def convRelu(i, batchNormalization=False):
-            conv_op = nn.Conv2d if i>0 else self.first_conv_op
+            kwargs = {}
+            if i==0:
+                conv_op = self.first_conv_op
+                if self.first_conv_op.__name__ == 'CoordConv' and self.first_conv_opts:
+                    kwargs = self.first_conv_opts
+            else:
+                conv_op = nn.Conv2d
 
             if self.verbose and False:
                 cnn.add_module(f"printBefore{i}", PrintLayer(name=f"printBefore{i}"))
@@ -191,7 +198,7 @@ class CNN(nn.Module):
             nIn = nc if i == 0 else nm[i - 1]
             nOut = nm[i]
             cnn.add_module('conv{0}'.format(i),
-                           conv_op(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i]))
+                           conv_op(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i], **kwargs))
             if batchNormalization:
                 cnn.add_module('batchnorm{0}'.format(i), nn.BatchNorm2d(nOut))
             if leakyRelu:
@@ -231,7 +238,13 @@ class CNN(nn.Module):
         cnn = nn.Sequential()
 
         def convRelu(i, batchNormalization=False):
-            conv_op = nn.Conv2d if i>0 else self.first_conv_op
+            kwargs = {}
+            if i==0:
+                conv_op = self.first_conv_op
+                if self.first_conv_op.__name__ == 'CoordConv' and self.first_conv_opts:
+                    kwargs = self.first_conv_opts
+            else:
+                conv_op = nn.Conv2d
 
             if self.verbose and False:
                 cnn.add_module(f"printBefore{i}", PrintLayer(name=f"printBefore{i}"))
@@ -239,7 +252,7 @@ class CNN(nn.Module):
             nIn = nc if i == 0 else nm[i - 1]
             nOut = nm[i]
             cnn.add_module('conv{0}'.format(i),
-                           conv_op(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i]))
+                           conv_op(in_channels=nIn, out_channels=nOut, kernel_size=ks[i], stride=ss[i], padding=ps[i], **kwargs))
             if batchNormalization:
                 cnn.add_module('batchnorm{0}'.format(i), nn.BatchNorm2d(nOut))
             if leakyRelu:

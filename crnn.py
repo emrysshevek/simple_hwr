@@ -351,7 +351,7 @@ class TrainerStrokeRecovery:
         #targs = [targs[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
         return preds
 
-    def train(self, loss_fn, item, **kwargs):
+    def train(self, item, **kwargs):
         """ Item is the whole thing from the dataloader
 
         Args:
@@ -372,7 +372,7 @@ class TrainerStrokeRecovery:
 
         ## Shorten
         preds = self.truncate(output_batch, label_lengths)
-        stroke_loss = self.loss_criterion.main_loss(loss_fn, preds, gt, label_lengths)
+        stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
 
         # Backprop
         #self.logger.debug("Backpropping: {}".format(step))
@@ -382,12 +382,15 @@ class TrainerStrokeRecovery:
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
         return loss, preds, None
 
-    def test(self, loss_fn, line_imgs, gt, validation=False, **kwargs):
+    def test(self, item, **kwargs):
         self.model.eval()
+        line_imgs = item["line_imgs"].to(device)
+        label_lengths = item["label_lengths"]
+        gt = item["gt_list"]
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         preds = self.truncate(output_batch, label_lengths)
-        stroke_loss = self.loss_criterion.main_loss(loss_fn, preds, gt)
+        stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
         loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
         return loss, preds
 

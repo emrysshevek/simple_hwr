@@ -41,7 +41,7 @@ class AddCoords(nn.Module):
             yy_channel = yy_channel * 2 - 1
             xx_channel = xx_channel * 2 - 1
 
-        if self.both:
+        if self.both: # Create default CoordConv, and one scaled to be same scale as y CoordConv
             xx_rec_channel = xx_channel * x_dim / y_dim
 
             xx_channel = xx_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
@@ -73,9 +73,9 @@ class AddCoords(nn.Module):
 
 
 class CoordConv(nn.Module):
-    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, rectangle_x=False, both_x=False, **kwargs):
+    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, rectangle_x=False, both_x=False, **kwargs):
         super().__init__()
-        self.addcoords = AddCoords(with_r=with_r, rectangle_x=rectangle_x, both_x=both_x)
+        self.addcoords = AddCoords(with_r=with_r, zero_center=zero_center, rectangle_x=rectangle_x, both_x=both_x)
         self.verbose = verbose
         in_size = in_channels+2
         if with_r or both_x:

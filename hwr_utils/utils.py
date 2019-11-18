@@ -224,7 +224,8 @@ hwr_defaults = {"load_path":False,
             }
 
 stroke_defaults = {"SMALL_TRAINING": False,
-                    "logging": "info",
+                   "TESTING": False,
+                    "logging": "info"
                 }
 
 def load_config(config_path, hwr=True):
@@ -280,7 +281,7 @@ def load_config(config_path, hwr=True):
         time.strftime("%Y%m%d_%H%M%S"),
         hyper_parameter_str)
 
-    if config["SMALL_TRAINING"]:
+    if config["SMALL_TRAINING"] or config["TESTING"]:
         train_suffix = "TEST_"+train_suffix
 
     config["full_specs"] = train_suffix
@@ -324,6 +325,8 @@ def load_config(config_path, hwr=True):
 
     if hwr:
         config = make_config_consistent_hwr(config)
+    else:
+        config = make_config_consistent_stroke(config)
 
     logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
@@ -336,6 +339,18 @@ def load_config(config_path, hwr=True):
     config = computer_defaults(config)
 
     #make_lower(config)
+    return config
+
+def make_config_consistent_stroke(config):
+    config.image_dir = Path(config.image_dir)
+
+    config.coordconv_opts = {"zero_center":config.coordconv_0_center,
+                             "rectangle_x":~config.coordconv_default,
+                             "both_x": config.coordconv_default and config.coordconv_abs}
+
+    if config.TESTING:
+        config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
+
     return config
 
 def make_config_consistent_hwr(config):

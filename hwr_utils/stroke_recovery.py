@@ -180,7 +180,6 @@ def relativefy(x, reverse=False):
         return np.insert(x[1:]-x[:-1], 0, x[0])
 
 
-
 def get_all_substrokes(stroke_dict, length=3):
     if length is None:
         return [stroke_dict]

@@ -12,11 +12,10 @@ from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
 
 class StrokeLoss:
-    def __init__(self, parallel=False, vocab_size=4):
+    def __init__(self, loss_fn="l1", parallel=False, vocab_size=4):
         super(StrokeLoss, self).__init__()
         #device = torch.device("cuda")
         self.vocab_size = vocab_size
-        self.barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
@@ -25,9 +24,28 @@ class StrokeLoss:
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
         self.truncate_preds = True
+        self.loss_fn = self.set_loss(loss_fn, init=True)
+
+    def set_loss(self, loss_fn, init=False):
+        if loss_fn.lower() == "l1":
+            loss_fn = self.l1
+        elif loss_fn.lower() == "variable_l1":
+            loss_fn = self.variable_l1
+        elif loss_fn.lower() == "dtw":
+            loss_fn = self.dtw
+        elif loss_fn.lower() == "barron":
+            barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
+            loss_fn = barron_loss_fn.lossfun
+        else:
+            raise Exception("Unknown loss")
+        if init:
+            return loss_fn
+        else:
+            self.loss_fn = loss_fn
+            return loss_fn
 
     @staticmethod
-    def resample_gt(self, preds, targs):
+    def resample_gt(preds, targs):
         batch = targs
         device = preds.device
         targs = []
@@ -42,7 +60,7 @@ class StrokeLoss:
             label_lengths.append(pred_length)
         return targs, label_lengths
 
-    def main_loss(self, loss_fn, preds, targs, label_lengths):
+    def main_loss(self, preds, targs, label_lengths):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -59,7 +77,7 @@ class StrokeLoss:
         #     targs = targs["gt_list"]
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
-        loss = loss_fn(preds, targs, label_lengths)
+        loss = self.loss_fn(preds, targs, label_lengths)
         return loss
 
     def dtw(self, preds, targs, label_lengths):
@@ -76,7 +94,7 @@ class StrokeLoss:
         else:
             for i in range(len(preds)): # loop through BATCH
                 a,b = self.dtw_single((preds[i], targs[i]))
-                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
+                loss += abs(preds[i][a, :] - targs[i][b, :]).sum() / label_lengths[i]
         return loss
 
     ## THIS IS HAPPENING IN THE TRAINER!
