@@ -46,7 +46,7 @@ def create_seq2seq_recognizer(config):
     check_inputs(config)
 
     encoder = basic_CRNN(cnnOutSize=config['cnn_out_size'], nc=config['num_of_channels'],
-                         alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["alphabet_size"],
+                         alphabet_size=config['alphabet_size'], rnn_hidden_dim=config["rnn_dimension"],
                          recognizer_dropout=config["recognizer_dropout"], rnn_layers=config["rnn_layers"],
                          rnn_constructor=config["rnn_constructor"], rnn_input_dimension=config['rnn_input_dimension'])
 

@@ -51,23 +51,23 @@ output_predictions: false                    # Output incorrect test predictions
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 batch_size: 16                               # Batch size
-input_height: 64                             # Input dimension of image (will be cropped by default?)
+input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
 rnn_dimension: 512                           # originally 512
 rnn_layers: 2
 rnn_type: lstm                               # gru, lstm
-cnn: crcr                                    # default, resnet, intermediates
+cnn: crcr                                    # default, resnet, intermediates, encoder
 
 # Seq2Seq params (only used when seq2seq is true)
 seq2seq: true
 max_seq_len: 100
-teacher_force_rate: 0.9
-teacher_force_decay: 0.9
-teacher_step_size: 100
+teacher_force_rate: 0.5
+teacher_force_decay: 0.5
+teacher_step_size: 50
 label_smoothing: false
 smoothing: 0.4
-encoder_load_path:  # results/encoder/20191021_104448-encoder/BSF/encoder_model.pt
+encoder_load_path:  /home/mason/Desktop/simple_hwr/results/test/20191118_104753-seq2seq/BSF/seq2seq_model.pt
 freeze_encoder: false
 hybrid_loss: 0.5
 
