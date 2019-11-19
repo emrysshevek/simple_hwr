@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 class Attention(nn.Module):
 
-    def __init__(self, input_dim, embed_dim, attn='mono', device=torch.device('cpu')):
+    def __init__(self, input_dim, embed_dim, attn='mono', device=torch.device('cpu'), n_layers=1):
         super(Attention, self).__init__()
         self.input_dim = input_dim
         self.embed_dim = embed_dim
@@ -14,7 +14,7 @@ class Attention(nn.Module):
         elif attn == 'chunk':
             self.attn = MoChA(input_dim, embed_dim, device=device)
         elif attn == 'self':
-            self.attn = MultiHeadAttention(input_dim, num_heads=1)
+            self.attn = MultiHeadAttention(input_dim, num_heads=1, num_layers=n_layers)
         self.linear_proj = nn.Linear(2*input_dim, input_dim)
 
     def forward(self, encoder_outputs, decoder_h, prev_alpha=None, mode='hard'):
