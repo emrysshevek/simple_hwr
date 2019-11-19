@@ -55,7 +55,7 @@ def create_seq2seq_recognizer(config):
         encoder.load_state_dict(pretrained_state_dict)
 
     attention = Attention(input_dim=config['alphabet_size'], embed_dim=128, device=config['device'],
-                          attn=config['attention'], n_layers=config['attn_n_layers'])
+                          attn=config['attn'], n_layers=config['attn_n_layers'])
 
     decoder = Decoder(vocab_size=config['alphabet_size'], embed_dim=config['alphabet_size'],
                       context_dim=config['alphabet_size'], n_layers=1, hidden_dim=config['alphabet_size'],
