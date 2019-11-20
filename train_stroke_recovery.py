@@ -13,8 +13,9 @@ from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
-from hwr_utils.utils import print
 import argparse
+from hwr_utils.utils import print as lprint
+
 torch.cuda.empty_cache()
 
 ## Variations:
@@ -55,7 +56,7 @@ def run_epoch(dataloader, report_freq=500):
     #     targs = torch.rand(batch, 16, 5)
     instances = 0
     start_time = timer()
-    print("Epoch: ", epoch)
+    lprint("Epoch: ", epoch)
 
     for i, item in enumerate(dataloader):
         current_batch_size = item["line_imgs"].shape[0]
@@ -65,11 +66,11 @@ def run_epoch(dataloader, report_freq=500):
         loss_list += [loss]
 
         if config.counter.updates % report_freq == 0 and i > 0:
-            print("updates: ", config.counter.updates, np.mean(loss_list[-report_freq:])/batch_size)
+            lprint("updates: ", config.counter.updates, np.mean(loss_list[-report_freq:])/batch_size)
             utils.accumulate_all_stats(config, keyword="_train")
 
     end_time = timer()
-    print("Epoch duration:", end_time-start_time)
+    lprint("Epoch duration:", end_time-start_time)
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
@@ -126,7 +127,6 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
-
     config = utils.load_config(config_path, hwr=False)
     LOGGER = config.logger
     test_size = config.test_size
@@ -155,7 +155,7 @@ def main(config_path):
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
-    print("Current dataset: ", folder)
+    lprint("Current dataset: ", folder)
 
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
@@ -213,9 +213,9 @@ def main(config_path):
         epoch = i+1
         config.counter.epochs = epoch
         loss = run_epoch(train_dataloader, report_freq=config.update_freq)
-        print(f"Epoch: {epoch}, Training Loss: {loss}")
+        lprint(f"Epoch: {epoch}, Training Loss: {loss}")
         test_loss = test(test_dataloader)
-        print(f"Epoch: {epoch}, Test Loss: {test_loss}")
+        lprint(f"Epoch: {epoch}, Test Loss: {test_loss}")
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
             config.loss_obj.set_loss(config.loss_fn2)
 
@@ -227,8 +227,8 @@ def main(config_path):
     # If it has not reached the end of a stroke, the starting point = previous end point
 
 if __name__=="__main__":
-    config_path = parse_args()
-    main(config_path=config_path)
+    opts = parse_args()
+    main(config_path=opts.config)
     
     # TO DO:
         # logging
