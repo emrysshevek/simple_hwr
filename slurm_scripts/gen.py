@@ -112,7 +112,10 @@ def loop_configs(config_root, script_root, ext=".yaml"):
         #log_path = Path(sh_path.parent / config_path.parent / ('log_'+ config_path.with_suffix('.slurm').name))
         log_path = Path(script_root / subfolders.parent / ('log_' + config_path.with_suffix('.slurm').name))
         cd_path = src_dir
-        command = f"python -u train.py --config '{config_path}'"
+
+        py_script = "train_stroke_recovery.py" if "stroke" in config_path.as_posix() else "train.py"
+
+        command = f"python -u {py_script} --config '{config_path}'"
         #print(f"sh:{sh_path} log:{log_path} cd: {cd_path}")
         if socket.gethostname() == "Galois":
             log_path = sh_proj_dir / log_path.relative_to(proj_dir)

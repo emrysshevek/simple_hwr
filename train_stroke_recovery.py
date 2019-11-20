@@ -14,7 +14,7 @@ from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
 from hwr_utils.utils import print
-
+import argparse
 torch.cuda.empty_cache()
 
 ## Variations:
@@ -22,6 +22,13 @@ torch.cuda.empty_cache()
 # CoordConv - 0 center, X-as-rectanlge
 # L1 loss, DTW
 # Dataset size
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=str, default="./configs/stroke_config/baseline.yaml", help='Path to the config file.')
+    #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
+    opts = parser.parse_args()
+    return opts
 
 class StrokeRecoveryModel(nn.Module):
     def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
@@ -116,11 +123,11 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
         if i > 8:
             break
 
-def main():
+def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
 
-    config = utils.load_config("./configs/stroke_config/baseline.yaml", hwr=False)
+    config = utils.load_config(config_path, hwr=False)
     LOGGER = config.logger
     test_size = config.test_size
     train_size = config.train_size
@@ -192,7 +199,6 @@ def main():
         visualize.initialize_visdom(config["full_specs"], config)
     utils.stat_prep_strokes(config)
 
-
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
@@ -221,7 +227,8 @@ def main():
     # If it has not reached the end of a stroke, the starting point = previous end point
 
 if __name__=="__main__":
-    main()
+    config_path = parse_args()
+    main(config_path=config_path)
     
     # TO DO:
         # logging

@@ -1,9 +1,7 @@
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: false
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
-offline_pred: false
-
 
 # General
 output_folder: ./results
@@ -15,10 +13,7 @@ debug: off
 
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
-data_root_fsl: ../hw_data/strokes/online_coordinate_data
-data_root_local: .
-#dataset_folder: online_coordinate_data/MAX_stroke_vFull
-#dataset_folder: online_coordinate_data/8_stroke_vFull
+dataset_folder: online_coordinate_data/MAX_stroke_vFull
 
 # LR schedule
 learning_rate: 1e-3          # LR
@@ -41,7 +36,7 @@ vocab_size: 4
 ## Loss function
 loss_fn: l1
 loss_fn2: dtw
-first_loss_epochs: 5
+first_loss_epochs: 20
 
 # CoordConv
   # x-scaled from -1 to 1

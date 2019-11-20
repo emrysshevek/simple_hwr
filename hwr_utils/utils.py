@@ -231,8 +231,10 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "logging": "info",
                    "use_visdom": True,
                    "save_count": 0,
-                    "coord_conv": False
-                }
+                    "coord_conv": False,
+                   "data_root_fsl": "../hw_data/strokes/online_coordinate_data",
+                   "data_root_local":"."
+}
 
 def load_config(config_path, hwr=True):
     config_path = Path(config_path)
@@ -348,12 +350,17 @@ def load_config(config_path, hwr=True):
     #make_lower(config)
     return config
 
+def is_fsl():
+    return "byu.edu" in socket.gethostname()
+
 def make_config_consistent_stroke(config):
     config.image_dir = Path(config.image_dir)
 
     config.coordconv_opts = {"zero_center":config.coordconv_0_center,
                              "rectangle_x":~config.coordconv_default,
                              "both_x": config.coordconv_default and config.coordconv_abs}
+
+    config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
