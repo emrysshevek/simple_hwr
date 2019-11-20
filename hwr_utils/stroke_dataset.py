@@ -3,6 +3,7 @@ import json
 import multiprocessing
 import torch
 from torch.utils.data import Dataset
+from hwr_utils.utils import print
 
 import os
 import cv2

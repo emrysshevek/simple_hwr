@@ -181,8 +181,19 @@ def relativefy(x, reverse=False):
 
 
 def get_all_substrokes(stroke_dict, length=3):
+    """
+
+    Args:
+        stroke_dict: ['x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes', 'raw', 'tmin', 'tmax', 'trange']
+        length:
+
+    Returns:
+
+    """
     if length is None:
-        return [stroke_dict]
+        yield stroke_dict
+        return
+
     start_args = np.where(stroke_dict.start_strokes==1)[0] # returns an "array" of the list, just take first index
     start_args = np.append(start_args, None) # last start arg should be the end of the sequence
 

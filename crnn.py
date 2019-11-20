@@ -347,16 +347,27 @@ class TrainerStrokeRecovery:
 
     @staticmethod
     def truncate(preds, label_lengths):
+        """ Return a list
+
+        Args:
+            preds:
+            label_lengths:
+
+        Returns:
+
+        """
+
         preds = [preds[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
         #targs = [targs[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
         return preds
 
-    def train(self, item, **kwargs):
+    def train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader
 
         Args:
             loss_fn:
             item:
+            train: train/update the model
             **kwargs:
 
         Returns:
@@ -365,43 +376,40 @@ class TrainerStrokeRecovery:
         line_imgs = item["line_imgs"].to(device)
         label_lengths = item["label_lengths"]
         gt = item["gt_list"]
-        self.model.train()
-        pred_logits = self.model(line_imgs).cpu()
+        suffix = "_train" if train else "_test"
 
+        if train:
+            self.model.train()
+            self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
+            #print(self.config.stats[])
+
+        pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Shorten
         preds = self.truncate(output_batch, label_lengths)
         stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
+        loss = torch.sum(stroke_loss.cpu(), 0, keepdim=False).item()
 
-        # Backprop
-        #self.logger.debug("Backpropping: {}".format(step))
-        self.optimizer.zero_grad()
-        stroke_loss.backward()
-        self.optimizer.step()
-        loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
+        # Update loss stat
+        self.config.stats[self.loss_criterion.loss_name + suffix].accumulate(loss)
+        self.update_stats(preds, gt, label_lengths, train=train, imgs=line_imgs)
+
+        if train:
+            self.optimizer.zero_grad()
+            stroke_loss.backward()
+            self.optimizer.step()
+
         return loss, preds, None
 
     def test(self, item, **kwargs):
         self.model.eval()
-        line_imgs = item["line_imgs"].to(device)
-        label_lengths = item["label_lengths"]
-        gt = item["gt_list"]
-        pred_logits = self.model(line_imgs).cpu()
-        output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
-        preds = self.truncate(output_batch, label_lengths)
-        stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
-        loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, preds
+        return self.train(item, train=False, **kwargs)
 
-    def update_test_cer(self, validation, err, weight, prefix=""):
-        if validation:
-            self.config.logger.debug("Updating validation!")
-            stat = self.config["designated_validation_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
-        else:
-            self.config.logger.debug("Updating test!")
-            stat = self.config["designated_test_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
-            #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
+    def update_stats(self, preds, gt, label_lengths, train=True, imgs=None):
+        suffix = "_train" if train else "_test"
 
+        ## If not using L1 loss
+        if self.loss_criterion.loss_name.lower() != "l1":
+            l1_loss = torch.sum(self.loss_criterion.l1(preds, gt, label_lengths).cpu(), 0, keepdim=False).item()
+            self.config.stats["L1"+suffix].accumulate(l1_loss)

@@ -1,12 +1,13 @@
 # Load model
-TESTING: true
+TESTING: false
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 
 # General
 output_folder: ./results
 epochs_to_run: 200
-save_freq: 5
+update_freq: 500 # print out updates, update graphs etc. after this many updates
+save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
 
@@ -56,5 +57,5 @@ coordconv_abs: true # scale x-coordconv to be on the same scale as y
 coordconv_default: true # x-coordinates on -1 to 1 range
 coordconv_0_center: true # 0 center
 
-# Relative X coordinates
+# Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
 relative_x: false # true, false, both; predict both

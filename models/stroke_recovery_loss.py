@@ -10,6 +10,7 @@ import torch.multiprocessing as multiprocessing
 from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
+from hwr_utils.utils import print
 
 class StrokeLoss:
     def __init__(self, loss_fn="l1", parallel=False, vocab_size=4):
@@ -24,6 +25,7 @@ class StrokeLoss:
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
         self.truncate_preds = True
+        self.loss_name = loss_fn
         self.loss_fn = self.set_loss(loss_fn, init=True)
 
     def set_loss(self, loss_fn, init=False):
@@ -42,6 +44,7 @@ class StrokeLoss:
             return loss_fn
         else:
             self.loss_fn = loss_fn
+            self.loss_name = loss_fn
             return loss_fn
 
     @staticmethod
@@ -94,11 +97,11 @@ class StrokeLoss:
         else:
             for i in range(len(preds)): # loop through BATCH
                 a,b = self.dtw_single((preds[i], targs[i]))
-                loss += abs(preds[i][a, :] - targs[i][b, :]).sum() / label_lengths[i]
+                loss += abs(preds[i][a, :] - targs[i][b, :]).sum() / label_lengths[i] # AVERAGE pointwise loss for 1 image
         return loss
 
     ## THIS IS HAPPENING IN THE TRAINER!
-    def truncate_preds_func(func):
+    def truncate_preds_func_deprecated(func):
         """ The images have a bunch of padded space. We don't care about what is predicted after a certain point.
             So if we're using preds that have been resampled based on image width, truncate the prediction to match
 
@@ -146,7 +149,17 @@ class StrokeLoss:
         return torch.sum(self.barron_loss_fn((_preds - _targs)))/np.sum(label_lengths)
 
     @staticmethod
-    def variable_l1(preds, targs, label_lengths):
+    def variable_l1(preds, targs, label_lengths=None):
+        """ Resmaple the targets to match whatever was predicted
+
+        Args:
+            preds:
+            targs:
+            label_lengths:
+
+        Returns:
+
+        """
         targs, label_lengths = StrokeLoss.resample_gt(preds, targs)
         return StrokeLoss.l1(preds, targs, label_lengths)
 

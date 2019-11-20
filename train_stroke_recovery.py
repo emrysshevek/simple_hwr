@@ -1,5 +1,6 @@
 from pathlib import Path
 import numpy as np
+from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
@@ -12,6 +13,7 @@ from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
+from hwr_utils.utils import print
 
 torch.cuda.empty_cache()
 
@@ -20,7 +22,6 @@ torch.cuda.empty_cache()
 # CoordConv - 0 center, X-as-rectanlge
 # L1 loss, DTW
 # Dataset size
-
 
 class StrokeRecoveryModel(nn.Module):
     def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
@@ -51,11 +52,13 @@ def run_epoch(dataloader, report_freq=500):
     for i, item in enumerate(dataloader):
         current_batch_size = item["line_imgs"].shape[0]
         instances += current_batch_size
-        loss, preds, *_ = trainer.train(item)
+        loss, preds, *_ = trainer.train(item, train=True)
 
         loss_list += [loss]
-        if i % report_freq == 0 and i > 0:
-            print(i, np.mean(loss_list[-report_freq:])/batch_size)
+
+        if config.counter.updates % report_freq == 0 and i > 0:
+            print("updates: ", config.counter.updates, np.mean(loss_list[-report_freq:])/batch_size)
+            utils.accumulate_all_stats(config, keyword="_train")
 
     end_time = timer()
     print("Epoch duration:", end_time-start_time)
@@ -72,6 +75,8 @@ def test(dataloader):
         loss_list += [loss]
     preds_to_graph = [p.permute([1, 0]) for p in preds]
     graph(item, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions)
+    utils.accumulate_all_stats(config, keyword="_test")
+
     return np.mean(loss_list)/batch_size
 
 def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions=False):
@@ -111,15 +116,17 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
             break
 
 def main():
-    global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config
+    global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
 
     config = utils.load_config("./configs/stroke_config/baseline.yaml", hwr=False)
-
+    LOGGER = config.logger
     test_size = config.test_size
     train_size = config.train_size
     batch_size = config.batch_size
-    x_relative_positions= config.x_relative_positions
+    x_relative_positions = config.x_relative_positions
+    if x_relative_positions == "both":
+        raise Exception("Not implemented")
     vocab_size = config.vocab_size
 
     device=torch.device("cuda")
@@ -141,6 +148,8 @@ def main():
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     print("Current dataset: ", folder)
+
+    ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1,
@@ -155,6 +164,8 @@ def main():
                                   num_workers=6,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
+
+    config.n_train_instances = len(train_dataloader.dataset)
 
     test_dataset=StrokeRecoveryDataset([folder / "test_online_coords.json"],
                             img_height = 60,
@@ -171,20 +182,38 @@ def main():
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
+    config.n_test_instances = len(train_dataloader.dataset)
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
+
+    ## Stats
+    if config.use_visdom:
+        visualize.initialize_visdom(config["full_specs"], config)
+    utils.stat_prep_strokes(config)
+
+
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
+
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    trainer = TrainerStrokeRecovery(model, optimizer, config=None, loss_criterion=loss_obj)
+    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj)
+
+    config.optimizer=optimizer
+    config.trainer=trainer
+    config.model = model
+
     globals().update(locals())
     for i in range(0,200):
         epoch = i+1
-        loss = run_epoch(train_dataloader)
+        config.counter.epochs = epoch
+        loss = run_epoch(train_dataloader, report_freq=config.update_freq)
         print(f"Epoch: {epoch}, Training Loss: {loss}")
         test_loss = test(test_dataloader)
         print(f"Epoch: {epoch}, Test Loss: {test_loss}")
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
             config.loss_obj.set_loss(config.loss_fn2)
+
+        if epoch % 1 == 0:
+            utils.save_model_stroke(config, bsf=False)
 
     ## Bezier curve
     # Have network predict whether it has reached the end of a stroke or not
@@ -194,7 +223,5 @@ if __name__=="__main__":
     main()
     
     # TO DO:
-        # Finish implementing config (CoordConv)
-        # save the model!
         # logging
         # Get running on super computer - copy the data!

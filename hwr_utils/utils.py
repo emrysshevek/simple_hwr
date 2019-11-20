@@ -17,7 +17,7 @@ import glob
 from pathlib import Path
 from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
-from hwr_utils.stat import Stat
+from hwr_utils.stat import Stat, AutoStat, TrainingCounter
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -129,10 +129,14 @@ def setup_logging(folder=None, log_std_out=True, level="INFO"):
     LOGGER = logger
     return logger
 
+_print = print
+
+def print(*args,**kwargs):
+    log_print(*args, **kwargs, print_statements=False)
 
 def log_print(*args, print_statements=True):
     if print_statements:
-        print(" ".join([str(a) for a in args]))
+        _print(" ".join([str(a) for a in args]))
     else:
         LOGGER.info(" ".join([str(a) for a in args]))
 
@@ -219,13 +223,15 @@ hwr_defaults = {"load_path":False,
             "occlusion_level": .4,
             "exclude_offline": False,
             "validation_jsons": [],
-            "elastic_transform": False,
-            "coord_conv": False
+            "elastic_transform": False
             }
 
 stroke_defaults = {"SMALL_TRAINING": False,
                    "TESTING": False,
-                    "logging": "info"
+                    "logging": "info",
+                   "use_visdom": True,
+                   "save_count": 0,
+                    "coord_conv": False
                 }
 
 def load_config(config_path, hwr=True):
@@ -296,11 +302,12 @@ def load_config(config_path, hwr=True):
     if "image_dir" not in config.keys():
         config["image_dir"] = os.path.join(config['results_dir'], "imgs")
 
-    config["image_test_dir"] = os.path.join(config["image_dir"], "test")
-    config["image_train_dir"] = os.path.join(config["image_dir"], "train")
+    if hwr:
+        config["image_test_dir"] = os.path.join(config["image_dir"], "test")
+        config["image_train_dir"] = os.path.join(config["image_dir"], "train")
 
     # Create paths
-    for path in (output_root, config["results_dir"], config["log_dir"], config["image_dir"], config["image_train_dir"], config["image_test_dir"]):
+    for path in [output_root] + [config[d] for d in config.keys() if "_dir" in d]:
         if path is not None and len(path) > 0 and not os.path.exists(path):
             Path(path).mkdir(parents=True, exist_ok=True)
 
@@ -350,7 +357,8 @@ def make_config_consistent_stroke(config):
 
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
-
+        config.update_freq = 1
+        config.save_freq = 1
     return config
 
 def make_config_consistent_hwr(config):
@@ -661,6 +669,18 @@ def save_stats(config, bsf):
     with open(os.path.join(path, "losses.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
+def save_stats_stroke(config, bsf):
+    if bsf:
+        path = os.path.join(config["results_dir"], "BSF")
+        mkdir(path)
+    else:
+        path = config["results_dir"]
+
+    # Save all stats
+    results = config.stats
+    with open(os.path.join(path, "all_stats.json"), 'w') as fh:
+        json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
+
 
 def save_model(config, bsf=False):
     # Can pickle everything in config except items below
@@ -713,6 +733,65 @@ def save_model(config, bsf=False):
     if config["save_count"]==0:
         create_resume_training(config)
     config["save_count"] += 1
+
+def save_model_stroke(config, bsf=False):
+    # Save the best model
+    if bsf:
+        path = os.path.join(config["results_dir"], "BSF")
+        mkdir(path)
+    else:
+        path = config["results_dir"]
+
+    #    'model_definition': config["model"],
+    state_dict = {
+        'epoch': config.counter.epochs,
+        'model': config["model"].state_dict(),
+        'optimizer': config["optimizer"].state_dict(),
+        'global_step': config.counter.updates,
+    }
+
+    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
+    torch.save(state_dict, config["main_model_path"])
+    save_stats_stroke(config, bsf)
+
+    # Save visdom
+    if config["use_visdom"]:
+        try:
+            path = os.path.join(path, "visdom.json")
+            config["visdom_manager"].save_env(file_path=path)
+        except:
+            warnings.warn(f"Unable to save visdom to {path}; is it started?")
+            config["use_visdom"] = False
+
+    # Copy BSF stuff to main directory
+    if bsf:
+        for filename in glob.glob(path + r"/*"):
+            shutil.copy(filename, config["results_dir"])
+
+    if config["save_count"]==0:
+        create_resume_training_stroke(config)
+    config["save_count"] += 1
+
+def create_resume_training_stroke(config):
+    export_config = config.copy()
+    export_config["load_path"] = config["main_model_path"]
+
+    for key in config.keys():
+        item = config[key]
+        # Only keep items that are numbers, strings, and lists
+        if not isinstance(item, str) \
+                and not isinstance(item, numbers.Number) \
+                and not isinstance(item, list) \
+                and item is not None \
+                and not isinstance(item, bool):
+            del export_config[key]
+
+    output = Path(config["results_dir"])
+    with open(Path(output / 'RESUME.yaml'), 'w') as outfile:
+        yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
+
+    with open(Path(output / 'TEST.yaml'), 'w') as outfile:
+        yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
 def create_resume_training(config):
     #export_config = copy.deepcopy(config)
@@ -827,7 +906,7 @@ def accumulate_all_stats(config, keyword="", freq=None):
 
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq and keyword.lower() in stat.name.lower():
-            stat.reset_accumlator(epoch=config.current_epoch, instance=config.global_instances_counter)
+            stat.reset_accumlator(new_x=None)
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
     try:
@@ -840,10 +919,13 @@ class EnhancedJSONEncoder(json.JSONEncoder):
         try:
             return super().default(o)
         except:
-            return o.__dict__
+            d = o.__dict__
+            # Don't save out circular reference
+            return {i:d[i] for i in d if i!='x_dict'}
 
 def stat_prep(config):
     """ Prep to track statistics/losses, setup plots etc.
+        Visdom must already be initialized if using
 
     Returns:
 
@@ -881,6 +963,46 @@ def stat_prep(config):
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
         config["stats"][stat.name] = stat
 
+
+def stat_prep_strokes(config):
+    """ Visdom must already be initialized if using
+
+    Args:
+        config:
+
+    Returns:
+
+    """
+    config_stats = []
+    # config.stats["epoch"] = 0
+    # config.stats["epoch_decimal"] = 0
+    # config.stats["instances"] = 0
+    # config.stats["updates"] = 0
+
+    config.counter = TrainingCounter(instances_per_epoch=config.n_train_instances)
+
+    for variant in ("train", "test"):
+        is_training = variant == "train"
+        x_weight = "instances" if is_training else config.n_test_instances
+        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Updates", y_title="Loss", name=f"l1_{variant}", train=is_training))
+        #config_stats.append(AutoStat(x_value=config.stats.updates, x_title="Updates", y_title="Loss", name=f"LearningLoss_{variant}"))
+        if config.loss_fn.lower()!="l1":
+            config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                         x_title="Updates", y_title="Loss", name=f"{config.loss_fn}_{variant}", train=is_training))
+
+    for stat in config_stats:
+        if config["use_visdom"]:
+            config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
+        config["stats"][stat.name] = stat
+    print(config.stats)
+
+# class Number:
+#     def __init__(self, value):
+#         self.value = value
+# 
+#     
+    
 def plot_tensors(tensor):
     for i in range(0, tensor.shape[0]):
         plot_tensor(tensor[i,0])
