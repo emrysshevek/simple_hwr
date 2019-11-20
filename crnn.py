@@ -185,7 +185,6 @@ class TrainerBaseline(json.JSONEncoder):
             online:
             gt:
             force_training: Run test in .train() as opposed to .eval() mode
-            update_stats:
 
         Returns:
 
@@ -412,4 +411,4 @@ class TrainerStrokeRecovery:
         ## If not using L1 loss
         if self.loss_criterion.loss_name.lower() != "l1":
             l1_loss = torch.sum(self.loss_criterion.l1(preds, gt, label_lengths).cpu(), 0, keepdim=False).item()
-            self.config.stats["L1"+suffix].accumulate(l1_loss)
+            self.config.stats["l1"+suffix].accumulate(l1_loss)

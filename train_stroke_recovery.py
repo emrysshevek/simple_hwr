@@ -31,6 +31,7 @@ class StrokeRecoveryModel(nn.Module):
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type="default64", first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid =torch.nn.Sigmoid().to(device)
+        # ATTENTION!
 
 
     def forward(self, input):

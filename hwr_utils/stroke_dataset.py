@@ -360,7 +360,7 @@ def collate_stroke(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
         "x_func": [b["x_func"] for b in batch],
         "y_func": [b["y_func"] for b in batch],
-        "start_times": [b["start_times"] for b in batch]
+        "start_times": [b["start_times"] for b in batch],
     }
 
 

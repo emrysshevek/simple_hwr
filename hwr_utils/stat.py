@@ -102,9 +102,15 @@ class AutoStat(Stat):
 
     def get_weight(self):
         if self.train:
-            return self.x_counter.__dict__[self.x_weight]
+            new_step = self.x_counter.__dict__[self.x_weight]
+            weight = (new_step - self.last_weight_step)
+            self.last_weight_step = new_step
         else:
-            return self.x_weight
+            weight = self.x_weight
+        if weight == 0:
+            print("Error with weight - should be non-zero - using 1")
+            weight = 1
+        return weight
 
     def get_x(self):
         return self.x_counter.__dict__[self.x_plot]
@@ -117,9 +123,7 @@ class AutoStat(Stat):
 
     def reset_accumlator(self, new_x=None):
         if self.accumlator_active:
-            # Update weight
-            weight = (self.get_weight()-self.last_weight_step)
-            self.last_weight_step = self.get_weight()
+            weight = self.get_weight()
 
             # Update plot values
             self.y.append(self.current_sum / weight)

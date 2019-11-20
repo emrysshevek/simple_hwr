@@ -28,23 +28,25 @@ class StrokeLoss:
         self.loss_name = loss_fn
         self.loss_fn = self.set_loss(loss_fn, init=True)
 
-    def set_loss(self, loss_fn, init=False):
-        if loss_fn.lower() == "l1":
+    def set_loss(self, loss_name, init=False):
+        if loss_name.lower() == "l1":
             loss_fn = self.l1
-        elif loss_fn.lower() == "variable_l1":
+        elif loss_name.lower() == "variable_l1":
             loss_fn = self.variable_l1
-        elif loss_fn.lower() == "dtw":
+        elif loss_name.lower() == "dtw":
             loss_fn = self.dtw
-        elif loss_fn.lower() == "barron":
+        elif loss_name.lower() == "barron":
             barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
             loss_fn = barron_loss_fn.lossfun
         else:
             raise Exception("Unknown loss")
+
+        # Return or rename
         if init:
             return loss_fn
         else:
             self.loss_fn = loss_fn
-            self.loss_name = loss_fn
+            self.loss_name = loss_name
             return loss_fn
 
     @staticmethod

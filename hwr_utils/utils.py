@@ -984,13 +984,17 @@ def stat_prep_strokes(config):
     for variant in ("train", "test"):
         is_training = variant == "train"
         x_weight = "instances" if is_training else config.n_test_instances
+
+        # Always include L1 loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Updates", y_title="Loss", name=f"l1_{variant}", train=is_training))
         #config_stats.append(AutoStat(x_value=config.stats.updates, x_title="Updates", y_title="Loss", name=f"LearningLoss_{variant}"))
-        if config.loss_fn.lower()!="l1":
-            config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                         x_title="Updates", y_title="Loss", name=f"{config.loss_fn}_{variant}", train=is_training))
 
+        ## Loop through loss functions
+        for loss in [config[key].lower() for key in config.keys() if "loss_fn" in key]:
+            if loss!="l1":
+                config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                         x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
