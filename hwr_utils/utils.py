@@ -995,9 +995,12 @@ def stat_prep_strokes(config):
         # Always include L1 loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Updates", y_title="Loss", name=f"l1_{variant}", train=is_training))
-        #config_stats.append(AutoStat(x_value=config.stats.updates, x_title="Updates", y_title="Loss", name=f"LearningLoss_{variant}"))
 
-        ## Loop through loss functions
+        # NN Loss
+        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Updates", y_title="Loss", name=f"nn_{variant}", train=is_training))
+
+        # All other loss functions
         for loss in [config[key].lower() for key in config.keys() if "loss_fn" in key]:
             if loss!="l1":
                 config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
