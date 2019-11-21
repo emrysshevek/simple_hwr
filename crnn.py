@@ -5,6 +5,7 @@ from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
+from scipy.spatial import KDTree
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
@@ -335,6 +336,7 @@ class TrainerStrokeRecovery:
         self.model = model
         self.optimizer = optimizer
         self.config = config
+        self.kd = {}
         self.loss_criterion = loss_criterion
         if config is None:
             self.logger = utils.setup_logging()
@@ -398,6 +400,20 @@ class TrainerStrokeRecovery:
             self.optimizer.zero_grad()
             stroke_loss.backward()
             self.optimizer.step()
+        else:
+            # calculate NN distance
+            n_pts = 0
+            cum_dist = 0
+            for i in range(len(gt)):
+              if item["paths"][i] not in self.kd:
+                self.kd[item["paths"][i]] = KDTree(gt[i][:, :2])
+
+              cum_dist = sum(self.kd[item["paths"][i]].query(preds[i][:, :2].data)[0])
+              n_pts += preds[i].shape[0]
+
+            #print("cum_dist: ", cum_dist, "n_pts: ", n_pts)
+            print("Test KD Distance: ", cum_dist / n_pts)
+
 
         return loss, preds, None
 
