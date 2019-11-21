@@ -16,7 +16,7 @@ debug: off
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
-data_root_fsl: ../hw_data/strokes/online_coordinate_data
+data_root_fsl: ../../hw_data/strokes/online_coordinate_data
 data_root_local: .
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
 
@@ -35,7 +35,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: 2000
 train_size: null
-batch_size: 32
+batch_size: 16
 x_relative_positions: False
 vocab_size: 4
 

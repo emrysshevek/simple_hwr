@@ -161,6 +161,7 @@ def main(config_path):
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1,
+                            root=config.data_root,
                             max_images_to_load = train_size,
                             x_relative_positions=x_relative_positions,
                             cnn=cnn
@@ -178,7 +179,8 @@ def main(config_path):
     test_dataset=StrokeRecoveryDataset([folder / "test_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1.,
-                            max_images_to_load = test_size,
+                            root=config.data_root,
+                            max_images_to_load=test_size,
                             x_relative_positions=x_relative_positions,
                             cnn=cnn
                             )
