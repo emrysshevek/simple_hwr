@@ -28,7 +28,6 @@ class StrokeLoss:
         self.truncate_preds = True
         self.loss_name = loss_fn
         self.loss_fn = self.set_loss(loss_fn, init=True)
-        self.kd = {}
 
     def set_loss(self, loss_name, init=False):
         if loss_name.lower() == "l1":
@@ -191,11 +190,10 @@ class StrokeLoss:
         gt = item["gt_list"]
         batch_size = len(gt)
         for i in range(batch_size):
-            if item["paths"][i] not in self.kd:
-                self.kd[item["paths"][i]] = KDTree(gt[i][:, :2])
-
-            cum_dist = sum(self.kd[item["paths"][i]].query(preds[i][:, :2].data)[0])
-            n_pts += preds[i].shape[0]
+            # TODO binarize line images and do dist based on that
+            kd = KDTree(preds[i][:, :2].data)
+            cum_dist = sum(kd.query(gt[i][:, :2])[0])
+            n_pts += gt[i].shape[0]
 
         return (cum_dist / n_pts) * batch_size # THIS WILL BE DIVIDED BY THE NUMBER OF INSTANCES LATER
         #print("cum_dist: ", cum_dist, "n_pts: ", n_pts)
