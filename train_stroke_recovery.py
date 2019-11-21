@@ -83,14 +83,16 @@ class StrokeRecoveryModel(nn.Module):
 
         self.cnn = CNN(nc=1, first_conv_op=CoordConv, cnn_type="default64")
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
-        self.sigmoid =torch.nn.Sigmoid().to(device)
+        self.sigmoid = torch.nn.Sigmoid().to(device)
+        self.attn = nn.MultiheadAttention(vocab_size, num_heads=1)
 
     def forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:])
+        attn_output = self.attn(rnn_output)
+        attn_output[:,:,2:] = self.sigmoid(attn_output[:,:,2:])
 
-        return rnn_output
+        return attn_output
 
 def run_epoch(dataloader, report_freq=500):
     loss_list = []
