@@ -16,7 +16,7 @@ debug: off
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
-data_root_fsl: ../../hw_data/strokes/online_coordinate_data
+data_root_fsl: ../hw_data/strokes
 data_root_local: .
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
 

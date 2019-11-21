@@ -232,7 +232,7 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "use_visdom": True,
                    "save_count": 0,
                     "coord_conv": False,
-                   "data_root_fsl": "../../hw_data/strokes/online_coordinate_data",
+                   "data_root_fsl": "../hw_data/strokes",
                    "data_root_local":"."
 }
 
