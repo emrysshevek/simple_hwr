@@ -5,7 +5,6 @@ from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
-from scipy.spatial import KDTree
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
@@ -260,75 +259,6 @@ class TrainerBaseline(json.JSONEncoder):
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
-class TrainerNudger(TrainerBaseline):
-
-    def __init__(self, model, optimizer, config, loss_criterion, train_baseline=True):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.loss_criterion = loss_criterion
-        self.idx_to_char = self.config["idx_to_char"]
-        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, loss_criterion)
-        self.nudger = config["nudger"]
-        self.recognizer_rnn = self.model.rnn
-        self.train_baseline = train_baseline
-        self.decoder = config["decoder"]
-
-    def default(self, o):
-        return None
-
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        self.nudger.train()
-
-        # Train baseline at the same time
-        if self.train_baseline:
-            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
-            self.model.my_eval()
-        else:
-            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_training(output_batch))
-
-        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-        loss_recognizer_nudged = self.loss_criterion(pred_logits_nudged, labels, preds_size, label_lengths)
-        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
-
-        # Backprop
-        self.optimizer.zero_grad()
-        loss_recognizer_nudged.backward()
-        self.optimizer.step()
-
-        ## ASSERT SOMETHING HAS CHANGED
-
-        if self.train_baseline:
-            self.model.my_train()
-
-        # Error Rate
-        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight, pred_str = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_str
-
-    def test(self, line_imgs, online, gt, validation=True):
-        self.nudger.eval()
-        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        # preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_test(output_batch))
-        err, weight = calculate_cer(pred_strs, gt)
-
-        self.update_test_cer(validation, err, weight, prefix="Nudged ")
-        loss = -1
-
-        return loss, err, pred_strs
-
-
 class TrainerStrokeRecovery:
     from models import stroke_recovery_loss
     def __init__(self, model, optimizer, config, loss_criterion=None):
@@ -336,7 +266,6 @@ class TrainerStrokeRecovery:
         self.model = model
         self.optimizer = optimizer
         self.config = config
-        self.kd = {}
         self.loss_criterion = loss_criterion
         if config is None:
             self.logger = utils.setup_logging()
@@ -394,37 +323,26 @@ class TrainerStrokeRecovery:
 
         # Update loss stat
         self.config.stats[self.loss_criterion.loss_name + suffix].accumulate(loss)
-        self.update_stats(preds, gt, label_lengths, train=train, imgs=line_imgs)
+
+        # Update all other stats
+        self.update_stats(item, preds, train=train)
 
         if train:
             self.optimizer.zero_grad()
             stroke_loss.backward()
             self.optimizer.step()
-        else:
-            # calculate NN distance
-            n_pts = 0
-            cum_dist = 0
-            for i in range(len(gt)):
-              if item["paths"][i] not in self.kd:
-                self.kd[item["paths"][i]] = KDTree(gt[i][:, :2])
-
-              cum_dist = sum(self.kd[item["paths"][i]].query(preds[i][:, :2].data)[0])
-              n_pts += preds[i].shape[0]
-
-            #print("cum_dist: ", cum_dist, "n_pts: ", n_pts)
-            print("Test KD Distance: ", cum_dist / n_pts)
-
-
         return loss, preds, None
 
     def test(self, item, **kwargs):
         self.model.eval()
         return self.train(item, train=False, **kwargs)
 
-    def update_stats(self, preds, gt, label_lengths, train=True, imgs=None):
+    def update_stats(self, item, preds, train=True):
         suffix = "_train" if train else "_test"
 
         ## If not using L1 loss
         if self.loss_criterion.loss_name.lower() != "l1":
-            l1_loss = torch.sum(self.loss_criterion.l1(preds, gt, label_lengths).cpu(), 0, keepdim=False).item()
+            l1_loss = torch.sum(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"]).cpu(), 0, keepdim=False).item()
             self.config.stats["l1"+suffix].accumulate(l1_loss)
+
+        self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))

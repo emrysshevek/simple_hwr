@@ -11,6 +11,7 @@ from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
 from hwr_utils.utils import print
+from scipy.spatial import KDTree
 
 class StrokeLoss:
     def __init__(self, loss_fn="l1", parallel=False, vocab_size=4):
@@ -27,6 +28,7 @@ class StrokeLoss:
         self.truncate_preds = True
         self.loss_name = loss_fn
         self.loss_fn = self.set_loss(loss_fn, init=True)
+        self.kd = {}
 
     def set_loss(self, loss_name, init=False):
         if loss_name.lower() == "l1":
@@ -171,6 +173,34 @@ class StrokeLoss:
         for i, pred in enumerate(preds):
             loss += torch.sum(abs(pred-targs[i]))/label_lengths[i]
         return loss
+
+
+    def calculate_nn_distance(self, item, preds):
+        """ Can this be done differentiably?
+
+        Args:
+            item:
+            preds:
+
+        Returns:
+
+        """
+        # calculate NN distance
+        n_pts = 0
+        cum_dist = 0
+        gt = item["gt_list"]
+        batch_size = len(gt)
+        for i in range(batch_size):
+            if item["paths"][i] not in self.kd:
+                self.kd[item["paths"][i]] = KDTree(gt[i][:, :2])
+
+            cum_dist = sum(self.kd[item["paths"][i]].query(preds[i][:, :2].data)[0])
+            n_pts += preds[i].shape[0]
+
+        return (cum_dist / n_pts) * batch_size # THIS WILL BE DIVIDED BY THE NUMBER OF INSTANCES LATER
+        #print("cum_dist: ", cum_dist, "n_pts: ", n_pts)
+        #print("Distance: ", cum_dist / n_pts)
+
 
 '''
     OLD attempts at loss
