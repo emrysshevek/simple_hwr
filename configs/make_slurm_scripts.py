@@ -27,12 +27,15 @@ def make_scripts(config_paths, email, time, threads, ngpus, gpu, env):
     scripts = []
     mem = int(64000/threads)
 
+
     for path in tqdm(config_paths):
+        py_script = "train_stroke_recovery.py" if "stroke" in path else "train.py"
+
         dir_path = os.path.dirname(path) # will not work on Windows
         base_path = os.path.basename(path)
         fname = os.path.splitext(base_path)[0]
         log_path = f"{dir_path}/log_{fname}.slurm"
-        command = f"python -u train.py --config {path}"
+        command = f"python -u {py_script} --config {path}"
 
         script = f"""#!/bin/bash
 #SBATCH --gres=gpu:{ngpus}
@@ -89,7 +92,3 @@ if __name__=="__main__":
     config_paths = get_config_paths(args.config_dir)
     scripts = make_scripts(config_paths, args.email, args.time, args.threads, args.ngpus, args.gpu, args.env)
     write_scripts(scripts, args.output_dir)
-
-
-    
-
