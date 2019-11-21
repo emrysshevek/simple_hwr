@@ -3,6 +3,7 @@ import numpy as np
 from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
+from models.attention import MultiLayerSelfAttention
 from torch import nn
 from models.stroke_recovery_loss import StrokeLoss
 import torch
@@ -41,12 +42,12 @@ class StrokeRecoveryModel(nn.Module):
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type="default64", first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid = torch.nn.Sigmoid().to(device)
-        self.attn = nn.MultiheadAttention(vocab_size, num_heads=1)
+        self.attn = MultiLayerSelfAttention(vocab_size)
 
     def forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        attn_output = self.attn(rnn_output)
+        attn_output, attn_weights = self.attn(rnn_output)
         attn_output[:,:,2:] = self.sigmoid(attn_output[:,:,2:])  # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
 
         return attn_output
