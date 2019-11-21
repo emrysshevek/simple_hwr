@@ -39,7 +39,6 @@ def error_handler(func):
 
     return wrapper
 
-
 class CreateDataset:
     """ Create a list of dictionaries with the following keys:
                 "full_img_path": str of path to image,
@@ -136,7 +135,7 @@ class CreateDataset:
                 "image_path": img_path.relative_to(self.absolute_data_folder).as_posix(),
                 "dataset": dataset
             }
-            new_item.update(sub_stroke_dict)
+            new_item.update(sub_stroke_dict) # added to what's already in the substroke dictionary
 
             # Create images
             ratio = 1 if self.square else x_to_y
@@ -144,6 +143,14 @@ class CreateDataset:
             if self.render_images:
                 draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=img_path, line_width=.8)
             new_items.append(new_item)
+
+        ## Add shapes -- the system needs some time to actually perform the writing op before reading it back
+        for item in new_items:
+            img_path = self.absolute_data_folder / item["image_path"]
+            shape = cv2.imread(img_path.as_posix()).shape
+            item["shape"] = shape
+            #ratio = item["x_to_y"]
+            #print(shape, 61*ratio)
         return new_items
 
     @staticmethod
@@ -231,16 +238,17 @@ class CreateDataset:
 #def out_pickle(f)
 
 if __name__ == "__main__":
-    strokes = 8
+    strokes = None
     square = False
     instances = None
 
     variant=""
     if square:
-        variant = "Square"
+        variant += "Square"
     if instances is None:
         variant += "Full"
     else:
-        variant += f"Small_{instance}"
-    data_set = CreateDataset(max_strokes=strokes, square=square, output_folder_name=f"./{strokes}_stroke_v{variant}", render_images=True)
+        variant += f"Small_{instances}"
+    number_of_strokes = str(strokes) if isinstance(strokes, int) else "MAX"
+    data_set = CreateDataset(max_strokes=strokes, square=square, output_folder_name=f"./{number_of_strokes}_stroke_v{variant}", render_images=True)
     data_set.parallel(max_iter=instances, parallel=True)

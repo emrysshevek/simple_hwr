@@ -9,6 +9,9 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
 import types
+from hwr_utils import utils
+
+#python -m visdom.server -p 8080
 
 ### TO DO:
 # Add ONLINE flag to regular CRNN
@@ -99,7 +102,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
             break
 
     if i >= 0: # if there was any test data, calculate the CER
-        accumulate_all_stats(config, keyword=stat)
+        utils.accumulate_all_stats(config, keyword=stat)
         cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
         if not plot_all:

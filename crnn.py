@@ -142,7 +142,7 @@ class TrainerBaseline(json.JSONEncoder):
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1)))
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the size?
 
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         pred_strs = list(self.decoder.decode_training(output_batch))
@@ -185,7 +185,6 @@ class TrainerBaseline(json.JSONEncoder):
             online:
             gt:
             force_training: Run test in .train() as opposed to .eval() mode
-            update_stats:
 
         Returns:
 
@@ -260,75 +259,6 @@ class TrainerBaseline(json.JSONEncoder):
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
-class TrainerNudger(TrainerBaseline):
-
-    def __init__(self, model, optimizer, config, loss_criterion, train_baseline=True):
-        self.model = model
-        self.optimizer = optimizer
-        self.config = config
-        self.loss_criterion = loss_criterion
-        self.idx_to_char = self.config["idx_to_char"]
-        self.baseline_trainer = TrainerBaseline(model, config["optimizer"], config, loss_criterion)
-        self.nudger = config["nudger"]
-        self.recognizer_rnn = self.model.rnn
-        self.train_baseline = train_baseline
-        self.decoder = config["decoder"]
-
-    def default(self, o):
-        return None
-
-    def train(self, line_imgs, online, labels, label_lengths, gt, retain_graph=False, step=0):
-        self.nudger.train()
-
-        # Train baseline at the same time
-        if self.train_baseline:
-            baseline_loss, baseline_prediction, rnn_input = self.baseline_trainer.train(line_imgs, online, labels, label_lengths, gt, retain_graph=True)
-            self.model.my_eval()
-        else:
-            baseline_prediction, rnn_input = self.baseline_trainer.test(line_imgs, online, gt, force_training=True, update_stats=False)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_training(output_batch))
-
-        self.config["logger"].debug("Calculating CTC Loss (nudged): {}".format(step))
-        loss_recognizer_nudged = self.loss_criterion(pred_logits_nudged, labels, preds_size, label_lengths)
-        loss = torch.mean(loss_recognizer_nudged.cpu(), 0, keepdim=False).item()
-
-        # Backprop
-        self.optimizer.zero_grad()
-        loss_recognizer_nudged.backward()
-        self.optimizer.step()
-
-        ## ASSERT SOMETHING HAS CHANGED
-
-        if self.train_baseline:
-            self.model.my_train()
-
-        # Error Rate
-        self.config["stats"]["Nudged Training Loss"].accumulate(loss, 1)  # Might need to be divided by batch size?
-        err, weight, pred_str = calculate_cer(pred_strs, gt)
-        self.config["stats"]["Nudged Training Error Rate"].accumulate(err, weight)
-
-        return loss, err, pred_str
-
-    def test(self, line_imgs, online, gt, validation=True):
-        self.nudger.eval()
-        rnn_input = self.baseline_trainer.test(line_imgs, online, gt, nudger=True)
-
-        pred_logits_nudged, nudged_rnn_input, *_ = [x.cpu() for x in self.nudger(rnn_input, self.recognizer_rnn) if not x is None]
-        # preds_size = Variable(torch.IntTensor([pred_logits_nudged.size(0)] * pred_logits_nudged.size(1)))
-        output_batch = pred_logits_nudged.permute(1, 0, 2)
-        pred_strs = list(self.decoder.decode_test(output_batch))
-        err, weight = calculate_cer(pred_strs, gt)
-
-        self.update_test_cer(validation, err, weight, prefix="Nudged ")
-        loss = -1
-
-        return loss, err, pred_strs
-
-
 class TrainerStrokeRecovery:
     from models import stroke_recovery_loss
     def __init__(self, model, optimizer, config, loss_criterion=None):
@@ -345,39 +275,74 @@ class TrainerStrokeRecovery:
     def default(self, o):
         return None
 
-    def train(self, line_imgs, gt, **kwargs):
-        self.model.train()
+    @staticmethod
+    def truncate(preds, label_lengths):
+        """ Return a list
+
+        Args:
+            preds:
+            label_lengths:
+
+        Returns:
+
+        """
+
+        preds = [preds[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
+        #targs = [targs[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
+        return preds
+
+    def train(self, item, train=True, **kwargs):
+        """ Item is the whole thing from the dataloader
+
+        Args:
+            loss_fn:
+            item:
+            train: train/update the model
+            **kwargs:
+
+        Returns:
+
+        """
+        line_imgs = item["line_imgs"].to(device)
+        label_lengths = item["label_lengths"]
+        gt = item["gt_list"]
+        suffix = "_train" if train else "_test"
+
+        if train:
+            self.model.train()
+            self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
+            #print(self.config.stats[])
 
         pred_logits = self.model(line_imgs).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
-        stroke_loss = self.loss_criterion(output_batch, gt)
+        ## Shorten
+        preds = self.truncate(output_batch, label_lengths)
+        stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
+        loss = torch.sum(stroke_loss.cpu(), 0, keepdim=False).item()
 
-        # Backprop
-        #self.logger.debug("Backpropping: {}".format(step))
-        self.optimizer.zero_grad()
-        stroke_loss.backward()
-        self.optimizer.step()
-        loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, output_batch, None
+        # Update loss stat
+        self.config.stats[self.loss_criterion.loss_name + suffix].accumulate(loss)
 
-    def test(self, line_imgs, gt, validation=False, **kwargs):
+        # Update all other stats
+        self.update_stats(item, preds, train=train)
+
+        if train:
+            self.optimizer.zero_grad()
+            stroke_loss.backward()
+            self.optimizer.step()
+        return loss, preds, None
+
+    def test(self, item, **kwargs):
         self.model.eval()
-        pred_logits = self.model(line_imgs).cpu()
-        output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        return self.train(item, train=False, **kwargs)
 
-        stroke_loss = self.loss_criterion(output_batch, gt)
-        loss = torch.mean(stroke_loss.cpu(), 0, keepdim=False).item()
-        return loss, output_batch
+    def update_stats(self, item, preds, train=True):
+        suffix = "_train" if train else "_test"
 
-    def update_test_cer(self, validation, err, weight, prefix=""):
-        if validation:
-            self.config.logger.debug("Updating validation!")
-            stat = self.config["designated_validation_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
-        else:
-            self.config.logger.debug("Updating test!")
-            stat = self.config["designated_test_cer"]
-            self.config["stats"][f"{prefix}{stat}"].accumulate(err, weight)
-            #print(self.config["designated_test_cer"], self.config["stats"][f"{prefix}{stat}"])
+        ## If not using L1 loss
+        if self.loss_criterion.loss_name.lower() != "l1":
+            l1_loss = torch.sum(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"]).cpu(), 0, keepdim=False).item()
+            self.config.stats["l1"+suffix].accumulate(l1_loss)
 
+        self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))

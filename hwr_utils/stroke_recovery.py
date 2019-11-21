@@ -165,9 +165,35 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1], "trange":start_times[-1]-start_times[0]})
     return output
 
+def relativefy(x, reverse=False):
+    """ Make the x-coordinate relative to the previous one
+        First coordinate is relative to 0
+    Args:
+        x:
+
+    Returns:
+
+    """
+    if reverse:
+        return np.cumsum(x,axis=0)
+    else:
+        return np.insert(x[1:]-x[:-1], 0, x[0])
+
+
 def get_all_substrokes(stroke_dict, length=3):
+    """
+
+    Args:
+        stroke_dict: ['x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes', 'raw', 'tmin', 'tmax', 'trange']
+        length:
+
+    Returns:
+
+    """
     if length is None:
-        return [stroke_dict]
+        yield stroke_dict
+        return
+
     start_args = np.where(stroke_dict.start_strokes==1)[0] # returns an "array" of the list, just take first index
     start_args = np.append(start_args, None) # last start arg should be the end of the sequence
 
