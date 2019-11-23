@@ -74,7 +74,7 @@ def run_epoch(dataloader, report_freq=500):
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions)
+    graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions, epoch=epoch)
     return np.mean(loss_list)/batch_size
 
 def test(dataloader):
@@ -83,12 +83,12 @@ def test(dataloader):
         loss, preds, *_ = trainer.test(item)
         loss_list += [loss]
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions)
+    graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions, epoch=epoch)
     utils.accumulate_all_stats(config, keyword="_test")
 
     return np.mean(loss_list)/batch_size
 
-def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions=False):
+def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_relative_positions=False, epoch="current"):
     if save_folder is None:
         _epoch = str(epoch)
         save_folder = (config.image_dir / _epoch / _type)
@@ -119,7 +119,8 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
     for i, el in enumerate(batch["paths"]):
         img_path = el
         name=Path(batch["paths"][i]).stem
-        subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
+        if _type != "eval":
+            subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
         subgraph(preds, img_path, name, is_gt=False)
         if i > 8:
             break
@@ -210,7 +211,6 @@ def main(config_path):
     config.trainer=trainer
     config.model = model
 
-    globals().update(locals())
     for i in range(0,200):
         epoch = i+1
         config.counter.epochs = epoch
@@ -221,7 +221,7 @@ def main(config_path):
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
             config.loss_obj.set_loss(config.loss_fn2)
 
-        if epoch % 1 == 0:
+        if epoch % config.save_freq == 0: # how often to save
             utils.save_model_stroke(config, bsf=False)
 
     ## Bezier curve

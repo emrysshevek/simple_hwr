@@ -8,20 +8,20 @@ from models.stroke_recovery_loss import StrokeLoss
 import torch
 from models.CoordConv import CoordConv
 from crnn import TrainerStrokeRecovery
-from hwr_utils.stroke_dataset import StrokeRecoveryDataset
+from hwr_utils.stroke_dataset import StrokeRecoveryDataset, BasicDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
-from hwr_utils.utils import print
+from hwr_utils.utils import print, debugger
+from train_stroke_recovery import StrokeRecoveryModel, parse_args, graph
 
-from train_stroke_recovery import
-
-def main():
+#@debugger
+def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
 
-    config = utils.load_config("./configs/stroke_config/baseline.yaml", hwr=False)
+    config = utils.load_config(config_path, hwr=False)
     LOGGER = config.logger
     test_size = config.test_size
     train_size = config.train_size
@@ -39,14 +39,36 @@ def main():
     output.mkdir(parents=True, exist_ok=True)
     loss_obj = StrokeLoss(loss_fn=config.loss_fn)
     config.loss_obj = loss_obj
-    # folder = Path("online_coordinate_data/3_stroke_32_v2")
-    # folder = Path("online_coordinate_data/3_stroke_vSmall")
-    # folder = Path("online_coordinate_data/3_stroke_vFull")
-    # folder = Path("online_coordinate_data/8_stroke_vFull")
-    # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
-
+    folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/")
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
-    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
+    config.model = model
+    config.load_path = "/media/data/GitHub/simple_hwr/results/stroke_config/20191120_170400-baseline-GOOD,MAX/baseline_model.pt"
+    ## LOAD THE WEIGHTS
+    utils.load_model(config)
+    model = model.to(device)
+
     print("Current dataset: ", folder)
+    # Dataset - just expecting a folder
+    eval_dataset=BasicDataset(root=folder)
+
+    eval_loader=DataLoader(eval_dataset,
+                                  batch_size=batch_size,
+                                  shuffle=True,
+                                  num_workers=6,
+                                  collate_fn=eval_dataset.collate, # this should be set to collate_stroke_eval
+                                  pin_memory=False)
+
+    eval_only(eval_loader, model)
+
+def eval_only(dataloader, model):
+    for i, item in enumerate(dataloader):
+        preds = TrainerStrokeRecovery.eval(item["line_imgs"], model)
+        preds_to_graph = [p.permute([1, 0]) for p in preds]
+        graph(item, preds=preds_to_graph, _type="eval", x_relative_positions=x_relative_positions, epoch="current", config=config)
+
+
+if __name__=="__main__":
+    opts = parse_args()
+    main(config_path=opts.config)

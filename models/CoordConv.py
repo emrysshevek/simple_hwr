@@ -21,7 +21,6 @@ class AddCoords(nn.Module):
         self.rectangle_x = rectangle_x
         self.zero_center = zero_center
         self.both = both_x
-        print(f"CoordConv: {self.both},{self.rectangle_x}")
 
     def forward(self, input_tensor):
         """

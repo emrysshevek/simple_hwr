@@ -313,8 +313,7 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        pred_logits = self.model(line_imgs).cpu()
-        output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        output_batch = self.eval(line_imgs, self.model)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Shorten
         preds = self.truncate(output_batch, label_lengths)
@@ -337,6 +336,15 @@ class TrainerStrokeRecovery:
         self.model.eval()
         return self.train(item, train=False, **kwargs)
 
+    @staticmethod
+    def eval(line_imgs, model):
+        """ For offline data, that doesn't have ground truths
+        """
+        line_imgs = line_imgs.to(device)
+        pred_logits = model(line_imgs).cpu()
+        return pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+
+
     def update_stats(self, item, preds, train=True):
         suffix = "_train" if train else "_test"
 
@@ -345,4 +353,6 @@ class TrainerStrokeRecovery:
             l1_loss = torch.sum(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"]).cpu(), 0, keepdim=False).item()
             self.config.stats["l1"+suffix].accumulate(l1_loss)
 
-        self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))
+        # Don't do the nearest neighbor search by default
+        if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) :
+            self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))
