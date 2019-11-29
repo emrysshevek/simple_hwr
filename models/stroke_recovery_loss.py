@@ -15,41 +15,63 @@ from scipy.spatial import KDTree
 import time
 
 class StrokeLoss:
-    def __init__(self, loss_fn="l1", parallel=False, vocab_size=4):
+    def __init__(self, loss_fns="l1", parallel=False, vocab_size=4):
         super(StrokeLoss, self).__init__()
+        ### Relative preds and relative GTs:
+            # Resample GTs to be relative
+            # Return unrelative GTs and Preds
+            # This doesn't work that well, because it doesn't learn spaces
+        ### Absolute everything
+        ### Relative preds from network, then convert to absolute before loss
+            # Return unrelative preds
+
         #device = torch.device("cuda")
         self.vocab_size = vocab_size
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
         self.parallel = parallel
+        # self.unrelativefy_preds_for_loss = unrelativefy_preds_for_loss # if needed; i.e. calculate loss in absolute terms, but predict/return relative ones
+        #
+        # #
+        # if relative_preds and unrelativefy_preds_for_loss:
+        #     self.preprocess = self.unrelativefy
+        # else:
+        #     self.preprocess = lambda item, preds: preds
 
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
         self.truncate_preds = True
-        self.loss_name = loss_fn
-        self.loss_fn = self.set_loss(loss_fn, init=True)
+        self.loss_names = "_".join(loss_fns)
+        self.loss_fns = self.set_loss(loss_fns, init=True)
 
-    def set_loss(self, loss_name, init=False):
-        if loss_name.lower() == "l1":
-            loss_fn = self.l1
-        elif loss_name.lower() == "variable_l1":
-            loss_fn = self.variable_l1
-        elif loss_name.lower() == "dtw":
-            loss_fn = self.dtw
-        elif loss_name.lower() == "barron":
-            barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
-            loss_fn = barron_loss_fn.lossfun
-        else:
-            raise Exception("Unknown loss")
+    def set_loss(self, loss_names, init=False):
+        loss_fns = []
+        if isinstance(loss_names, str): # have a bunch of loss functions
+            loss_names = [loss_names]
 
+        for loss_name in loss_names:
+            if loss_name.lower() == "l1":
+                loss_fn = self.l1
+            elif loss_name.lower() == "variable_l1":
+                loss_fn = self.variable_l1
+            elif loss_name.lower() == "dtw":
+                loss_fn = self.dtw
+            elif loss_name.lower() == "barron":
+                barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
+                loss_fn = barron_loss_fn.lossfun
+            elif loss_name.lower() == "ssl":
+                loss_fn = self.ssl
+            else:
+                raise Exception(f"Unknown loss: {loss_name}")
+            loss_fns.append(loss_fn)
         # Return or rename
         if init:
-            return loss_fn
+            return loss_fns
         else:
-            self.loss_fn = loss_fn
-            self.loss_name = loss_name
-            return loss_fn
+            self.loss_fns = loss_fns
+            self.loss_names = "_".join(loss_names)
+            return loss_fns
 
     @staticmethod
     def resample_gt(preds, targs):
@@ -84,10 +106,8 @@ class StrokeLoss:
         #     targs = targs["gt_list"]
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
-        loss = self.loss_fn(preds, targs, label_lengths)
-        ssl_loss = StrokeLoss.ssl(preds, targs, label_lengths)
-        #print(loss, ssl_loss)
-        return loss + ssl_loss
+        losses = [loss(preds, targs, label_lengths) for loss in self.loss_fns]
+        return losses
 
     def dtw(self, preds, targs, label_lengths):
         loss = 0

@@ -166,6 +166,12 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     return output
 
 def relativefy(x, reverse=False):
+    if isinstance(x, np.ndarray):
+        relativefy_numpy(x, reverse)
+    else:
+        relativefy_torch(x, reverse)
+
+def relativefy_numpy(x, reverse=False):
     """ Make the x-coordinate relative to the previous one
         First coordinate is relative to 0
     Args:
@@ -178,6 +184,22 @@ def relativefy(x, reverse=False):
         return np.cumsum(x,axis=0)
     else:
         return np.insert(x[1:]-x[:-1], 0, x[0])
+
+def relativefy_torch(x, reverse=False):
+    """ Make the x-coordinate relative to the previous one
+        First coordinate is relative to 0
+    Args:
+        x:
+
+    Returns:
+
+    """
+    if reverse:
+        return torch.cumsum(x,dim=0)
+    else:
+        r = torch.zeros(x.shape)
+        r[1:] = x[1:]-x[:-1]
+        return r
 
 
 def get_all_substrokes(stroke_dict, length=3):

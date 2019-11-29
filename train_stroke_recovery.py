@@ -41,7 +41,6 @@ class StrokeRecoveryModel(nn.Module):
         self.sigmoid =torch.nn.Sigmoid().to(device)
         # ATTENTION!
 
-
     def forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
@@ -144,7 +143,7 @@ def main(config_path):
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
-    loss_obj = StrokeLoss(loss_fn=config.loss_fn)
+    loss_obj = StrokeLoss(loss_fns=[config.loss_fn], )
     config.loss_obj = loss_obj
     # folder = Path("online_coordinate_data/3_stroke_32_v2")
     # folder = Path("online_coordinate_data/3_stroke_vSmall")

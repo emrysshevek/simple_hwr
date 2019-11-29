@@ -5,6 +5,8 @@ from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
+from hwr_utils.stroke_recovery import relativefy
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
@@ -317,8 +319,14 @@ class TrainerStrokeRecovery:
 
         ## Shorten
         preds = self.truncate(output_batch, label_lengths)
-        stroke_loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
-        loss = torch.sum(stroke_loss.cpu(), 0, keepdim=False).item()
+
+        ## Make predictions relative
+        if self.config.relative_x_pred_abs_eval:
+            preds = relativefy(preds, reverse=True)  # assume they were in relative positions, convert to absolute
+
+        stroke_losses = self.loss_criterion.main_loss(preds, gt, label_lengths)
+        ## FIGURE OUT THE RIGHT WAY TO ADD MULTIPLE LOSSES
+        loss = np.sum([torch.sum(stroke_loss.cpu(), 0, keepdim=False).item() for stroke_loss in stroke_losses])
 
         # Update loss stat
         self.config.stats[self.loss_criterion.loss_name + suffix].accumulate(loss)
