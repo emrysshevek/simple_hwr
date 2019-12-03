@@ -18,15 +18,17 @@ PADDING_CONSTANT = 0
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
+
 class StrokeRecoveryDataset(Dataset):
     def __init__(self,
                  data_paths,
                  img_height=32,
                  num_of_channels=3,
-                 root= project_root / "data",
+                 root=project_root / "data",
                  max_images_to_load=None,
                  x_relative_positions=True,
                  cnn=None,
+                 device=torch.device('cpu'),
                  logger=None, **kwargs):
 
         # Make it an iterable
@@ -41,6 +43,7 @@ class StrokeRecoveryDataset(Dataset):
         self.noise = None
         self.x_relative_positions = x_relative_positions
         self.cnn = cnn
+        self.device = device
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
@@ -88,7 +91,7 @@ class StrokeRecoveryDataset(Dataset):
                 data.extend(new_data)
         # Calculate how many points are needed
         if self.cnn:
-            add_output_size_to_data(data, self.cnn)
+            add_output_size_to_data(data, self.cnn, self.device)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
@@ -231,7 +234,7 @@ def calculate_output_size(data, cnn):
         width_to_output_mapping[i] = shape[-1]
     return width_to_output_mapping
 
-def add_output_size_to_data(data, cnn):
+def add_output_size_to_data(data, cnn, device=torch.device('cpu')):
     """ Calculate how wide the GTs should be based on the output width of the CNN
     Args:
         data:
@@ -239,12 +242,12 @@ def add_output_size_to_data(data, cnn):
     Returns:
 
     """
-    #cnn.to("cpu")
+    # cnn.to("cpu")
     width_to_output_mapping = {}
     for instance in data:
         width = instance["shape"][1] # H,W,Channels
         if width not in width_to_output_mapping:
-            t = torch.zeros(1, 1, 32, width).to("cuda")
+            t = torch.zeros(1, 1, 32, width).to(device)
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
         instance["number_of_samples"]=width_to_output_mapping[width]
