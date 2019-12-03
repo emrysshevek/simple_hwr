@@ -16,5 +16,5 @@ class StrokeRecoveryModel(nn.Module):
 
     def forward(self, input):
         rnn_output = self.encoder(input)
-        attn_output = self.attn(rnn_output)
-        return attn_output
+        #attn_output = self.attn(rnn_output)
+        return rnn_output

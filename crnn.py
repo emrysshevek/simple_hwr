@@ -261,12 +261,13 @@ class TrainerBaseline(json.JSONEncoder):
 
 class TrainerStrokeRecovery:
     from models import stroke_recovery_loss
-    def __init__(self, model, optimizer, config, loss_criterion=None):
+    def __init__(self, model, optimizer, config, loss_criterion=None, device=torch.device("cpu")):
         #super().__init__(model, optimizer, config, loss_criterion)
         self.model = model
         self.optimizer = optimizer
         self.config = config
         self.loss_criterion = loss_criterion
+        self.device = device
         if config is None:
             self.logger = utils.setup_logging()
         else:
@@ -303,7 +304,7 @@ class TrainerStrokeRecovery:
         Returns:
 
         """
-        line_imgs = item["line_imgs"].to(device)
+        line_imgs = item["line_imgs"].to(self.device)
         label_lengths = item["label_lengths"]
         gt = item["gt_list"]
         suffix = "_train" if train else "_test"

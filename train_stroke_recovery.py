@@ -152,7 +152,8 @@ def main(config_path):
                             root=config.data_root,
                             max_images_to_load = train_size,
                             x_relative_positions=x_relative_positions,
-                            cnn=cnn
+                            cnn=cnn,
+                            device=device
                             )
 
     train_dataloader = DataLoader(train_dataset,
@@ -170,7 +171,8 @@ def main(config_path):
                             root=config.data_root,
                             max_images_to_load=test_size,
                             x_relative_positions=x_relative_positions,
-                            cnn=cnn
+                            cnn=cnn,
+                            device=device
                             )
 
     test_dataloader = DataLoader(test_dataset,
@@ -192,7 +194,7 @@ def main(config_path):
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
 
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj)
+    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj, device=device)
 
     config.optimizer = optimizer
     config.trainer = trainer
