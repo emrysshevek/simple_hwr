@@ -6,6 +6,7 @@ from models.basic import CNN, BidirectionalRNN
 from models.attention import MultiLayerSelfAttention
 from torch import nn
 from models.stroke_recovery_loss import StrokeLoss
+from models.stroke_recovery_model import StrokeRecoveryModel
 import torch
 from models.CoordConv import CoordConv
 from crnn import TrainerStrokeRecovery
@@ -32,25 +33,6 @@ def parse_args():
     # parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
     opts = parser.parse_args()
     return opts
-
-
-class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
-        super().__init__()
-        if first_conv_op:
-            first_conv_op = CoordConv
-        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type="default64", first_conv_opts=first_conv_opts)
-        self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
-        self.sigmoid = torch.nn.Sigmoid().to(device)
-        self.attn = MultiLayerSelfAttention(vocab_size)
-
-    def forward(self, input):
-        cnn_output = self.cnn(input)
-        rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        attn_output, attn_weights = self.attn(rnn_output)
-        attn_output[:,:,2:] = self.sigmoid(attn_output[:,:,2:])  # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
-
-        return attn_output
 
 
 def run_epoch(dataloader, report_freq=500):
@@ -129,6 +111,7 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
         if i > 8:
             break
 
+
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
@@ -159,11 +142,11 @@ def main(config_path):
 
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
-    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
+    cnn = model.get_cnn()  # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     lprint("Current dataset: ", folder)
 
     ## LOAD DATASET
-    train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
+    train_dataset = StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1,
                             root=config.data_root,
@@ -181,7 +164,7 @@ def main(config_path):
 
     config.n_train_instances = len(train_dataloader.dataset)
 
-    test_dataset=StrokeRecoveryDataset([folder / "test_online_coords.json"],
+    test_dataset = StrokeRecoveryDataset([folder / "test_online_coords.json"],
                             img_height = 60,
                             num_of_channels = 1.,
                             root=config.data_root,
@@ -211,8 +194,8 @@ def main(config_path):
     scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj)
 
-    config.optimizer=optimizer
-    config.trainer=trainer
+    config.optimizer = optimizer
+    config.trainer = trainer
     config.model = model
 
     globals().update(locals())
@@ -232,6 +215,7 @@ def main(config_path):
     ## Bezier curve
     # Have network predict whether it has reached the end of a stroke or not
     # If it has not reached the end of a stroke, the starting point = previous end point
+
 
 if __name__=="__main__":
     opts = parse_args()
