@@ -18,6 +18,10 @@ from hwr_utils.utils import print as lprint
 
 torch.cuda.empty_cache()
 
+## Change CWD to the folder containing this script
+ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
+os.chdir(ROOT_DIR)
+
 ## Variations:
 # Relative position
 # CoordConv - 0 center, X-as-rectanlge
@@ -42,6 +46,13 @@ class StrokeRecoveryModel(nn.Module):
         # ATTENTION!
 
     def forward(self, input):
+        if self.training:
+            return self._forward(input)
+        else:
+            with torch.no_grad():
+                return self._forward(input)
+
+    def _forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
         rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic

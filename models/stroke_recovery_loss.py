@@ -139,29 +139,6 @@ class StrokeLoss:
                 loss += abs(preds[i][a, :2] - targs[i][b, :2]).sum() / label_lengths[i] # AVERAGE pointwise loss for 1 image
         return loss
 
-    ## THIS IS HAPPENING IN THE TRAINER!
-    def truncate_preds_func_deprecated(func):
-        """ The images have a bunch of padded space. We don't care about what is predicted after a certain point.
-            So if we're using preds that have been resampled based on image width, truncate the prediction to match
-
-        Returns:
-
-        """
-
-        # REMOVE PRINT OUTS
-        # DON'T RESAMPLE? HM...
-        # Check parallel
-        def wrapper(*args, **kwargs):
-            if False: # FIX THIS - only if self.truncate
-                # BATCH, TIME, VOCAB
-                kwargs["preds"] = preds = args[0] if len(args)>0 else kwargs["preds"]
-                kwargs["targs"] = targs = args[1] if len(args)>1 else kwargs["targs"]
-                kwargs["label_lengths"] = label_lengths = args[2] if len(args) > 2 else kwargs["label_lengths"]
-                kwargs["preds"]= [preds[i][:label_lengths[i], :] for i in range(0,len(label_lengths))]
-                kwargs["targs"]= [targs[i][:label_lengths[i], :] for i in range(0,len(label_lengths))]
-            return func(*args, **kwargs)
-        return wrapper
-
     @staticmethod
     def dtw_single(_input):
         """
@@ -211,9 +188,10 @@ class StrokeLoss:
 
     @staticmethod
     def ssl(preds, targs, label_lengths):
-        #start_time = time.time()
+        # start_time = time.time()
         # for each of the start strokes in targs
         loss = 0
+
         for i in range(len(preds)):
             targ_start_strokes = targs[i][torch.nonzero(targs[i][:, 2]).squeeze(1), :2]
             targ_end_strokes = targs[i][torch.nonzero(targs[i][:, 3]).squeeze(1), :2]
@@ -225,11 +203,8 @@ class StrokeLoss:
             pred_end_fitted = torch.zeros(preds[i].shape[0])
             pred_end_fitted[end_indices] = 1
 
-            # Do L1 distance loss
-            loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum() / len(start_indices)
-            loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum() / len(end_indices)
-            loss += 0.1 * abs(pred_start_fitted - targs[i][:, 2]).sum()
-            loss += 0.1 * abs(pred_end_fitted - targs[i][:, 3]).sum()
+            loss += abs(pred_start_fitted - targs[i][:, 2]).sum() # SOStr prediction
+            loss += abs(pred_end_fitted - targs[i][:, 3]).sum()   # EOSeq prediction
         #print("Time to compute ssl: ", time.time() - start_time)
         return loss
   
