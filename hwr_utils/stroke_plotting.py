@@ -13,8 +13,8 @@ def plot_stroke_points(x,y, start_points, square=False):
     x_start_strokes = x[np.where(start_points == 1)]
     y_start_strokes = y[np.where(start_points == 1)]
 
-    plt.scatter(x_middle_strokes, y_middle_strokes, s=4)
-    plt.scatter(x_start_strokes, y_start_strokes, s=4)
+    plt.scatter(x_middle_strokes, y_middle_strokes, s=2)
+    plt.scatter(x_start_strokes, y_start_strokes, s=2)
 
     max_y = np.max(y)
     head_length = .01*max_y

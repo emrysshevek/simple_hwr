@@ -18,6 +18,7 @@ from pathlib import Path
 from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
 from hwr_utils.stat import Stat, AutoStat, TrainingCounter
+import traceback
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -233,8 +234,21 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "save_count": 0,
                     "coord_conv": False,
                    "data_root_fsl": "../hw_data/strokes",
-                   "data_root_local":"."
+                   "data_root_local":".",
+                   "training_nn_loss": False,
+                   "test_nn_loss": False,
 }
+
+
+def debugger(func):
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except(Exception) as e:
+            traceback.print_exc()
+            print(e)
+            globals().update(locals())
+    return wrapper
 
 def load_config(config_path, hwr=True):
     config_path = Path(config_path)
@@ -357,8 +371,11 @@ def make_config_consistent_stroke(config):
     config.image_dir = Path(config.image_dir)
 
     config.coordconv_opts = {"zero_center":config.coordconv_0_center,
-                             "rectangle_x":~config.coordconv_default,
+                             "rectangle_x":not config.coordconv_default,
                              "both_x": config.coordconv_default and config.coordconv_abs}
+
+    if not config.coordconv_default and not config.coordconv_abs and config.coordconv:
+        raise Exception("Must choose CoordConv option in X dimension")
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
@@ -366,6 +383,15 @@ def make_config_consistent_stroke(config):
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
         config.update_freq = 1
         config.save_freq = 1
+        config.first_loss_epochs = 1 # switch to other loss fast
+
+    ## Process loss functions
+    config.all_losses = set()
+    for key in [k for k in config.keys() if "loss_fns" in k]:
+        for i, loss in enumerate(config[key]):
+            loss, coef = loss.lower().split(",")
+            config[key][i] = (loss, float(coef))
+            config.all_losses.add(loss)
     return config
 
 def make_config_consistent_hwr(config):
@@ -591,7 +617,8 @@ def load_model(config):
 
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
-        config["optimizer"].load_state_dict(old_state["optimizer"])
+        if "optimizer" in config.keys():
+            config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
         config["current_epoch"] = old_state["epoch"]
@@ -606,14 +633,15 @@ def load_model(config):
             warnings.warn("Unable to load from visdom.json; does the file exist?")
             ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
-
     # Load Loss History
     stat_path = os.path.join(path, "all_stats.json")
     loss_path = os.path.join(path, "losses.json")
 
-    with open(loss_path, 'r') as fh:
-        losses = json.load(fh)
-
+    if Path(loss_path).exists():
+        with open(loss_path, 'r') as fh:
+            losses = json.load(fh)
+    else:
+        print("losses.json not found in load_path folder")
     try:
         config["train_cer"] = losses["train_cer"]
         config["test_cer"] = losses["test_cer"]
@@ -1001,10 +1029,10 @@ def stat_prep_strokes(config):
                                      x_title="Updates", y_title="Loss", name=f"nn_{variant}", train=is_training))
 
         # All other loss functions
-        for loss in [config[key].lower() for key in config.keys() if "loss_fn" in key]:
+        for loss in config.all_losses:
             if loss!="l1":
                 config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                         x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
+                                             x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)

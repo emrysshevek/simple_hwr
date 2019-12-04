@@ -2,6 +2,7 @@
 TESTING: false
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
+offline_pred: false
 
 # General
 output_folder: ./results
@@ -36,9 +37,11 @@ x_relative_positions: False
 vocab_size: 4
 
 ## Loss function
-loss_fn: l1
-loss_fn2: dtw
-first_loss_epochs: 20
+loss_fn: l1, ssl
+loss_fn2: dtw, ssl
+first_loss_epochs: 5
+training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
+test_nn_loss: false # calculate nearest neighbor loss on every test instance
 
 # CoordConv
   # x-scaled from -1 to 1
@@ -50,3 +53,4 @@ coordconv_0_center: true # 0 center
 
 # Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
 relative_x: false # true, false, both; predict both
+relative_x_pred_abs_eval: true # predict relative coordinates, loss based on absolute ones

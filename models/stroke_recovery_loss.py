@@ -12,43 +12,69 @@ from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
 from hwr_utils.utils import print
 from scipy.spatial import KDTree
+import time
 
 class StrokeLoss:
-    def __init__(self, loss_fn="l1", parallel=False, vocab_size=4):
+    def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None):
         super(StrokeLoss, self).__init__()
+        ### Relative preds and relative GTs:
+            # Resample GTs to be relative
+            # Return unrelative GTs and Preds
+            # This doesn't work that well, because it doesn't learn spaces
+        ### Absolute everything
+        ### Relative preds from network, then convert to absolute before loss
+            # Return unrelative preds
+
         #device = torch.device("cuda")
         self.vocab_size = vocab_size
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
         self.parallel = parallel
+        # self.unrelativefy_preds_for_loss = unrelativefy_preds_for_loss # if needed; i.e. calculate loss in absolute terms, but predict/return relative ones
+        #
+        # #
+        # if relative_preds and unrelativefy_preds_for_loss:
+        #     self.preprocess = self.unrelativefy
+        # else:
+        #     self.preprocess = lambda item, preds: preds
 
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
         self.truncate_preds = True
-        self.loss_name = loss_fn
-        self.loss_fn = self.set_loss(loss_fn, init=True)
+        self.set_loss(loss_names)
+        self.stats = loss_stats
 
-    def set_loss(self, loss_name, init=False):
-        if loss_name.lower() == "l1":
-            loss_fn = self.l1
-        elif loss_name.lower() == "variable_l1":
-            loss_fn = self.variable_l1
-        elif loss_name.lower() == "dtw":
-            loss_fn = self.dtw
-        elif loss_name.lower() == "barron":
-            barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
-            loss_fn = barron_loss_fn.lossfun
-        else:
-            raise Exception("Unknown loss")
+    def set_loss(self, loss_names_and_coef):
+        loss_fns = []
+        coefs = []
+        loss_names = []
+        if isinstance(loss_names_and_coef, str): # have a bunch of loss functions
+            loss_names_and_coef = [loss_names_and_coef]
 
-        # Return or rename
-        if init:
-            return loss_fn
-        else:
-            self.loss_fn = loss_fn
-            self.loss_name = loss_name
-            return loss_fn
+        for loss_name, coef in loss_names_and_coef:
+            coefs.append(coef)
+            loss_names.append(loss_name)
+
+            if loss_name.lower() == "l1":
+                loss_fn = self.l1
+            elif loss_name.lower() == "variable_l1":
+                loss_fn = self.variable_l1
+            elif loss_name.lower() == "dtw":
+                loss_fn = self.dtw
+            elif loss_name.lower() == "barron":
+                barron_loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu')
+                loss_fn = barron_loss_fn.lossfun
+            elif loss_name.lower() == "ssl":
+                loss_fn = self.ssl
+            else:
+                raise Exception(f"Unknown loss: {loss_name}")
+            loss_fns.append(loss_fn)
+
+        self.coefs = coef
+        self.loss_fns = loss_fns
+        self.loss_names = loss_names
+
 
     @staticmethod
     def resample_gt(preds, targs):
@@ -66,7 +92,7 @@ class StrokeLoss:
             label_lengths.append(pred_length)
         return targs, label_lengths
 
-    def main_loss(self, preds, targs, label_lengths):
+    def main_loss(self, preds, targs, label_lengths, suffix="_train"):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -83,8 +109,18 @@ class StrokeLoss:
         #     targs = targs["gt_list"]
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
-        loss = self.loss_fn(preds, targs, label_lengths)
-        return loss
+        losses = torch.zeros(len(self.loss_fns))
+        loss_total = 0
+        for i, loss_fn in enumerate(self.loss_fns):
+            loss_tensor = loss_fn(preds, targs, label_lengths)
+            losses[i] = loss_tensor
+            # Update loss stat
+            loss = torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
+            loss_total += loss
+            self.stats[self.loss_names[i] + suffix].accumulate(loss)
+
+        combined_loss = torch.sum(losses)
+        return combined_loss, loss
 
     def dtw(self, preds, targs, label_lengths):
         loss = 0
@@ -96,11 +132,11 @@ class StrokeLoss:
             pool.close()
             #print(as_and_bs[0])
             for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
-                loss += abs(preds[i, a, :] - targs[i][b, :]).sum() / label_lengths[i]
+                loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum() / label_lengths[i]
         else:
             for i in range(len(preds)): # loop through BATCH
                 a,b = self.dtw_single((preds[i], targs[i]))
-                loss += abs(preds[i][a, :] - targs[i][b, :]).sum() / label_lengths[i] # AVERAGE pointwise loss for 1 image
+                loss += abs(preds[i][a, :2] - targs[i][b, :2]).sum() / label_lengths[i] # AVERAGE pointwise loss for 1 image
         return loss
 
     ## THIS IS HAPPENING IN THE TRAINER!
@@ -170,9 +206,33 @@ class StrokeLoss:
     def l1(preds, targs, label_lengths):
         loss = 0
         for i, pred in enumerate(preds):
-            loss += torch.sum(abs(pred-targs[i]))/label_lengths[i]
+          loss += torch.sum(abs(pred[:, :2]-targs[i][:, :2]))/label_lengths[i]
         return loss
 
+    @staticmethod
+    def ssl(preds, targs, label_lengths):
+        #start_time = time.time()
+        # for each of the start strokes in targs
+        loss = 0
+        for i in range(len(preds)):
+            targ_start_strokes = targs[i][torch.nonzero(targs[i][:, 2]).squeeze(1), :2]
+            targ_end_strokes = targs[i][torch.nonzero(targs[i][:, 3]).squeeze(1), :2]
+            k = KDTree(preds[i][:, :2].data)
+            start_indices = k.query(targ_start_strokes)[1]
+            end_indices = k.query(targ_end_strokes)[1]
+            pred_start_fitted = torch.zeros(preds[i].shape[0])
+            pred_start_fitted[start_indices] = 1
+            pred_end_fitted = torch.zeros(preds[i].shape[0])
+            pred_end_fitted[end_indices] = 1
+
+            # Do L1 distance loss
+            loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum() / len(start_indices)
+            loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum() / len(end_indices)
+            loss += 0.1 * abs(pred_start_fitted - targs[i][:, 2]).sum()
+            loss += 0.1 * abs(pred_end_fitted - targs[i][:, 3]).sum()
+        #print("Time to compute ssl: ", time.time() - start_time)
+        return loss
+  
 
     def calculate_nn_distance(self, item, preds):
         """ Can this be done differentiably?
@@ -192,48 +252,12 @@ class StrokeLoss:
         for i in range(batch_size):
             # TODO binarize line images and do dist based on that
             kd = KDTree(preds[i][:, :2].data)
-            cum_dist = sum(kd.query(gt[i][:, :2])[0])
+         #   cum_dist = sum(kd.query(gt[i][:, :2])[0])
             n_pts += gt[i].shape[0]
 
         return (cum_dist / n_pts) * batch_size # THIS WILL BE DIVIDED BY THE NUMBER OF INSTANCES LATER
         #print("cum_dist: ", cum_dist, "n_pts: ", n_pts)
         #print("Distance: ", cum_dist / n_pts)
-
-
-'''
-    OLD attempts at loss
-    def angle_loss(self, preds, targs):
-        #end_strokes = (targs[:, :, 3] != 1)[:, :-1]
-        pred_diffs = preds[:, 1:, :2] - preds[:, :-1, :2]
-        targ_diffs = targs[:, 1:, :2] - targs[:, :-1, :2]
-
-
-        # set diffs to 0 at end_stroke indices
-        #pred_diffs[:, :, 0] *= end_strokes
-        #pred_diffs[:, :, 1] *= end_strokes
-        #targ_diffs[:, :, 0] *= end_strokes
-        #targ_diffs[:, :, 1] *= end_strokes
-
-        #print(pred_diffs.shape, targ_diffs.shape)
-
-
-        # get the indices of the slopes that shouldn't be connected and remove that slope
-        loss = self.cosine_distance(pred_diffs, targ_diffs)
-        return loss.sum() * 25 # constant to make it start out roughly equal to the location loss
-
-    def log_prob_loss(self, preds, targs):
-        pred_diffs = preds[:, 1:, :2] - preds[:, :-1, :2]
-        targ_diffs = targs[:, 1:, :2] - targs[:, :-1, :2]
-        targ_slopes = targ_diffs[:, :, 0] / targ_diffs[:, :, 1]
-        loss = 0
-        for i in range(len(targ_diffs)):
-            for j in range(len(targ_diffs[i])):
-                # Get variances according to diffs
-                bivariate = torch.distributions.multivariate_normal.MultivariateNormal(targs[i][j][:2], torch.eye(2))
-                loss_part = bivariate.log_prob(preds[i][j][:2])
-                loss += loss_part
-        return -loss
-    '''
 
 if __name__ == "__main__":
     from models.basic import CNN, BidirectionalRNN

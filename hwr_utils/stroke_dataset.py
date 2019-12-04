@@ -18,6 +18,65 @@ PADDING_CONSTANT = 0
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
+def read_img(image_path, num_of_channels=1, target_height=60):
+    if num_of_channels == 3:
+        img = cv2.imread(image_path.as_posix())
+    elif num_of_channels == 1:  # read grayscale
+        img = cv2.imread(image_path.as_posix(), 0)
+    else:
+        raise Exception("Unexpected number of channels")
+    if img is None:
+        print("Warning: image is None:", image_path)
+        return None
+
+    percent = float(target_height) / img.shape[0]
+
+    if percent != 1:
+        img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+
+    # Add channel dimension, since resize and warp only keep non-trivial channel axis
+    if num_of_channels == 1:
+        img = img[:, :, np.newaxis]
+
+
+    img = img.astype(np.float32)
+    img = img / 128.0 - 1.0
+
+    return img
+
+
+class BasicDataset(Dataset):
+    def __init__(self, root, extension=".png"):
+        # Create dictionary with all the paths and some index
+        root = Path(root)
+        self.root = root
+        self.data = []
+        self.num_of_channels = 1
+        self.collate = collate_stroke_eval
+        for i in root.rglob("*" + extension):
+            self.data.append({"image_path":i})
+        print("SELF", len(self.data))
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        image_path = self.root / item['image_path']
+        img = read_img(image_path, num_of_channels=self.num_of_channels)
+
+        return {
+            "line_img": img,
+            "gt": [],
+            "path": image_path,
+            "x_func": None,
+            "y_func": None,
+            "start_times": None,
+            "x_relative": None
+        }
+
+
+
 class StrokeRecoveryDataset(Dataset):
     def __init__(self,
                  data_paths,
@@ -311,7 +370,7 @@ def collate_stroke(batch, device="cpu"):
 
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
-    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         print("Problem with collating!!! See hw_dataset.py")
         print(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
@@ -363,6 +422,53 @@ def collate_stroke(batch, device="cpu"):
         "start_times": [b["start_times"] for b in batch],
     }
 
+
+def collate_stroke_eval(batch, device="cpu"):
+    """ Pad ground truths with 0's
+        Report lengths to get accurate average loss
+
+    Args:
+        batch:
+        device:
+
+    Returns:
+
+    """
+
+    batch = [b for b in batch if b is not None]
+    #These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
+        print("Problem with collating!!! See hw_dataset.py")
+        print(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    batch_size = len(batch)
+    dim0 = batch[0]['line_img'].shape[0] # height
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # width
+    dim2 = batch[0]['line_img'].shape[2] # channel
+
+    # Make input square (variable vidwth
+    input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        input_batch[i,:,: b_img.shape[1],:] = b_img
+
+    line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "gt": None,
+        "gt_list": None, # List of numpy arrays
+        "x_relative": None,
+        "label_lengths": None,
+        "paths": [b["path"] for b in batch],
+        "x_func": None,
+        "y_func": None,
+        "start_times": None,
+    }
 
 if __name__=="__main__":
     # x = [np.array([[1,2,3,4],[4,5,3,5]]),np.array([[1,2,3],[4,5,3]]),np.array([[1,2],[4,5]])]

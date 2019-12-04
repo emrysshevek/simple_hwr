@@ -41,7 +41,6 @@ class StrokeRecoveryModel(nn.Module):
         self.sigmoid =torch.nn.Sigmoid().to(device)
         # ATTENTION!
 
-
     def forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
@@ -74,7 +73,8 @@ def run_epoch(dataloader, report_freq=500):
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions)
+    graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions, epoch=epoch)
+    config.scheduler.step()
     return np.mean(loss_list)/batch_size
 
 def test(dataloader):
@@ -83,12 +83,12 @@ def test(dataloader):
         loss, preds, *_ = trainer.test(item)
         loss_list += [loss]
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions)
+    graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions, epoch=epoch)
     utils.accumulate_all_stats(config, keyword="_test")
 
     return np.mean(loss_list)/batch_size
 
-def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions=False):
+def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_relative_positions=False, epoch="current"):
     if save_folder is None:
         _epoch = str(epoch)
         save_folder = (config.image_dir / _epoch / _type)
@@ -111,7 +111,7 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
 
         ## Undo relative positions for X for graphing
         if x_relative_positions:
-            coords[0] = relativefy(coords[0], reverse=True)
+            coords[0] = relativefy_numpy(coords[0], reverse=True)
 
         render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"temp{i}_{name}{suffix}.png")
 
@@ -119,7 +119,8 @@ def graph(batch, preds=None,_type="test", save_folder=None, x_relative_positions
     for i, el in enumerate(batch["paths"]):
         img_path = el
         name=Path(batch["paths"][i]).stem
-        subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
+        if _type != "eval":
+            subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
         subgraph(preds, img_path, name, is_gt=False)
         if i > 8:
             break
@@ -143,7 +144,7 @@ def main(config_path):
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
-    loss_obj = StrokeLoss(loss_fn=config.loss_fn)
+    loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats)
     config.loss_obj = loss_obj
     # folder = Path("online_coordinate_data/3_stroke_32_v2")
     # folder = Path("online_coordinate_data/3_stroke_vSmall")
@@ -151,7 +152,6 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vFull")
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
-
 
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
@@ -202,15 +202,13 @@ def main(config_path):
     utils.stat_prep_strokes(config)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
-
-    scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
+    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj)
 
     config.optimizer=optimizer
     config.trainer=trainer
     config.model = model
 
-    globals().update(locals())
     for i in range(0,200):
         epoch = i+1
         config.counter.epochs = epoch
@@ -219,9 +217,9 @@ def main(config_path):
         test_loss = test(test_dataloader)
         lprint(f"Epoch: {epoch}, Test Loss: {test_loss}")
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
-            config.loss_obj.set_loss(config.loss_fn2)
+            config.loss_obj.set_loss(config.loss_fns2)
 
-        if epoch % 1 == 0:
+        if epoch % config.save_freq == 0: # how often to save
             utils.save_model_stroke(config, bsf=False)
 
     ## Bezier curve
