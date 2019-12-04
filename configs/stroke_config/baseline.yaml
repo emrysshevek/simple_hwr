@@ -16,7 +16,7 @@ debug: off
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
 data_root_fsl: ../hw_data/strokes
-data_root_local: .
+data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
 
 
@@ -39,12 +39,13 @@ x_relative_positions: False
 vocab_size: 4
 
 ## Loss function
-loss_fn:
-  - l1
-  - ssl
-loss_fn2:
-  - dtw
-  - ssl
+loss_fns:
+  - l1, .8
+  - ssl, .2
+loss_fns2:
+  - dtw, .8
+  - ssl, .2
+
 first_loss_epochs: 5
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance

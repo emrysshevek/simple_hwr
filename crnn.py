@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
-from hwr_utils.stroke_recovery import relativefy
+from hwr_utils.stroke_recovery import relativefy, relativefy_batch, relativefy_batch_torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -315,28 +315,24 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        output_batch = self.eval(line_imgs, self.model)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
-
-        ## Shorten
-        preds = self.truncate(output_batch, label_lengths)
+        preds = self.eval(line_imgs, self.model)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make predictions relative
-        if self.config.relative_x_pred_abs_eval:
-            preds = relativefy(preds, reverse=True)  # assume they were in relative positions, convert to absolute
+        # if self.config.relative_x_pred_abs_eval:
+        #     preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
 
-        stroke_losses = self.loss_criterion.main_loss(preds, gt, label_lengths)
-        ## FIGURE OUT THE RIGHT WAY TO ADD MULTIPLE LOSSES
-        loss = np.sum([torch.sum(stroke_loss.cpu(), 0, keepdim=False).item() for stroke_loss in stroke_losses])
+        ## Shorten
+        preds = self.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
 
-        # Update loss stat
-        self.config.stats[self.loss_criterion.loss_name + suffix].accumulate(loss)
+        loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
 
         # Update all other stats
         self.update_stats(item, preds, train=train)
 
+
         if train:
             self.optimizer.zero_grad()
-            stroke_loss.backward()
+            loss_tensor.backward()
             self.optimizer.step()
         return loss, preds, None
 
@@ -357,7 +353,7 @@ class TrainerStrokeRecovery:
         suffix = "_train" if train else "_test"
 
         ## If not using L1 loss
-        if self.loss_criterion.loss_name.lower() != "l1":
+        if "l1" not in self.loss_criterion.loss_names:
             l1_loss = torch.sum(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"]).cpu(), 0, keepdim=False).item()
             self.config.stats["l1"+suffix].accumulate(l1_loss)
 

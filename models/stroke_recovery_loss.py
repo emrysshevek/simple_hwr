@@ -15,7 +15,7 @@ from scipy.spatial import KDTree
 import time
 
 class StrokeLoss:
-    def __init__(self, loss_fns="l1", parallel=False, vocab_size=4):
+    def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None):
         super(StrokeLoss, self).__init__()
         ### Relative preds and relative GTs:
             # Resample GTs to be relative
@@ -42,15 +42,20 @@ class StrokeLoss:
         self.poolcount = max(1, multiprocessing.cpu_count()-8)
         self.poolcount = 2
         self.truncate_preds = True
-        self.loss_names = "_".join(loss_fns)
-        self.loss_fns = self.set_loss(loss_fns, init=True)
+        self.set_loss(loss_names)
+        self.stats = loss_stats
 
-    def set_loss(self, loss_names, init=False):
+    def set_loss(self, loss_names_and_coef):
         loss_fns = []
-        if isinstance(loss_names, str): # have a bunch of loss functions
-            loss_names = [loss_names]
+        coefs = []
+        loss_names = []
+        if isinstance(loss_names_and_coef, str): # have a bunch of loss functions
+            loss_names_and_coef = [loss_names_and_coef]
 
-        for loss_name in loss_names:
+        for loss_name, coef in loss_names_and_coef:
+            coefs.append(coef)
+            loss_names.append(loss_name)
+
             if loss_name.lower() == "l1":
                 loss_fn = self.l1
             elif loss_name.lower() == "variable_l1":
@@ -65,13 +70,11 @@ class StrokeLoss:
             else:
                 raise Exception(f"Unknown loss: {loss_name}")
             loss_fns.append(loss_fn)
-        # Return or rename
-        if init:
-            return loss_fns
-        else:
-            self.loss_fns = loss_fns
-            self.loss_names = "_".join(loss_names)
-            return loss_fns
+
+        self.coefs = coef
+        self.loss_fns = loss_fns
+        self.loss_names = loss_names
+
 
     @staticmethod
     def resample_gt(preds, targs):
@@ -89,7 +92,7 @@ class StrokeLoss:
             label_lengths.append(pred_length)
         return targs, label_lengths
 
-    def main_loss(self, preds, targs, label_lengths):
+    def main_loss(self, preds, targs, label_lengths, suffix="_train"):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -106,8 +109,18 @@ class StrokeLoss:
         #     targs = targs["gt_list"]
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
-        losses = [loss(preds, targs, label_lengths) for loss in self.loss_fns]
-        return losses
+        losses = torch.zeros(len(self.loss_fns))
+        loss_total = 0
+        for i, loss_fn in enumerate(self.loss_fns):
+            loss_tensor = loss_fn(preds, targs, label_lengths)
+            losses[i] = loss_tensor
+            # Update loss stat
+            loss = torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
+            loss_total += loss
+            self.stats[self.loss_names[i] + suffix].accumulate(loss)
+
+        combined_loss = torch.sum(losses)
+        return combined_loss, loss
 
     def dtw(self, preds, targs, label_lengths):
         loss = 0

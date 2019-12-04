@@ -383,6 +383,15 @@ def make_config_consistent_stroke(config):
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
         config.update_freq = 1
         config.save_freq = 1
+        config.first_loss_epochs = 1 # switch to other loss fast
+
+    ## Process loss functions
+    config.all_losses = set()
+    for key in [k for k in config.keys() if "loss_fns" in k]:
+        for i, loss in enumerate(config[key]):
+            loss, coef = loss.lower().split(",")
+            config[key][i] = (loss, float(coef))
+            config.all_losses.add(loss)
     return config
 
 def make_config_consistent_hwr(config):
@@ -1020,10 +1029,10 @@ def stat_prep_strokes(config):
                                      x_title="Updates", y_title="Loss", name=f"nn_{variant}", train=is_training))
 
         # All other loss functions
-        for loss in [config[key].lower() for key in config.keys() if "loss_fn" in key]:
+        for loss in config.all_losses:
             if loss!="l1":
                 config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                         x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
+                                             x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)

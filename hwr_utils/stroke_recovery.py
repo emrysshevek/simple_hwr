@@ -165,17 +165,57 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1], "trange":start_times[-1]-start_times[0]})
     return output
 
+## DOES THIS WORK? SHOULD BE THE SAME AS BATCH_TORCH, NEED TO TEST
+def relativefy_batch(batch, reverse=False):
+    """ A tensor: Batch, Width, Vocab
+
+    Args:
+        batch:
+        reverse:
+
+    Returns:
+
+    """
+    for i,b in enumerate(batch):
+        #print(batch.size(), batch)
+        #print(batch[i,:,0])
+        #print(i, b)
+        relativefy(b[:, 0], reverse=reverse)
+        batch[i] = relativefy(b[:,0], reverse=reverse)
+    return batch
+
+def relativefy_batch_torch(batch, reverse=False):
+    """ A tensor: Batch, Width, Vocab
+    """
+    if reverse:
+        return torch.cumsum(batch,dim=1)
+    else:
+        r = torch.zeros(batch.shape)
+        r[:,1:] = batch[:,1:]-batch[:, :-1]
+        return r
+
+
 def relativefy(x, reverse=False):
+    """
+    Args:
+        x:
+        reverse:
+
+    Returns:
+
+    """
     if isinstance(x, np.ndarray):
         relativefy_numpy(x, reverse)
-    else:
+    elif isinstance(x, torch.Tensor):
         relativefy_torch(x, reverse)
+    else:
+        raise Exception(f"Unexpected type {type(x)}")
 
 def relativefy_numpy(x, reverse=False):
     """ Make the x-coordinate relative to the previous one
         First coordinate is relative to 0
     Args:
-        x:
+        x (array-like): Just an array of x's coords!
 
     Returns:
 
