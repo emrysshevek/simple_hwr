@@ -1022,17 +1022,17 @@ def stat_prep_strokes(config):
 
         # Always include L1 loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Updates", y_title="Loss", name=f"l1_{variant}", train=is_training))
+                                     x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
 
         # NN Loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Updates", y_title="Loss", name=f"nn_{variant}", train=is_training))
+                                     x_title="Epochs", y_title="Loss", name=f"nn_{variant}", train=is_training))
 
         # All other loss functions
         for loss in config.all_losses:
             if loss!="l1":
                 config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                             x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
+                                             x_title="Epochs", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)

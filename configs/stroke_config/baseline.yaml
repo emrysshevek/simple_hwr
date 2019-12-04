@@ -41,10 +41,10 @@ vocab_size: 4
 ## Loss function
 loss_fns:
   - l1, .8
-#  - ssl, .2
+  - ssl, .2
 loss_fns2:
   - dtw, .8
-#  - ssl, .2
+  - ssl, .2
 
 first_loss_epochs: 5
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
