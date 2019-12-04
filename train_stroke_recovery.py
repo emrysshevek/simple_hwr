@@ -199,6 +199,7 @@ def main(config_path):
     config.optimizer = optimizer
     config.trainer = trainer
     config.model = model
+    torch.autograd.set_detect_anomaly(True)
 
     globals().update(locals())
     for i in range(0,200):

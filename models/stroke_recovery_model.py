@@ -10,26 +10,29 @@ class StrokeRecoveryModel(nn.Module):
     def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
         super(StrokeRecoveryModel, self).__init__()
         self.encoder = CRNNEncoder(vocab_size, device, first_conv_op, first_conv_opts)
-        self.attn = MultiLayerSelfAttention(vocab_size)
-        self.decoder = RNNDecoder(vocab_size, vocab_size, 128, vocab_size, 2)
+        self.attn = MultiLayerSelfAttention(vocab_size, num_layers=1)
+        self.decoder = RNNDecoder(vocab_size, vocab_size, 16, vocab_size, 2)
         self.sigmoid = torch.nn.Sigmoid()
 
     def get_cnn(self):
         return self.encoder.cnn
 
     def forward(self, input):
+        # print(torch.cuda.memory_allocated()/1e9)
         rnn_output = self.encoder(input)
         seq_len, batch_size, vocab_size = rnn_output.shape
 
-        decoder_state = torch.zeros(1, batch_size, vocab_size)
+        decoder_state = torch.zeros(1, batch_size, vocab_size).to(rnn_output.device)
         hidden = None
-        output = []
+        outputs = []
 
         for i in range(seq_len):
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
             context = self.attn(rnn_output, decoder_state)
             decoder_state, hidden = self.decoder(decoder_state, context, hidden)
-            decoder_state[:, :, 2:] = self.sigmoid(decoder_state[:, :, 2:])
-            output.append(decoder_state)
-
-        return torch.cat(output, dim=0)
+            outputs.append(decoder_state)
+        # print(torch.cuda.memory_allocated()/1e9)
+        # TODO: Make SOS and EOS values probabilistic
+        return torch.cat(outputs, dim=0)
 
