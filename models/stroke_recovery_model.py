@@ -28,11 +28,9 @@ class StrokeRecoveryModel(nn.Module):
 
         for i in range(seq_len):
             torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
             context = self.attn(rnn_output, decoder_state)
             decoder_state, hidden = self.decoder(decoder_state, context, hidden)
+            decoder_state[:, :, 2:] = self.sigmoid(decoder_state[:, :, 2:])  # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
             outputs.append(decoder_state)
-        # print(torch.cuda.memory_allocated()/1e9)
-        # TODO: Make SOS and EOS values probabilistic
         return torch.cat(outputs, dim=0)
 
