@@ -198,7 +198,7 @@ def main(config_path):
 
     test_dataloader = DataLoader(test_dataset,
                                   batch_size=batch_size,
-                                  shuffle=True,
+                                  shuffle=False,
                                   num_workers=3,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)

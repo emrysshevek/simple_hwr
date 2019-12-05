@@ -14,6 +14,8 @@ from hwr_utils.utils import print
 from scipy.spatial import KDTree
 import time
 
+BCELoss = torch.nn.BCELoss()
+
 class StrokeLoss:
     def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None):
         super(StrokeLoss, self).__init__()
@@ -110,13 +112,14 @@ class StrokeLoss:
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
         losses = torch.zeros(len(self.loss_fns))
-        loss_total = 0
+        total_length = torch.sum(label_lengths.cpu(), 0, keepdim=False).item()
+        ## Loop through loss functions
         for i, loss_fn in enumerate(self.loss_fns):
             loss_tensor = loss_fn(preds, targs, label_lengths)
             losses[i] = loss_tensor
+
             # Update loss stat
-            loss = torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
-            loss_total += loss
+            loss = torch.sum(loss_tensor.cpu(), 0, keepdim=False).item() / total_length
             self.stats[self.loss_names[i] + suffix].accumulate(loss)
 
         combined_loss = torch.sum(losses)
@@ -132,11 +135,11 @@ class StrokeLoss:
             pool.close()
             #print(as_and_bs[0])
             for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
-                loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum() / label_lengths[i]
+                loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum()
         else:
             for i in range(len(preds)): # loop through BATCH
                 a,b = self.dtw_single((preds[i], targs[i]))
-                loss += abs(preds[i][a, :2] - targs[i][b, :2]).sum() / label_lengths[i] # AVERAGE pointwise loss for 1 image
+                loss += abs(preds[i][a, :2] - targs[i][b, :2]).sum() # AVERAGE pointwise loss for 1 image
         return loss
 
     @staticmethod
@@ -162,7 +165,7 @@ class StrokeLoss:
         vocab_size = preds.shape[-1]
         _preds = preds.reshape(-1, vocab_size)
         _targs = targs.reshape(-1, vocab_size)
-        return torch.sum(self.barron_loss_fn((_preds - _targs)))/np.sum(label_lengths)
+        return torch.sum(self.barron_loss_fn((_preds - _targs)))
 
     @staticmethod
     def variable_l1(preds, targs, label_lengths=None):
@@ -183,28 +186,59 @@ class StrokeLoss:
     def l1(preds, targs, label_lengths):
         loss = 0
         for i, pred in enumerate(preds):
-          loss += torch.sum(abs(pred[:, :2]-targs[i][:, :2]))/label_lengths[i]
+          loss += torch.sum(abs(pred[:, :2]-targs[i][:, :2]))
         return loss
 
     @staticmethod
     def ssl(preds, targs, label_lengths):
+        ### TODO: each loss function does the appropriate stat vs gradient scaling
+
+        # Method
+            ## Find the point nearest to the actual start stroke
+            ## Assume this point should have been the predicted start stroke
+            ## Calculate loss for predicting the start strokes!
+
+        # OTHER LOSS
+            # Sometimes the model "skips" stroke points because of DTW
+            # Calculate the nearest point to every start and end point
+            # Have this be an additional loss
+
+
         # start_time = time.time()
         # for each of the start strokes in targs
         loss = 0
 
         for i in range(len(preds)):
             targ_start_strokes = targs[i][torch.nonzero(targs[i][:, 2]).squeeze(1), :2]
-            targ_end_strokes = targs[i][torch.nonzero(targs[i][:, 3]).squeeze(1), :2]
+            targ_end_strokes = (targ_start_strokes-1)[1:] # get corresponding end strokes - this excludes the final stroke point!!
             k = KDTree(preds[i][:, :2].data)
+
+            # Start indices
             start_indices = k.query(targ_start_strokes)[1]
-            end_indices = k.query(targ_end_strokes)[1]
             pred_start_fitted = torch.zeros(preds[i].shape[0])
             pred_start_fitted[start_indices] = 1
-            pred_end_fitted = torch.zeros(preds[i].shape[0])
-            pred_end_fitted[end_indices] = 1
 
-            loss += abs(pred_start_fitted - targs[i][:, 2]).sum() # SOStr prediction
-            loss += abs(pred_end_fitted - targs[i][:, 3]).sum()   # EOSeq prediction
+            # End indices
+            end_indices = k.query(targ_end_strokes)[1]
+            # pred_end_fitted = torch.zeros(preds[i].shape[0])
+            # pred_end_fitted[end_indices] = 1
+
+            # Do L1 distance loss for start strokes and nearest stroke point
+            loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum()
+            loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum()
+
+            # Do SOStr classification loss
+            loss += BCELoss(pred_start_fitted, targs[i][:, 2])
+
+            # Do EOSeq prediction
+            loss += BCELoss(preds[i][:,3], targs[i][:, 3])
+
+            # # Do L1 distance loss
+            # loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum() / len(start_indices)
+            # loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum() / len(end_indices)
+            # loss += 0.1 * abs(pred_start_fitted - targs[i][:, 2]).sum()
+            # loss += 0.1 * abs(pred_end_fitted - targs[i][:, 3]).sum()
+
         #print("Time to compute ssl: ", time.time() - start_time)
         return loss
   
