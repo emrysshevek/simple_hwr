@@ -57,7 +57,7 @@ class Stat:
         if not self.accumlator_active:
             self.accumlator_active = True
 
-    def reset_accumlator(self, new_x):
+    def reset_accumulator(self, new_x):
         if self.accumlator_active:
 
             self.y.append(self.current_sum / self.current_weight)
@@ -73,6 +73,14 @@ class Stat:
     def __repr__(self):
         return str(self.__dict__)
 
+    def get_last(self):
+        if self.y:
+            return self.y[-1]
+        else:
+            print("Stat error: No y-value yet")
+            return 0
+
+
 primitive = (int, str, bool, float)
 def is_primitive(thing):
     return isinstance(thing, primitive)
@@ -84,8 +92,9 @@ class AutoStat(Stat):
 
         Args:
             (x: the x plot values)
-            x_counter: A TrainingCounter object
-            x_weight (str): The attribute in the counter object that will be used for determining the weight
+            x_counter: A TrainingCounter object - keeps tack of number of epochs etc.
+            x_weight (str): The attribute in the counter object that will be used for determining the weighting
+            x_plot (str): The attribute in the counter object that will be used for determining the x-axis label
             x_title:
             y_title:
             name:
@@ -99,6 +108,7 @@ class AutoStat(Stat):
         self.x_weight = x_weight
         self.x_plot = x_plot
         self.train = train
+
 
     def get_weight(self):
         if self.train:
@@ -121,7 +131,7 @@ class AutoStat(Stat):
         if not self.accumlator_active:
             self.accumlator_active = True
 
-    def reset_accumlator(self, new_x=None):
+    def reset_accumulator(self, new_x=None):
         if self.accumlator_active:
             weight = self.get_weight()
 
@@ -137,7 +147,7 @@ class AutoStat(Stat):
 
 class TrainingCounter:
     def __init__(self, instances_per_epoch=1, epochs=0, updates=0, instances=0):
-        self.epoch = epochs
+        self.epochs = epochs
         self.updates = updates
         self.instances = instances
         self.instances_per_epoch = instances_per_epoch

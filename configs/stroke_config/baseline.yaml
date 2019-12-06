@@ -7,7 +7,7 @@ offline_pred: false
 # General
 output_folder: ./results
 epochs_to_run: 200
-update_freq: 500 # print out updates, update graphs etc. after this many updates
+update_freq: 200 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
@@ -21,7 +21,7 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 
 
 # LR schedule
-learning_rate: 1e-3          # LR
+learning_rate: 5e-4          # LR
 scheduler_step: 10         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
@@ -40,11 +40,11 @@ vocab_size: 4
 
 ## Loss function
 loss_fns:
-  - l1, .8
-  - ssl, .2
+  - l1, .1
+  - ssl, 5
 loss_fns2:
-  - dtw, .8
-  - ssl, .2
+  - dtw, .1
+  - ssl, 5
 
 first_loss_epochs: 5
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.

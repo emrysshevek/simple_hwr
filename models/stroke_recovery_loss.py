@@ -16,6 +16,12 @@ import time
 
 BCELoss = torch.nn.BCELoss()
 
+def to_value(loss_tensor):
+    return torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
+
+def tensor_sum(tensor):
+    return torch.sum(tensor.cpu(), 0, keepdim=False).item()
+
 class StrokeLoss:
     def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None):
         super(StrokeLoss, self).__init__()
@@ -73,7 +79,7 @@ class StrokeLoss:
                 raise Exception(f"Unknown loss: {loss_name}")
             loss_fns.append(loss_fn)
 
-        self.coefs = coef
+        self.coefs = coefs
         self.loss_fns = loss_fns
         self.loss_names = loss_names
 
@@ -94,7 +100,7 @@ class StrokeLoss:
             label_lengths.append(pred_length)
         return targs, label_lengths
 
-    def main_loss(self, preds, targs, label_lengths, suffix="_train"):
+    def main_loss(self, preds, targs, label_lengths, suffix):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -112,20 +118,24 @@ class StrokeLoss:
         # elif label_lengths is None:
         #     label_lengths = [t.shape[0] for t in targs]
         losses = torch.zeros(len(self.loss_fns))
-        total_length = torch.sum(label_lengths.cpu(), 0, keepdim=False).item()
+        batch_size = len(preds)
+        total_points = tensor_sum(label_lengths)
+        cum_loss = 0
         ## Loop through loss functions
         for i, loss_fn in enumerate(self.loss_fns):
-            loss_tensor = loss_fn(preds, targs, label_lengths)
+            loss_tensor = loss_fn(preds, targs, label_lengths) * self.coefs[i] ## TEMPORARY! NORMALLY DON'T MULTIPLY BY COEF UNTIL AFTER LOSSES SAVED
+            loss = to_value(loss_tensor)
+            cum_loss += loss # adjusted to be training-instance based later; don't bother to do point-based right now
             losses[i] = loss_tensor
 
             # Update loss stat
-            loss = torch.sum(loss_tensor.cpu(), 0, keepdim=False).item() / total_length
             self.stats[self.loss_names[i] + suffix].accumulate(loss)
 
-        combined_loss = torch.sum(losses)
-        return combined_loss, loss
+        self.stats["point_count" + suffix].accumulate(total_points)
+        combined_loss = torch.sum(losses) / batch_size # only for the actual gradient loss, not the reported one since it will be divided by instances later
+        return combined_loss, cum_loss
 
-    def dtw(self, preds, targs, label_lengths):
+    def dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
         if self.parallel:
             pool = multiprocessing.Pool(processes=self.poolcount)
@@ -140,7 +150,7 @@ class StrokeLoss:
             for i in range(len(preds)): # loop through BATCH
                 a,b = self.dtw_single((preds[i], targs[i]))
                 loss += abs(preds[i][a, :2] - targs[i][b, :2]).sum() # AVERAGE pointwise loss for 1 image
-        return loss
+        return loss #, to_value(loss)
 
     @staticmethod
     def dtw_single(_input):
@@ -160,15 +170,16 @@ class StrokeLoss:
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a,b
 
-    def barron_loss(self, preds, targs, label_lengths):
+    def barron_loss(self, preds, targs, label_lengths, **kwargs):
         # BATCH, TIME, VOCAB
         vocab_size = preds.shape[-1]
         _preds = preds.reshape(-1, vocab_size)
         _targs = targs.reshape(-1, vocab_size)
-        return torch.sum(self.barron_loss_fn((_preds - _targs)))
+        loss = torch.sum(self.barron_loss_fn((_preds - _targs)))
+        return loss #, to_value(loss)
 
     @staticmethod
-    def variable_l1(preds, targs, label_lengths=None):
+    def variable_l1(preds, targs, label_lengths, **kwargs):
         """ Resmaple the targets to match whatever was predicted
 
         Args:
@@ -180,18 +191,19 @@ class StrokeLoss:
 
         """
         targs, label_lengths = StrokeLoss.resample_gt(preds, targs)
-        return StrokeLoss.l1(preds, targs, label_lengths)
+        loss = StrokeLoss.l1(preds, targs, label_lengths) # already takes average loss
+        return loss #, to_value(loss)
 
     @staticmethod
-    def l1(preds, targs, label_lengths):
+    def l1(preds, targs, label_lengths, **kwargs):
         loss = 0
         for i, pred in enumerate(preds):
           loss += torch.sum(abs(pred[:, :2]-targs[i][:, :2]))
-        return loss
+        return loss #, to_value(loss)
 
     @staticmethod
     def ssl(preds, targs, label_lengths):
-        ### TODO: each loss function does the appropriate stat vs gradient scaling
+        ### TODO: L1 distance and SOS/EOS are really two different losses, but they both depend on identifying the start points
 
         # Method
             ## Find the point nearest to the actual start stroke
@@ -206,7 +218,7 @@ class StrokeLoss:
 
         # start_time = time.time()
         # for each of the start strokes in targs
-        loss = 0
+        loss_tensor = 0
 
         for i in range(len(preds)):
             targ_start_strokes = targs[i][torch.nonzero(targs[i][:, 2]).squeeze(1), :2]
@@ -215,8 +227,8 @@ class StrokeLoss:
 
             # Start indices
             start_indices = k.query(targ_start_strokes)[1]
-            pred_start_fitted = torch.zeros(preds[i].shape[0])
-            pred_start_fitted[start_indices] = 1
+            pred_gt_fitted = torch.zeros(preds[i].shape[0])
+            pred_gt_fitted[start_indices] = 1
 
             # End indices
             end_indices = k.query(targ_end_strokes)[1]
@@ -224,23 +236,32 @@ class StrokeLoss:
             # pred_end_fitted[end_indices] = 1
 
             # Do L1 distance loss for start strokes and nearest stroke point
-            loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum()
-            loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum()
+            # loss_tensor += abs(preds[i][start_indices, :2] - targ_start_strokes).sum()
+            # loss_tensor += abs(preds[i][end_indices, :2] - targ_end_strokes).sum()
 
             # Do SOStr classification loss
-            loss += BCELoss(pred_start_fitted, targs[i][:, 2])
+            # print("preds", pred_gt_fitted)
+            loss_tensor += BCELoss(pred_gt_fitted, preds[i][:, 2])
 
-            # Do EOSeq prediction
-            loss += BCELoss(preds[i][:,3], targs[i][:, 3])
+            # print(targ_start_strokes, start_indices)
+            # input()
+            # print(pred_gt_fitted)
+            # input()
+            # print(targs[i][:,2])
+            # print(loss_tensor)
+            # input()
+
+            # Do EOSeq prediction - not totally fair, again, we should evaluate it based on the nearest point to the last prediction
+            # loss_tensor += BCELoss(preds[i][:, 3], targs[i][:, 3])
 
             # # Do L1 distance loss
             # loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum() / len(start_indices)
             # loss += abs(preds[i][end_indices, :2] - targ_end_strokes).sum() / len(end_indices)
-            # loss += 0.1 * abs(pred_start_fitted - targs[i][:, 2]).sum()
+            # loss += 0.1 * abs(pred_gt_fitted - targs[i][:, 2]).sum()
             # loss += 0.1 * abs(pred_end_fitted - targs[i][:, 3]).sum()
-
+        loss = to_value(loss_tensor)
         #print("Time to compute ssl: ", time.time() - start_time)
-        return loss
+        return loss_tensor #, loss
   
 
     def calculate_nn_distance(self, item, preds):

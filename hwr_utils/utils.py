@@ -927,7 +927,7 @@ def calculate_cer(pred_strs, gt):
     return sum_loss, steps
 
 
-def accumulate_all_stats(config, keyword="", freq=None):
+def reset_all_stats(config, keyword="", freq=None):
     """ Only update the stats that have the same frequency as the update call
 
     Args:
@@ -941,7 +941,7 @@ def accumulate_all_stats(config, keyword="", freq=None):
 
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq and keyword.lower() in stat.name.lower():
-            stat.reset_accumlator(new_x=None)
+            stat.reset_accumulator(new_x=None)
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
     try:
@@ -1018,15 +1018,26 @@ def stat_prep_strokes(config):
 
     for variant in ("train", "test"):
         is_training = variant == "train"
+        # Not quite right
+        #x_weight = "updates" if is_training else config.n_test_instances/config.batch_size
+
         x_weight = "instances" if is_training else config.n_test_instances
 
         # Always include L1 loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
 
+        # TOTAL ACTUAL LOSS
+        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Loss", name=f"Actual_Loss_Function_{variant}", train=is_training))
+
         # NN Loss
         config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Loss", name=f"nn_{variant}", train=is_training))
+
+        # Include how many GT points there were for this update
+        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Points Predicted", name=f"point_count_{variant}", train=is_training))
 
         # All other loss functions
         for loss in config.all_losses:

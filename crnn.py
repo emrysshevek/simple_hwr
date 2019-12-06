@@ -11,6 +11,9 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 MAX_LENGTH=60
 
+def to_value(loss_tensor):
+    return torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
+
 class basic_CRNN(nn.Module):
     """ CRNN with writer classifier
     """
@@ -324,7 +327,7 @@ class TrainerStrokeRecovery:
         ## Shorten
         preds = self.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
 
-        loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths)
+        loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
         # Update all other stats
         self.update_stats(item, preds, train=train)
@@ -352,9 +355,9 @@ class TrainerStrokeRecovery:
     def update_stats(self, item, preds, train=True):
         suffix = "_train" if train else "_test"
 
-        ## If not using L1 loss
+        ## If not using L1 loss, report the stat anyway
         if "l1" not in self.loss_criterion.loss_names:
-            l1_loss = torch.sum(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"]).cpu(), 0, keepdim=False).item()
+            l1_loss = to_value(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch size
             self.config.stats["l1"+suffix].accumulate(l1_loss)
 
         # Don't do the nearest neighbor search by default

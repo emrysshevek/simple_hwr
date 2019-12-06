@@ -74,10 +74,11 @@ def run_epoch(dataloader, report_freq=500):
         loss, preds, *_ = trainer.train(item, train=True)
 
         loss_list += [loss]
+        config.stats["Actual_Loss_Function_train"].accumulate(loss)
 
         if config.counter.updates % report_freq == 0 and i > 0:
-            lprint("updates: ", config.counter.updates, np.mean(loss_list[-report_freq:])/batch_size)
-            utils.accumulate_all_stats(config, keyword="_train")
+            utils.reset_all_stats(config, keyword="_train")
+            lprint("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last())
 
     end_time = timer()
     lprint("Epoch duration:", end_time-start_time)
@@ -86,18 +87,17 @@ def run_epoch(dataloader, report_freq=500):
     preds_to_graph = [p.permute([1, 0]) for p in preds]
     graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions, epoch=epoch)
     config.scheduler.step()
-    return np.mean(loss_list)/batch_size
+    return np.sum(loss_list) / config.n_train_instances
 
 def test(dataloader):
-    loss_list = []
     for i, item in enumerate(dataloader):
         loss, preds, *_ = trainer.test(item)
-        loss_list += [loss]
+        config.stats["Actual_Loss_Function_test"].accumulate(loss)
     preds_to_graph = [p.permute([1, 0]) for p in preds]
     graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions, epoch=epoch)
-    utils.accumulate_all_stats(config, keyword="_test")
+    utils.reset_all_stats(config, keyword="_test")
 
-    return np.mean(loss_list)/batch_size
+    return config.stats["Actual_Loss_Function_test"].get_last()
 
 def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_relative_positions=False, epoch="current"):
     if save_folder is None:
@@ -109,12 +109,14 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
     save_folder.mkdir(parents=True, exist_ok=True)
 
     def subgraph(coords, img_path, name, is_gt=True):
-
         if not is_gt:
             if coords is None:
                 return
             coords = utils.to_numpy(coords[i])
+            #print("before round", coords[2])
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH
+            #print("after round", coords[2])
+
             suffix=""
         else:
             suffix="_gt"
@@ -222,7 +224,8 @@ def main(config_path):
 
     for i in range(0,200):
         epoch = i+1
-        config.counter.epochs = epoch
+        #config.counter.epochs = epoch
+        config.counter.update(epochs=1)
         loss = run_epoch(train_dataloader, report_freq=config.update_freq)
         lprint(f"Epoch: {epoch}, Training Loss: {loss}")
         test_loss = test(test_dataloader)

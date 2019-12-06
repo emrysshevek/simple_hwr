@@ -102,7 +102,7 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
             break
 
     if i >= 0: # if there was any test data, calculate the CER
-        utils.accumulate_all_stats(config, keyword=stat)
+        utils.reset_all_stats(config, keyword=stat)
         cer = config["stats"][config[f"designated_{stat}_cer"]].y[-1]  # most recent test CER
 
         if not plot_all:
@@ -210,7 +210,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
             loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
                                                                       step=config["global_step"])
             # print(torch.abs(x['line_imgs']-params[0]).sum())
-            accumulate_all_stats(config)
+            reset_all_stats(config)
             training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
             if ii % 5 == 0:
                 LOGGER.info(f"{training_cer} {loss}")
@@ -279,7 +279,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
             config["stats"]["epoch_decimal"] += [
                 config["current_epoch"] + i * config["batch_size"] * 1.0 / config['n_train_instances']]
             LOGGER.info(f"updates: {config['global_step']}")
-            accumulate_all_stats(config, keyword="Training")
+            reset_all_stats(config, keyword="Training")
 
         if config["TESTING"] or config["SMALL_TRAINING"]:
             break
@@ -288,7 +288,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         training_cer_list = config["stats"][config["designated_training_cer"]].y
 
         if not training_cer_list:
-            accumulate_all_stats(config, keyword="training")
+            reset_all_stats(config, keyword="training")
         training_cer = training_cer_list[-1]  # most recent training CER
 
         # Save out example images on the first go
