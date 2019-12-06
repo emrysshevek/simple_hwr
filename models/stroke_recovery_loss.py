@@ -241,7 +241,7 @@ class StrokeLoss:
 
             # Do SOStr classification loss
             # print("preds", pred_gt_fitted)
-            loss_tensor += BCELoss(pred_gt_fitted, preds[i][:, 2])
+            loss_tensor += BCELoss(preds[i][:, 2], pred_gt_fitted)
 
             # print(targ_start_strokes, start_indices)
             # input()
@@ -252,7 +252,7 @@ class StrokeLoss:
             # input()
 
             # Do EOSeq prediction - not totally fair, again, we should evaluate it based on the nearest point to the last prediction
-            # loss_tensor += BCELoss(preds[i][:, 3], targs[i][:, 3])
+            loss_tensor += BCELoss(preds[i][:, 3], targs[i][:, 3])
 
             # # Do L1 distance loss
             # loss += abs(preds[i][start_indices, :2] - targ_start_strokes).sum() / len(start_indices)
@@ -282,7 +282,7 @@ class StrokeLoss:
         for i in range(batch_size):
             # TODO binarize line images and do dist based on that
             kd = KDTree(preds[i][:, :2].data)
-         #   cum_dist = sum(kd.query(gt[i][:, :2])[0])
+            cum_dist = sum(kd.query(gt[i][:, :2])[0]) # How far do we have to move the GT's to match the predictions?
             n_pts += gt[i].shape[0]
 
         return (cum_dist / n_pts) * batch_size # THIS WILL BE DIVIDED BY THE NUMBER OF INSTANCES LATER
