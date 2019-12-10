@@ -105,6 +105,35 @@ class CreateDataset:
     #     return self.process_one(item)
 
     @staticmethod
+    def _concat_raw_substrokes(raw1, raw2, x_space=10, time_space=.1):
+        """
+
+         Args:
+             dict_list:
+             last_point_remove (bool): Last point is a duplicate point for interpolation purposes, remove
+
+         Returns:
+
+         """
+        # dict_keys(['x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes', 'raw', 'tmin', 'tmax', 'trange'])
+        # Get max X
+        time_start = time_space + raw1[-1]["time"][-1]
+        start_x = np.max(np.max([stroke["x"] for stroke in raw1]))+x_space
+        for i in range(len(raw2)):
+            raw1.append({"x":[xx+start_x for xx in raw2[i]["x"]], "y":raw2[i]["y"], "time":[tt+time_start for tt in raw2[i]["time"]]})
+        return raw1
+
+    @staticmethod
+    def concat_raw_substrokes(raw_stroke_list, x_space=10, time_space=.1):
+        if len(raw_stroke_list)==1:
+            return raw_stroke_list[0]
+        else:
+            new_list = raw_stroke_list[0].copy()
+            for i in range(1,len(raw_stroke_list)):
+                new_list.append(CreateDataset._concat_raw_substrokes(new_list, raw_stroke_list[i], x_space=x_space, time_space=time_space))
+            return new_list
+
+    @staticmethod
     def process_one(item):
         self = item
         file_name = Path(item["image_path"]).stem
@@ -232,8 +261,7 @@ class CreateDataset:
         file_names = []
         hyperparams = items
         for i, item in enumerate(items["data"]):
-            file_names += Path(item["image_path"]).stem
-            print(item)
+            file_names.append(Path(item["image_path"]).stem)
             rel_path = Path(item["image_path"]).relative_to(hyperparams.original_img_folder).with_suffix(".xml")
             xml_path = hyperparams.xml_folder / rel_path
 
@@ -241,15 +269,24 @@ class CreateDataset:
             # window across the image.  Thus multiple json items will point to the same
             # image, but different strokes within that image.
             stroke_list, _ = read_stroke_xml(xml_path)
-            stroke_dict = prep_stroke_dict(stroke_list, time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
-            meta_stroke_list.append(stroke_dict)
+            meta_stroke_list.append(stroke_list)
             xml_paths.append(xml_path)
-            if item["dataset"] != items["data"][i-1]["dataset"]: # make sure they are all the same dataset, val1, val2, train, test
+            if item["dataset"] != items["data"][i - 1]["dataset"]:  # make sure they are all the same dataset, val1, val2, train, test
                 return
         dataset = item["dataset"]
 
-        ## Merge two stroke dicts
-        super_stroke_list = CreateDataset.concat_substrokes(meta_stroke_list)
+        concat_stroke_list = CreateDataset.concat_raw_substrokes(meta_stroke_list)
+        print(concat_stroke_list)
+
+        ### YOU NEED TO FEED IN A DICT, NOT THE RAW_LIST THING???
+
+        super_stroke_list = prep_stroke_dict([concat_stroke_list], time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
+        # print(len(concat_stroke_list))
+        # print(len(item))
+        # print(len(super_stroke_list.raw))
+        # stop
+
+        print(file_names)
         new_items = []
 
         x_to_y = super_stroke_list.x_to_y
@@ -267,7 +304,7 @@ class CreateDataset:
 
         # Create images
         if hyperparams.render_images:
-            draw_strokes(normalize_stroke_list(super_stroke_list.raw[0]), x_to_y, save_path=new_img_path, line_width=.8)
+            draw_strokes(normalize_stroke_list(super_stroke_list.raw), x_to_y, save_path=new_img_path, line_width=.8)
         ## NEED TO FIX RAW, UGH
         new_items.append(new_item)
 
