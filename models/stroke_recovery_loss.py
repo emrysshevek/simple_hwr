@@ -184,7 +184,7 @@ class StrokeLoss:
         Returns:
 
         """
-        pass
+        return 0
         # calculate NN distance
         # n_pts = 0
         # cum_dist = 0
