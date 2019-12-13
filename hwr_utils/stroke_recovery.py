@@ -86,7 +86,8 @@ def create_functions_from_strokes(stroke_dict):
     return x_func, y_func
 
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
-    """ Takes in a "raw" stroke dictionary for one image
+    """ Takes in a "raw" stroke list for one image
+        Each element of stroke_list is a dict with keys x,y,time
 
         time_interval (float): duration of upstroke events; None=original duration
         Returns:

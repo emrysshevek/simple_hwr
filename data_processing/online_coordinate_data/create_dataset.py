@@ -93,7 +93,6 @@ class CreateDataset:
         self.combine_images = combine_images
         self.process_fn = self.process_multiple if self.combine_images else self.process_one
 
-
     #@error_handler
     #@staticmethod
 
@@ -105,7 +104,7 @@ class CreateDataset:
     #     return self.process_one(item)
 
     @staticmethod
-    def _concat_raw_substrokes(raw1, raw2, x_space=10, time_space=.1):
+    def _concat_raw_substrokes(raw1, raw2, x_space=10, time_space=.1, inplace=True):
         """
 
          Args:
@@ -117,20 +116,34 @@ class CreateDataset:
          """
         # dict_keys(['x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes', 'raw', 'tmin', 'tmax', 'trange'])
         # Get max X
+        if not inplace:
+            raw1 = raw1.copy()
         time_start = time_space + raw1[-1]["time"][-1]
-        start_x = np.max(np.max([stroke["x"] for stroke in raw1]))+x_space
+
+        # where does raw2 start
+        x2_start = np.min([x for stroke in raw2 for x in stroke["x"]])
+
+        # calculate offset
+        start_x = int(np.max([x for stroke in raw1 for x in stroke["x"]])+x_space-x2_start)
+
+        # take average point
+        y1 = np.average([y_pt for stroke in raw1 for y_pt in stroke["y"]])
+        y2 = np.average([y_pt for stroke in raw2 for y_pt in stroke["y"]])
+        y_diff = y1-y2
+
         for i in range(len(raw2)):
-            raw1.append({"x":[xx+start_x for xx in raw2[i]["x"]], "y":raw2[i]["y"], "time":[tt+time_start for tt in raw2[i]["time"]]})
+            raw1.append({"x":[xx+int(start_x) for xx in raw2[i]["x"]], "y":[y+y_diff for y in raw2[i]["y"]], "time":[tt+time_start for tt in raw2[i]["time"]]})
+
         return raw1
 
     @staticmethod
-    def concat_raw_substrokes(raw_stroke_list, x_space=10, time_space=.1):
+    def concat_raw_substrokes(raw_stroke_list, x_space=150, time_space=.1):
         if len(raw_stroke_list)==1:
             return raw_stroke_list[0]
         else:
             new_list = raw_stroke_list[0].copy()
             for i in range(1,len(raw_stroke_list)):
-                new_list.append(CreateDataset._concat_raw_substrokes(new_list, raw_stroke_list[i], x_space=x_space, time_space=time_space))
+                new_list = CreateDataset._concat_raw_substrokes(new_list, raw_stroke_list[i], x_space=x_space, time_space=time_space)
             return new_list
 
     @staticmethod
@@ -244,7 +257,6 @@ class CreateDataset:
 
 
     @staticmethod
-    # TODO fix the raw stuff (along with making sure the spaces are right OR do the combining on the RAW end of things obviously
     def process_multiple(items):
         """ Process multiple images to append together; no substrokes though
 
@@ -260,7 +272,12 @@ class CreateDataset:
         meta_stroke_list = []
         file_names = []
         hyperparams = items
+
+        ## Combine stroke files
         for i, item in enumerate(items["data"]):
+            if item["dataset"] != items["data"][i - 1]["dataset"] and i > 0:  # make sure they are all the same dataset, val1, val2, train, test
+                break # shorten it if they're from different datasets
+
             file_names.append(Path(item["image_path"]).stem)
             rel_path = Path(item["image_path"]).relative_to(hyperparams.original_img_folder).with_suffix(".xml")
             xml_path = hyperparams.xml_folder / rel_path
@@ -268,25 +285,14 @@ class CreateDataset:
             # For each item, we can extract multiple stroke_lists by using a sliding
             # window across the image.  Thus multiple json items will point to the same
             # image, but different strokes within that image.
-            stroke_list, _ = read_stroke_xml(xml_path)
+            stroke_list, start_times = read_stroke_xml(xml_path)
             meta_stroke_list.append(stroke_list)
             xml_paths.append(xml_path)
-            if item["dataset"] != items["data"][i - 1]["dataset"]:  # make sure they are all the same dataset, val1, val2, train, test
-                return
         dataset = item["dataset"]
 
         concat_stroke_list = CreateDataset.concat_raw_substrokes(meta_stroke_list)
-        print(concat_stroke_list)
 
-        ### YOU NEED TO FEED IN A DICT, NOT THE RAW_LIST THING???
-
-        super_stroke_list = prep_stroke_dict([concat_stroke_list], time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
-        # print(len(concat_stroke_list))
-        # print(len(item))
-        # print(len(super_stroke_list.raw))
-        # stop
-
-        print(file_names)
+        super_stroke_list = prep_stroke_dict(concat_stroke_list, time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
         new_items = []
 
         x_to_y = super_stroke_list.x_to_y
@@ -315,6 +321,7 @@ class CreateDataset:
             item["shape"] = shape
             #ratio = item["x_to_y"]
             #print(shape, 61*ratio)
+
         return new_items
 
     @staticmethod
@@ -331,10 +338,10 @@ class CreateDataset:
         all_results = []
         no_errors = True
         for i, result in enumerate(temp_results):
-            if not func is None:
+            if func is not None:
                 result = func(result)
             if isinstance(result, Exception) and no_errors:
-                print(result)
+                print("error", result)
                 no_errors = False
             else:
                 all_results.append(result)
@@ -391,7 +398,6 @@ class CreateDataset:
             pool.close()
         else:
             all_results = self.loop(tqdm(data_dict), func=self.process_fn)
-
         return self.final_process(all_results)
 
     def prep_for_json(self, iterable):
@@ -409,7 +415,37 @@ class CreateDataset:
 
 #def out_pickle(f)
 
-if __name__ == "__main__":
+def old():
+    strokes = 3      # None=MAX stroke
+    square = True      # Don't require square images
+    instances = None    # None=Use all available instances
+    test_set_size = 500 # use leftover test images in Training
+    combine_images = False # combine images to make them longer
+
+    variant="2"
+    if square:
+        variant += "Square"
+    if instances is None:
+        variant += "Full"
+    else:
+        variant += f"Small_{instances}"
+    number_of_strokes = str(strokes) if isinstance(strokes, int) else "MAX"
+    # data_set = CreateDataset(max_strokes=strokes,
+    #                          square=square,
+    #                          output_folder_name=f"./{number_of_strokes}_stroke_v{variant}",
+    #                          render_images=False,
+    #                          test_set_size=test_set_size,
+    #                          combine_images=combine_images)
+    data_set = CreateDataset(max_strokes=strokes,
+                             square=square,
+                             output_folder_name=f"./3_stroke_64_v2",
+                             render_images=False,
+                             test_set_size=test_set_size,
+                             combine_images=combine_images)
+
+    data_set.parallel(max_iter=instances, parallel=True)
+
+def new():
     strokes = None      # None=MAX stroke
     square = False      # Don't require square images
     instances = None    # None=Use all available instances
@@ -430,4 +466,7 @@ if __name__ == "__main__":
                              render_images=True,
                              test_set_size=test_set_size,
                              combine_images=combine_images)
-    data_set.parallel(max_iter=instances, parallel=False)
+    data_set.parallel(max_iter=instances, parallel=True)
+
+if __name__ == "__main__":
+    new()
