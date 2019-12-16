@@ -15,7 +15,7 @@ def setup_logging(folder, log_std_out=True):
     for handler in logging.root.handlers[:]:
         logging.root.removeHandler(handler)
 
-    logger = logging.getLogger(__name__)
+    logger = logging.getLogger("root." + __name__)
 
     today = datetime.datetime.now()
     log_path = "{}/{}.log".format(folder, today.strftime("%m-%d-%Y"))

@@ -7,10 +7,9 @@ from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
 #from sdtw import SoftDTW
 import torch.multiprocessing as multiprocessing
-from hwr_utils.utils import to_numpy
+from hwr_utils.utils import to_numpy, Counter
 from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
-from hwr_utils.utils import print
 from scipy.spatial import KDTree
 import time
 
@@ -23,7 +22,7 @@ def tensor_sum(tensor):
     return torch.sum(tensor.cpu(), 0, keepdim=False).item()
 
 class StrokeLoss:
-    def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None):
+    def __init__(self, loss_names="l1", parallel=False, vocab_size=4, loss_stats=None, counter=None):
         super(StrokeLoss, self).__init__()
         ### Relative preds and relative GTs:
             # Resample GTs to be relative
@@ -39,6 +38,7 @@ class StrokeLoss:
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
         self.distributions = None
         self.parallel = parallel
+        self.counter = Counter() if counter is None else counter
         # self.unrelativefy_preds_for_loss = unrelativefy_preds_for_loss # if needed; i.e. calculate loss in absolute terms, but predict/return relative ones
         #
         # #
@@ -107,6 +107,7 @@ class StrokeLoss:
             preds: Will be in the form [batch, width, alphabet]
             targs: Pass in the whole dictionary, so we can get lengths, etc., whatever we need
 
+            suffix (str): _train or _test
         Returns:
 
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
@@ -121,9 +122,10 @@ class StrokeLoss:
         batch_size = len(preds)
         total_points = tensor_sum(label_lengths)
         cum_loss = 0
+
         ## Loop through loss functions
         for i, loss_fn in enumerate(self.loss_fns):
-            loss_tensor = loss_fn(preds, targs, label_lengths) * self.coefs[i] ## TEMPORARY! NORMALLY DON'T MULTIPLY BY COEF UNTIL AFTER LOSSES SAVED
+            loss_tensor = loss_fn(preds, targs, label_lengths) * self.coefs[i] ## TEMPORARY WHILE BALANCING LOSS FUNCTIONS! NORMALLY DON'T MULTIPLY BY COEF UNTIL AFTER LOSSES SAVED (SO THAT THEY ARE ALL ON THE SAME SCALE)
             loss = to_value(loss_tensor)
             cum_loss += loss # adjusted to be training-instance based later; don't bother to do point-based right now
             losses[i] = loss_tensor
@@ -131,8 +133,12 @@ class StrokeLoss:
             # Update loss stat
             self.stats[self.loss_names[i] + suffix].accumulate(loss)
 
-        self.stats["point_count" + suffix].accumulate(total_points)
-        combined_loss = torch.sum(losses) / batch_size # only for the actual gradient loss, not the reported one since it will be divided by instances later
+        if suffix == "_train":
+            self.counter.update(training_pred_count=total_points)
+        elif suffix == "_test":
+            self.counter.update(test_pred_count=total_points)
+
+        combined_loss = torch.sum(losses) / batch_size # only for the actual gradient loss so that the loss doesn't change with bigger batch sizes;, not the reported one since it will be divided by instances later
         return combined_loss, cum_loss
 
     def dtw(self, preds, targs, label_lengths, **kwargs):

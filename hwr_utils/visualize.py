@@ -174,19 +174,20 @@ def load_all_hwr(path, key='test_cer', clear=True, keywords=""):
 
 def load_all(path, key=None, clear=True, keywords=""):
     # python -m visdom.server -p 8080
-    plotter = Plot("NewEnv")
-    close_all_env(plotter)
+    if False:
+        plotter = Plot("NewEnv")
+        close_all_env(plotter)
 
     for p in Path(path).rglob("all_stats.json"):
         if "BSF" not in p.as_uri() and keywords in p.as_uri():
             print(p)
             name = p.parent.name.replace("-", "_")
 
-            plotter = Plot(name)
+            plotter = Plot(name, port=8081)
             stats = json.loads(p.read_text())
             for key in stats.keys():
                 losses = stats[key]
-                plotter.register_plot(key, losses["x_title"], key, plot_type="line", ymax=.1)
+                plotter.register_plot(key, losses["x_title"], key, plot_type="line") # , ymax=.1
 
                 try:
                     plotter.update_plot(plot_name=key, x=losses["x"], y=losses['y'], name=name)
@@ -195,7 +196,7 @@ def load_all(path, key=None, clear=True, keywords=""):
                     print(f"Problem with {name, key}")
 
 if __name__=="__main__":
-    # python -m visdom.server -p 8080
+    # python -m visdom.server -p 8081
     path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/"
     path = r"/media/data/GitHub/simple_hwr/results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"

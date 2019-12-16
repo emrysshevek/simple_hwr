@@ -14,7 +14,8 @@ from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
 import argparse
-from hwr_utils.utils import print as lprint
+import logging
+from hwr_utils.hwr_logger import logger
 
 torch.cuda.empty_cache()
 
@@ -36,14 +37,13 @@ def parse_args():
     return opts
 
 class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
+    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None):
         super().__init__()
         if first_conv_op:
             first_conv_op = CoordConv
-        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type="default64", first_conv_opts=first_conv_opts)
+        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid =torch.nn.Sigmoid().to(device)
-        # ATTENTION!
 
     def forward(self, input):
         if self.training:
@@ -66,7 +66,7 @@ def run_epoch(dataloader, report_freq=500):
     #     targs = torch.rand(batch, 16, 5)
     instances = 0
     start_time = timer()
-    lprint("Epoch: ", epoch)
+    logger.info(("Epoch: ", epoch))
 
     for i, item in enumerate(dataloader):
         current_batch_size = item["line_imgs"].shape[0]
@@ -78,14 +78,14 @@ def run_epoch(dataloader, report_freq=500):
 
         if config.counter.updates % report_freq == 0 and i > 0:
             utils.reset_all_stats(config, keyword="_train")
-            lprint("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last())
+            logger.info(("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last()))
 
     end_time = timer()
-    lprint("Epoch duration:", end_time-start_time)
+    logger.info(("Epoch duration:", end_time-start_time))
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=x_relative_positions, epoch=epoch)
+    graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=config.x_relative_positions, epoch=epoch)
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances
 
@@ -94,7 +94,7 @@ def test(dataloader):
         loss, preds, *_ = trainer.test(item)
         config.stats["Actual_Loss_Function_test"].accumulate(loss)
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=x_relative_positions, epoch=epoch)
+    graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=config.x_relative_positions, epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
     return config.stats["Actual_Loss_Function_test"].get_last()
@@ -139,25 +139,21 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             break
 
 def main(config_path):
-    global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
+    global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
     config = utils.load_config(config_path, hwr=False)
     LOGGER = config.logger
     test_size = config.test_size
     train_size = config.train_size
     batch_size = config.batch_size
-    x_relative_positions = config.x_relative_positions
-    if x_relative_positions == "both":
-        raise Exception("Not implemented")
     vocab_size = config.vocab_size
 
-    device=torch.device("cuda")
-    #device=torch.device("cpu")
+    device=torch.device("cuda") # cpu, cuda
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
-    loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats)
+    loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats, counter=config.counter)
     config.loss_obj = loss_obj
     # folder = Path("online_coordinate_data/3_stroke_32_v2")
     # folder = Path("online_coordinate_data/3_stroke_vSmall")
@@ -166,9 +162,9 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
-    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
+    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
-    lprint("Current dataset: ", folder)
+    logger.info(("Current dataset: ", folder))
 
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
@@ -176,7 +172,7 @@ def main(config_path):
                             num_of_channels = 1,
                             root=config.data_root,
                             max_images_to_load = train_size,
-                            x_relative_positions=x_relative_positions,
+                            x_relative_positions=config.x_relative_positions,
                             cnn=cnn
                             )
 
@@ -194,7 +190,7 @@ def main(config_path):
                             num_of_channels = 1.,
                             root=config.data_root,
                             max_images_to_load=test_size,
-                            x_relative_positions=x_relative_positions,
+                            x_relative_positions=config.x_relative_positions,
                             cnn=cnn
                             )
 
@@ -205,7 +201,11 @@ def main(config_path):
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
+    n_test_points = 0
+    for i in test_dataloader:
+        n_test_points += sum(i["label_lengths"])
     config.n_test_instances = len(train_dataloader.dataset)
+    config.n_test_points = n_test_points
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
 
@@ -227,9 +227,9 @@ def main(config_path):
         #config.counter.epochs = epoch
         config.counter.update(epochs=1)
         loss = run_epoch(train_dataloader, report_freq=config.update_freq)
-        lprint(f"Epoch: {epoch}, Training Loss: {loss}")
+        logger.info(f"Epoch: {epoch}, Training Loss: {loss}")
         test_loss = test(test_dataloader)
-        lprint(f"Epoch: {epoch}, Test Loss: {test_loss}")
+        logger.info(f"Epoch: {epoch}, Test Loss: {test_loss}")
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
             config.loss_obj.set_loss(config.loss_fns2)
 
