@@ -151,6 +151,64 @@ def warp_image(img, random_state=None, **kwargs):
 
     return warped
 
+def warp_points(points, random_state=None, **kwargs):
+    if random_state is None:
+        random_state = np.random.RandomState()
+
+    w_mesh_interval = kwargs.get('w_mesh_interval', 25)
+    w_mesh_std = kwargs.get('w_mesh_std', 3.0)
+
+    h_mesh_interval = kwargs.get('h_mesh_interval', 25)
+    h_mesh_std = kwargs.get('h_mesh_std', 3.0)
+
+    interpolation_method = kwargs.get('interpolation', 'linear')
+
+    # recenter and pad in here
+    padding_h = int(h_mesh_std * 3)# 3 stdev from the mean, both directions
+    padding_w = int(w_mesh_std * 3)
+    bounds = np.amax(points, axis=0) + 1
+    h, w = bounds[0] + padding_h*2, bounds[1] + padding_w*2
+    points[:, 0] += padding_h
+    points[:, 1] += padding_w
+
+    if kwargs.get("fit_interval_to_image", True):
+        # Change interval so it fits the image size
+        w_ratio = w / float(w_mesh_interval)
+        h_ratio = h / float(h_mesh_interval)
+
+        w_ratio = max(1, round(w_ratio))
+        h_ratio = max(1, round(h_ratio))
+
+        w_mesh_interval = w / w_ratio
+        h_mesh_interval = h / h_ratio
+        ############################################
+
+    # Get control points
+    source = np.mgrid[0:h+h_mesh_interval:h_mesh_interval, 0:w+w_mesh_interval:w_mesh_interval]
+    source = source.transpose(1,2,0).reshape(-1,2)
+
+    # Perturb source control points
+    destination = source.copy()
+    source_shape = source.shape[:1]
+    destination[:,0] += np.clip(random_state.normal(0.0, h_mesh_std, size=source_shape), -h_mesh_std, h_mesh_std)
+    destination[:,1] += np.clip(random_state.normal(0.0, w_mesh_std, size=source_shape), -w_mesh_std, w_mesh_std)
+
+    grid_x, grid_y = np.mgrid[0:h, 0:w]
+    grid_z = griddata(destination, source, (grid_x, grid_y), method=interpolation_method).astype(np.float32)
+    map_x = grid_z[:,:,1]
+    map_y = grid_z[:,:,0]
+
+    def get_points(pt):
+        t, b = math.ceil(pt[0]), math.floor(pt[0])
+        l, r = math.ceil(pt[1]), math.floor(pt[1])
+        return np.mean((map_y[t][l], map_y[t][r], map_y[b][l], map_y[b][r])), np.mean((map_x[t][l], map_x[t][r], map_x[b][l], map_x[b][r]))
+
+    warped = np.array([get_points(pt) for pt in points])
+    warped[:, :] -= np.min(warped)
+    warped[:, 0] *= bounds[0]/(np.max(warped[:, 0]) + 1)
+    warped[:, 1] *= bounds[1]/(np.max(warped[:, 1]) + 1)
+    return warped
+
 def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
     if noise_type == "gaussian":
         return gaussian_noise(img, occlusion_level=occlusion_level, logger=logger)
