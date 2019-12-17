@@ -17,8 +17,9 @@ import glob
 from pathlib import Path
 from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
-from hwr_utils.stat import Stat, AutoStat, TrainingCounter
+from hwr_utils.stat import Stat, AutoStat, Counter
 import traceback
+from hwr_utils import hwr_logger
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -95,51 +96,16 @@ def read_config(config):
     else:
         raise "Unknown Filetype {}".format(config)
 
-def setup_logging(folder=None, log_std_out=True, level="INFO"):
-    import logging, datetime, sys
-    global LOGGER
-    # Set up logging
-
-    format = '%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s'
-    format = {"fmt":'%(asctime)s %(levelname)s %(message)s', "datefmt":"%H:%M:%S"}
-
-    # Override Pycharm logging - otherwise, logging file may not be created
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logger = logging.getLogger(__name__)
-
-    today = datetime.datetime.now()
-    log_path = "{}/{}.log".format(folder, today.strftime("%m-%d-%Y"))
-    if folder is None:
-        log_path = None
-    logging.basicConfig(filename=log_path,
-                            filemode='a',
-                            format=format["fmt"],
-                            datefmt=format["datefmt"],
-                            level=level)
-
-    # Send log messages to standard out
-    if log_std_out:
-        formatter = logging.Formatter(**format)
-        std_out = logging.StreamHandler(sys.stdout)
-        std_out.setLevel(level)
-        std_out.setFormatter(formatter)
-        logger.addHandler(std_out)
-
-    LOGGER = logger
-    return logger
-
 _print = print
 
-def print(*args,**kwargs):
-    log_print(*args, **kwargs, print_statements=False)
+# def print(*args,**kwargs):
+#     log_print(*args, **kwargs, print_statements=False)
 
 def log_print(*args, print_statements=True):
     if print_statements:
         _print(" ".join([str(a) for a in args]))
     else:
-        LOGGER.info(" ".join([str(a) for a in args]))
+        hwr_logger.logger.info(" ".join([str(a) for a in args]))
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -351,7 +317,8 @@ def load_config(config_path, hwr=True):
     else:
         config = make_config_consistent_stroke(config)
 
-    logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
+    logger = hwr_logger.setup_logging(folder=config["log_dir"], level=config["logging"].upper())
+
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
     log_print("Using config file", config_path)
     #log_print(json.dumps(config, indent=2))
@@ -379,6 +346,8 @@ def make_config_consistent_stroke(config):
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
+    if config.relative_x not in (True, False):
+        raise NotImplemented
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
         config.update_freq = 1
@@ -1014,35 +983,36 @@ def stat_prep_strokes(config):
     # config.stats["instances"] = 0
     # config.stats["updates"] = 0
 
-    config.counter = TrainingCounter(instances_per_epoch=config.n_train_instances)
+    config.counter = Counter(instances_per_epoch=config.n_train_instances, test_instances=config.n_test_instances, test_pred_length_static=config.n_test_points)
 
     for variant in ("train", "test"):
         is_training = variant == "train"
         # Not quite right
         #x_weight = "updates" if is_training else config.n_test_instances/config.batch_size
 
-        x_weight = "instances" if is_training else config.n_test_instances
+        #x_weight = "instances" if is_training else config.n_test_instances
+        x_weight = "training_pred_count" if is_training else "test_pred_length" # should be a key in the counter object
 
         # Always include L1 loss
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
 
         # TOTAL ACTUAL LOSS
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Loss", name=f"Actual_Loss_Function_{variant}", train=is_training))
 
         # NN Loss
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Loss", name=f"nn_{variant}", train=is_training))
 
         # Include how many GT points there were for this update
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                      x_title="Epochs", y_title="Points Predicted", name=f"point_count_{variant}", train=is_training))
 
         # All other loss functions
         for loss in config.all_losses:
             if loss!="l1":
-                config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
                                              x_title="Epochs", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:

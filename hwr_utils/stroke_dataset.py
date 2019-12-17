@@ -3,7 +3,6 @@ import json
 import multiprocessing
 import torch
 from torch.utils.data import Dataset
-from hwr_utils.utils import print
 
 import os
 import cv2
@@ -13,6 +12,9 @@ from tqdm import tqdm
 from hwr_utils import stroke_recovery
 from hwr_utils.utils import unpickle_it
 from pathlib import Path
+import logging
+logger = logging.getLogger("root."+__name__)
+
 PADDING_CONSTANT = 0
 
 script_path = Path(os.path.realpath(__file__))
@@ -26,7 +28,7 @@ def read_img(image_path, num_of_channels=1, target_height=60):
     else:
         raise Exception("Unexpected number of channels")
     if img is None:
-        print("Warning: image is None:", image_path)
+        logging.warning("Warning: image is None:", image_path)
         return None
 
     percent = float(target_height) / img.shape[0]
@@ -55,7 +57,7 @@ class BasicDataset(Dataset):
         self.collate = collate_stroke_eval
         for i in root.rglob("*" + extension):
             self.data.append({"image_path":i})
-        print("SELF", len(self.data))
+        logger.info(("SELF", len(self.data)))
 
     def __len__(self):
         return len(self.data)
@@ -151,13 +153,13 @@ class StrokeRecoveryDataset(Dataset):
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
-            print("Original dataloader size", len(data))
+            logger.info(("Original dataloader size", len(data)))
             data = data[:images_to_load]
-        print("Dataloader size", len(data))
+        logger.info(("Dataloader size", len(data)))
 
         if "gt" not in data[0].keys():
             data = self.resample_data(data, parallel=True)
-        print("Done resampling", len(data))
+        logger.debug(("Done resampling", len(data)))
         return data
 
     def __len__(self):
@@ -173,7 +175,7 @@ class StrokeRecoveryDataset(Dataset):
         else:
             raise Exception("Unexpected number of channels")
         if img is None:
-            print("Warning: image is None:", self.root / item['image_path'])
+            logger.warning("Warning: image is None:", self.root / item['image_path'])
             return None
 
         percent = float(self.img_height) / img.shape[0]
@@ -353,7 +355,7 @@ def test_padding(pad_list, func):
     # print(x.shape)
     # print(x[-1,-1])
     end = timer()
-    print(end - start)  # Time in seconds, e.g. 5.38091952400282
+    logger.info(end - start)  # Time in seconds, e.g. 5.38091952400282
     return x #[0,0]
 
 def collate_stroke(batch, device="cpu"):
@@ -371,8 +373,8 @@ def collate_stroke(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
-        print("Problem with collating!!! See hw_dataset.py")
-        print(batch)
+        logger.warning("Problem with collating!!! See hw_dataset.py")
+        logger.info(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
@@ -401,7 +403,6 @@ def collate_stroke(batch, device="cpu"):
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
 
-    #print("ALL", all_labels.shape)
     label_lengths = np.asarray(label_lengths)
 
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
@@ -438,8 +439,8 @@ def collate_stroke_eval(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
-        print("Problem with collating!!! See hw_dataset.py")
-        print(batch)
+        logger.warning("Problem with collating!!! See hw_dataset.py")
+        logger.warning(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
@@ -472,7 +473,6 @@ def collate_stroke_eval(batch, device="cpu"):
 
 if __name__=="__main__":
     # x = [np.array([[1,2,3,4],[4,5,3,5]]),np.array([[1,2,3],[4,5,3]]),np.array([[1,2],[4,5]])]
-    # print(pad(x))
     from timeit import default_timer as timer
 
     vocab = 4

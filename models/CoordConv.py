@@ -1,5 +1,9 @@
 import torch
 import torch.nn as nn
+from hwr_utils import hwr_logger
+import logging
+#logger = hwr_logger.logger
+logger = logging.getLogger("root."+__name__)
 
 '''
 An alternative implementation for PyTorch with auto-infering the x-y dimensions.
@@ -71,7 +75,6 @@ class AddCoords(nn.Module):
 
         return ret
 
-
 class CoordConv(nn.Module):
     def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, rectangle_x=False, both_x=False, **kwargs):
         super().__init__()
@@ -81,6 +84,9 @@ class CoordConv(nn.Module):
         if with_r or both_x:
             in_size += 1
         self.conv = nn.Conv2d(in_size, out_channels, **kwargs)
+        logger.info(f"Larger X Coord: {rectangle_x or both_x}")
+        logger.info(f"Normal X Coord: {not rectangle_x or both_x}")
+        logger.info(f"Using 2 X Coord Channels: {both_x}")
 
     def forward(self, x):
         ret = self.addcoords(x)
@@ -96,7 +102,7 @@ def test_cnn():
     from models.basic import BidirectionalRNN, CNN
     import torch.nn as nn
 
-    cnn = CCNN(nc=1, conv_op=CoordConv, verbose=False)
+    cnn = CNN(nc=1, first_conv_op=CoordConv, verbose=False)
     # cnn = CCNN(nc=1, conv_op=nn.Conv2d)
     batch = 7
     y = torch.rand(batch, 1, 60, 1024)

@@ -178,6 +178,8 @@ def relativefy_batch(batch, reverse=False):
     Returns:
 
     """
+    import warnings
+    warnings.warn("relativefy_batch: Untested")
     for i,b in enumerate(batch):
         #print(batch.size(), batch)
         #print(batch[i,:,0])
@@ -190,12 +192,14 @@ def relativefy_batch_torch(batch, reverse=False):
     """ A tensor: Batch, Width, Vocab
     """
     if reverse:
-        return torch.cumsum(batch,dim=1)
+        # Only update the x-coords
+        batch[:, :, 0] = torch.cumsum(batch[:, :, 0], dim=1)
+        return batch
     else:
-        r = torch.zeros(batch.shape)
-        r[:,1:] = batch[:,1:]-batch[:, :-1]
-        return r
-
+        # The first item in batch is not changed
+        # Subtract the current item from next item to get delta
+        batch[:,1:,0] = batch[:, 1:, 0]-batch[:, :-1, 0] # all items in batch, entire sequence, only X coords
+        return batch
 
 def relativefy(x, reverse=False):
     """

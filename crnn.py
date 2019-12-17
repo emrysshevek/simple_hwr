@@ -6,6 +6,8 @@ from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
 from hwr_utils.stroke_recovery import relativefy, relativefy_batch, relativefy_batch_torch
+import logging
+logger = logging.getLogger("root."+__name__)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -153,11 +155,11 @@ class TrainerBaseline(json.JSONEncoder):
         pred_strs = list(self.decoder.decode_training(output_batch))
 
         # Get losses
-        self.config["logger"].debug("Calculating CTC Loss: {}".format(step))
+        logger.debug("Calculating CTC Loss: {}".format(step))
         loss_recognizer = self.loss_criterion(pred_logits, labels, preds_size, label_lengths)
 
         # Backprop
-        self.config["logger"].debug("Backpropping: {}".format(step))
+        logger.debug("Backpropping: {}".format(step))
         self.optimizer.zero_grad()
         loss_recognizer.backward(retain_graph=retain_graph)
         self.optimizer.step()
@@ -166,10 +168,10 @@ class TrainerBaseline(json.JSONEncoder):
 
         # Error Rate
         self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
-        self.config["logger"].debug("Calculating Error Rate: {}".format(step))
+        logger.debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
 
-        self.config["logger"].debug("Accumulating stats")
+        logger.debug("Accumulating stats")
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_strs
@@ -321,8 +323,8 @@ class TrainerStrokeRecovery:
         preds = self.eval(line_imgs, self.model)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make predictions relative
-        # if self.config.relative_x_pred_abs_eval:
-        #     preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
+        if self.config.relative_x_pred_abs_eval:
+            preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
 
         ## Shorten
         preds = self.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
@@ -331,7 +333,6 @@ class TrainerStrokeRecovery:
 
         # Update all other stats
         self.update_stats(item, preds, train=train)
-
 
         if train:
             self.optimizer.zero_grad()

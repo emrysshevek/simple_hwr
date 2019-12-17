@@ -13,8 +13,9 @@ from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
-from hwr_utils.utils import print, debugger
+from hwr_utils.utils import debugger
 from train_stroke_recovery import StrokeRecoveryModel, parse_args, graph
+from hwr_utils.hwr_logger import logger
 
 #@debugger
 def main(config_path):
@@ -41,15 +42,14 @@ def main(config_path):
     config.loss_obj = loss_obj
     folder = Path(config.dataset_folder)
     folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/")
-
-    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
+    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
     config.model = model
     config.load_path = "/media/data/GitHub/simple_hwr/results/stroke_config/20191120_170400-baseline-GOOD,MAX/baseline_model.pt"
     ## LOAD THE WEIGHTS
     utils.load_model(config)
     model = model.to(device)
 
-    print("Current dataset: ", folder)
+    logger.info(("Current dataset: ", folder))
     # Dataset - just expecting a folder
     eval_dataset=BasicDataset(root=folder)
 
