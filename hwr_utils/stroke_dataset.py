@@ -3,7 +3,6 @@ import json
 import multiprocessing
 import torch
 from torch.utils.data import Dataset
-from hwr_utils.utils import print
 
 import os
 import cv2
@@ -12,11 +11,90 @@ from tqdm import tqdm
 
 from hwr_utils import stroke_recovery
 from hwr_utils.utils import unpickle_it
+import pickle
 from pathlib import Path
+import logging
+from hwr_utils.utils import EnhancedJSONEncoder
+
+logger = logging.getLogger("root."+__name__)
+
 PADDING_CONSTANT = 0
 
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
+
+def read_img(image_path, num_of_channels=1, target_height=60):
+    if num_of_channels == 3:
+        img = cv2.imread(image_path.as_posix())
+    elif num_of_channels == 1:  # read grayscale
+        img = cv2.imread(image_path.as_posix(), 0)
+    else:
+        raise Exception("Unexpected number of channels")
+    if img is None:
+        logging.warning("Warning: image is None:", image_path)
+        return None
+
+    percent = float(target_height) / img.shape[0]
+
+    if percent != 1:
+        img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+
+    # Add channel dimension, since resize and warp only keep non-trivial channel axis
+    if num_of_channels == 1:
+        img = img[:, :, np.newaxis]
+
+
+    img = img.astype(np.float32)
+    img = img / 128.0 - 1.0
+
+    return img
+
+class BasicDataset(Dataset):
+    def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
+        # Create dictionary with all the paths and some index
+        root = Path(root)
+        self.root = root
+        self.data = []
+        self.num_of_channels = 1
+        self.collate = collate_stroke_eval
+        self.cnn = cnn
+        if pickle_file:
+            self.data = unpickle_it(pickle_file)
+        else:
+            # Rebuild the dataset
+            for i in root.rglob("*" + extension):
+                self.data.append({"image_path":i.as_posix()})
+            logger.info(("Length of data", len(self.data)))
+
+            # Add label lengths
+            if self.cnn:
+                output = Path(root / "stroke_cached")
+                output.mkdir(parents=True, exist_ok=True)
+                filename = output / (self.cnn.cnn_type + ".pickle")
+                add_output_size_to_data(self.data, self.cnn, key="label_length", root=self.root)
+                logger.info(f"DUMPING cached version to: {filename}")
+                pickle.dump(self.data, filename.open(mode="wb"))
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        image_path = self.root / item['image_path']
+        img = read_img(image_path, num_of_channels=self.num_of_channels)
+        label_length = item["label_length"] if self.cnn else None
+        return {
+            "line_img": img,
+            "gt": [],
+            "path": image_path,
+            "x_func": None,
+            "y_func": None,
+            "start_times": None,
+            "x_relative": None,
+            "label_length": label_length
+        }
+
 
 class StrokeRecoveryDataset(Dataset):
     def __init__(self,
@@ -63,7 +141,6 @@ class StrokeRecoveryDataset(Dataset):
         return item
 
     def resample_data(self, data_list, parallel=True):
-
         if parallel:
             poolcount = max(1, multiprocessing.cpu_count()-3)
             pool = multiprocessing.Pool(processes=poolcount)
@@ -88,17 +165,17 @@ class StrokeRecoveryDataset(Dataset):
                 data.extend(new_data)
         # Calculate how many points are needed
         if self.cnn:
-            add_output_size_to_data(data, self.cnn)
+            add_output_size_to_data(data, self.cnn, root=self.root)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
-            print("Original dataloader size", len(data))
+            logger.info(("Original dataloader size", len(data)))
             data = data[:images_to_load]
-        print("Dataloader size", len(data))
+        logger.info(("Dataloader size", len(data)))
 
         if "gt" not in data[0].keys():
             data = self.resample_data(data, parallel=True)
-        print("Done resampling", len(data))
+        logger.debug(("Done resampling", len(data)))
         return data
 
     def __len__(self):
@@ -114,7 +191,7 @@ class StrokeRecoveryDataset(Dataset):
         else:
             raise Exception("Unexpected number of channels")
         if img is None:
-            print("Warning: image is None:", self.root / item['image_path'])
+            logger.warning("Warning: image is None:", self.root / item['image_path'])
             return None
 
         percent = float(self.img_height) / img.shape[0]
@@ -231,7 +308,7 @@ def calculate_output_size(data, cnn):
         width_to_output_mapping[i] = shape[-1]
     return width_to_output_mapping
 
-def add_output_size_to_data(data, cnn):
+def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
     """ Calculate how wide the GTs should be based on the output width of the CNN
     Args:
         data:
@@ -242,12 +319,22 @@ def add_output_size_to_data(data, cnn):
     #cnn.to("cpu")
     width_to_output_mapping = {}
     for instance in data:
-        width = instance["shape"][1] # H,W,Channels
+        if "shape" in instance:
+            width = instance["shape"][1] # H,W,Channels
+        elif root:
+            image_path = root / instance['image_path']
+            img = read_img(image_path)
+            instance["img"] = img
+            instance["shape"] = img.shape
+            width = instance["shape"][1] # H,W,Channels
+        else:
+            raise Exception("No shape and no image root directory")
+
         if width not in width_to_output_mapping:
             t = torch.zeros(1, 1, 32, width).to("cuda")
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
-        instance["number_of_samples"]=width_to_output_mapping[width]
+        instance[key]=width_to_output_mapping[width]
     #cnn.to("cuda")
 
 ## Hard coded -- ~20% faster
@@ -294,7 +381,7 @@ def test_padding(pad_list, func):
     # print(x.shape)
     # print(x[-1,-1])
     end = timer()
-    print(end - start)  # Time in seconds, e.g. 5.38091952400282
+    logger.info(end - start)  # Time in seconds, e.g. 5.38091952400282
     return x #[0,0]
 
 def collate_stroke(batch, device="cpu"):
@@ -311,9 +398,9 @@ def collate_stroke(batch, device="cpu"):
 
     batch = [b for b in batch if b is not None]
     #These all should be the same size or error
-    if len(set([b['line_img'].shape[0] for b in batch])) > 1:
-        print("Problem with collating!!! See hw_dataset.py")
-        print(batch)
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
+        logger.warning("Problem with collating!!! See hw_dataset.py")
+        logger.info(batch)
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
@@ -342,7 +429,6 @@ def collate_stroke(batch, device="cpu"):
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
 
-    #print("ALL", all_labels.shape)
     label_lengths = np.asarray(label_lengths)
 
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
@@ -364,9 +450,55 @@ def collate_stroke(batch, device="cpu"):
     }
 
 
+def collate_stroke_eval(batch, device="cpu"):
+    """ Pad ground truths with 0's
+        Report lengths to get accurate average loss
+
+    Args:
+        batch:
+        device:
+
+    Returns:
+
+    """
+
+    batch = [b for b in batch if b is not None]
+    #These all should be the same size or error
+    if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
+        logger.warning("Problem with collating!!! See hw_dataset.py")
+        logger.warning(batch)
+    assert len(set([b['line_img'].shape[0] for b in batch])) == 1
+    assert len(set([b['line_img'].shape[2] for b in batch])) == 1
+
+    batch_size = len(batch)
+    dim0 = batch[0]['line_img'].shape[0] # height
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # width
+    dim2 = batch[0]['line_img'].shape[2] # channel
+
+    # Make input square (variable vidwth
+    input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+
+    for i in range(len(batch)):
+        b_img = batch[i]['line_img']
+        input_batch[i,:,: b_img.shape[1],:] = b_img
+
+    line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
+    line_imgs = torch.from_numpy(line_imgs).to(device)
+
+    return {
+        "line_imgs": line_imgs,
+        "gt": None,
+        "gt_list": None, # List of numpy arrays
+        "x_relative": None,
+        "label_lengths": [b["label_length"] for b in batch],
+        "paths": [b["path"] for b in batch],
+        "x_func": None,
+        "y_func": None,
+        "start_times": None,
+    }
+
 if __name__=="__main__":
     # x = [np.array([[1,2,3,4],[4,5,3,5]]),np.array([[1,2,3],[4,5,3]]),np.array([[1,2],[4,5]])]
-    # print(pad(x))
     from timeit import default_timer as timer
 
     vocab = 4

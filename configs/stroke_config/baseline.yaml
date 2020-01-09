@@ -1,14 +1,18 @@
+## TO DO IMMEDIATELY:
+# DEBUG TEST/TRAIN LOSS
+# RELATIVE COORDS CONFIG
+
 # Load model
 TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
-
+logging: info
 
 # General
 output_folder: ./results
 epochs_to_run: 200
-update_freq: 500 # print out updates, update graphs etc. after this many updates
+update_freq: 200 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
@@ -16,13 +20,14 @@ debug: off
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
-data_root_fsl: ../hw_data/strokes/online_coordinate_data
-data_root_local: .
+data_root_fsl: ../hw_data/strokes
+data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
+dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 
 
 # LR schedule
-learning_rate: 1e-3          # LR
+learning_rate: 5e-4          # LR
 scheduler_step: 10         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
@@ -33,16 +38,26 @@ scheduler_gamma: .95          # LR decay rate
   # (Old option: resample the GTs after the prediction is known)
   # (Future option: with attention, have the GTs to be just be sampled regularly)
 
-test_size: 2000
+test_size: null
 train_size: null
-batch_size: 32
+batch_size: 16
 x_relative_positions: False
 vocab_size: 4
 
 ## Loss function
-loss_fn: l1
-loss_fn2: dtw
+loss_fns:
+  - l1, .1
+  - ssl, 5
+loss_fns2:
+  - dtw, .1
+  - ssl, 5
+
 first_loss_epochs: 5
+training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
+test_nn_loss: false # calculate nearest neighbor loss on every test instance
+
+## CNN
+cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
 
 # CoordConv
   # x-scaled from -1 to 1
@@ -54,3 +69,10 @@ coordconv_0_center: true # 0 center
 
 # Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
 relative_x: false # true, false, both; predict both
+relative_x_pred_abs_eval: true # predict relative coordinates, loss based on absolute ones
+
+## Default
+# L1, DTW, SSL etc.
+## Try Barron loss
+## Try SoftDTW
+## Need to compare NN loss probably

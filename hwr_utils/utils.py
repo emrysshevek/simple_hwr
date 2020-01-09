@@ -17,7 +17,9 @@ import glob
 from pathlib import Path
 from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
-from hwr_utils.stat import Stat, AutoStat, TrainingCounter
+from hwr_utils.stat import Stat, AutoStat, Counter
+import traceback
+from hwr_utils import hwr_logger
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -94,51 +96,16 @@ def read_config(config):
     else:
         raise "Unknown Filetype {}".format(config)
 
-def setup_logging(folder=None, log_std_out=True, level="INFO"):
-    import logging, datetime, sys
-    global LOGGER
-    # Set up logging
-
-    format = '%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s'
-    format = {"fmt":'%(asctime)s %(levelname)s %(message)s', "datefmt":"%H:%M:%S"}
-
-    # Override Pycharm logging - otherwise, logging file may not be created
-    for handler in logging.root.handlers[:]:
-        logging.root.removeHandler(handler)
-
-    logger = logging.getLogger(__name__)
-
-    today = datetime.datetime.now()
-    log_path = "{}/{}.log".format(folder, today.strftime("%m-%d-%Y"))
-    if folder is None:
-        log_path = None
-    logging.basicConfig(filename=log_path,
-                            filemode='a',
-                            format=format["fmt"],
-                            datefmt=format["datefmt"],
-                            level=level)
-
-    # Send log messages to standard out
-    if log_std_out:
-        formatter = logging.Formatter(**format)
-        std_out = logging.StreamHandler(sys.stdout)
-        std_out.setLevel(level)
-        std_out.setFormatter(formatter)
-        logger.addHandler(std_out)
-
-    LOGGER = logger
-    return logger
-
 _print = print
 
-def print(*args,**kwargs):
-    log_print(*args, **kwargs, print_statements=False)
+# def print(*args,**kwargs):
+#     log_print(*args, **kwargs, print_statements=False)
 
 def log_print(*args, print_statements=True):
     if print_statements:
         _print(" ".join([str(a) for a in args]))
     else:
-        LOGGER.info(" ".join([str(a) for a in args]))
+        hwr_logger.logger.info(" ".join([str(a) for a in args]))
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -232,9 +199,22 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "use_visdom": True,
                    "save_count": 0,
                     "coord_conv": False,
-                   "data_root_fsl": "../hw_data/strokes/online_coordinate_data",
-                   "data_root_local":"."
+                   "data_root_fsl": "../hw_data/strokes",
+                   "data_root_local":".",
+                   "training_nn_loss": False,
+                   "test_nn_loss": False,
 }
+
+
+def debugger(func):
+    def wrapper(*args, **kwargs):
+        try:
+            func(*args, **kwargs)
+        except(Exception) as e:
+            traceback.print_exc()
+            print(e)
+            globals().update(locals())
+    return wrapper
 
 def load_config(config_path, hwr=True):
     config_path = Path(config_path)
@@ -337,7 +317,8 @@ def load_config(config_path, hwr=True):
     else:
         config = make_config_consistent_stroke(config)
 
-    logger = setup_logging(folder=config["log_dir"], level=config["logging"].upper())
+    logger = hwr_logger.setup_logging(folder=config["log_dir"], level=config["logging"].upper())
+
     log_print(f"Effective logging level: {logger.getEffectiveLevel()}")
     log_print("Using config file", config_path)
     #log_print(json.dumps(config, indent=2))
@@ -357,15 +338,29 @@ def make_config_consistent_stroke(config):
     config.image_dir = Path(config.image_dir)
 
     config.coordconv_opts = {"zero_center":config.coordconv_0_center,
-                             "rectangle_x":~config.coordconv_default,
+                             "rectangle_x":not config.coordconv_default,
                              "both_x": config.coordconv_default and config.coordconv_abs}
+
+    if not config.coordconv_default and not config.coordconv_abs and config.coordconv:
+        raise Exception("Must choose CoordConv option in X dimension")
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
+    if config.relative_x not in (True, False):
+        raise NotImplemented
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
         config.update_freq = 1
         config.save_freq = 1
+        config.first_loss_epochs = 1 # switch to other loss fast
+
+    ## Process loss functions
+    config.all_losses = set()
+    for key in [k for k in config.keys() if "loss_fns" in k]:
+        for i, loss in enumerate(config[key]):
+            loss, coef = loss.lower().split(",")
+            config[key][i] = (loss, float(coef))
+            config.all_losses.add(loss)
     return config
 
 def make_config_consistent_hwr(config):
@@ -453,6 +448,9 @@ def symlink(target, link_location):
 
 def get_computer():
     return socket.gethostname()
+
+def is_galois():
+    get_computer() == "Galois"
 
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
@@ -591,7 +589,8 @@ def load_model(config):
 
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
-        config["optimizer"].load_state_dict(old_state["optimizer"])
+        if "optimizer" in config.keys():
+            config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
         config["current_epoch"] = old_state["epoch"]
@@ -606,14 +605,86 @@ def load_model(config):
             warnings.warn("Unable to load from visdom.json; does the file exist?")
             ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
+    # Load Loss History
+    stat_path = os.path.join(path, "all_stats.json")
+    loss_path = os.path.join(path, "losses.json")
+
+    if Path(loss_path).exists():
+        with open(loss_path, 'r') as fh:
+            losses = json.load(fh)
+    else:
+        print("losses.json not found in load_path folder")
+    try:
+        config["train_cer"] = losses["train_cer"]
+        config["test_cer"] = losses["test_cer"]
+        config["validation_cer"] = losses["validation_cer"]
+    except:
+        warnings.warn("Could not load from losses.json")
+        config["train_cer"]=[]
+        config["test_cer"] = []
+
+    # Load stats
+    try:
+        with open(stat_path, 'r') as fh:
+            stats = json.load(fh)
+
+        for name, stat in config["stats"].items():
+            if isinstance(stat, Stat):
+                config["stats"][name].y = stats[name]["y"]
+            else:
+                for i in stats[name]: # so we don't mess up the reference etc.
+                    config["stats"][name].append(i)
+
+    except:
+        warnings.warn("Could not load from all_stats.json")
+
+
+def load_model_strokes(config):
+    # User can specify folder or .pt file; other files are assumed to be in the same folder
+    if os.path.isfile(config["load_path"]):
+        old_state = torch.load(config["load_path"])
+        path, child = os.path.split(config["load_path"])
+    else:
+        old_state = torch.load(os.path.join(config["load_path"], "baseline_model.pt"))
+        path = config["load_path"]
+
+    # Load the definition of the loaded model if it was saved
+    # if "model_definition" in old_state.keys():
+    #     config["model"] = old_state['model_definition']
+
+    for key in ["idx_to_char", "char_to_idx"]:
+        if key in old_state.keys():
+            if key == "idx_to_char":
+                old_state[key] = dict_to_list(old_state[key])
+            config[key] = old_state[key]
+
+    if "model" in old_state.keys():
+        config["model"].load_state_dict(old_state["model"])
+        if "optimizer" in config.keys():
+            config["optimizer"].load_state_dict(old_state["optimizer"])
+        config["global_counter"] = old_state["global_step"]
+        config["starting_epoch"] = old_state["epoch"]
+        config["current_epoch"] = old_state["epoch"]
+    else:
+        config["model"].load_state_dict(old_state)
+
+    # Launch visdom
+    if config["use_visdom"]:
+        try:
+            config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
+        except:
+            warnings.warn("Unable to load from visdom.json; does the file exist?")
+            ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
     # Load Loss History
     stat_path = os.path.join(path, "all_stats.json")
     loss_path = os.path.join(path, "losses.json")
 
-    with open(loss_path, 'r') as fh:
-        losses = json.load(fh)
-
+    if Path(loss_path).exists():
+        with open(loss_path, 'r') as fh:
+            losses = json.load(fh)
+    else:
+        print("losses.json not found in load_path folder")
     try:
         config["train_cer"] = losses["train_cer"]
         config["test_cer"] = losses["test_cer"]
@@ -899,7 +970,7 @@ def calculate_cer(pred_strs, gt):
     return sum_loss, steps
 
 
-def accumulate_all_stats(config, keyword="", freq=None):
+def reset_all_stats(config, keyword="", freq=None):
     """ Only update the stats that have the same frequency as the update call
 
     Args:
@@ -913,7 +984,7 @@ def accumulate_all_stats(config, keyword="", freq=None):
 
     for title, stat in config["stats"].items():
         if isinstance(stat, Stat) and stat.accumlator_active and stat.accumulator_freq == freq and keyword.lower() in stat.name.lower():
-            stat.reset_accumlator(new_x=None)
+            stat.reset_accumulator(new_x=None)
             config["logger"].debug(f"{stat.name} {stat.y[-1]}")
 
     try:
@@ -986,25 +1057,37 @@ def stat_prep_strokes(config):
     # config.stats["instances"] = 0
     # config.stats["updates"] = 0
 
-    config.counter = TrainingCounter(instances_per_epoch=config.n_train_instances)
+    config.counter = Counter(instances_per_epoch=config.n_train_instances, test_instances=config.n_test_instances, test_pred_length_static=config.n_test_points)
 
     for variant in ("train", "test"):
         is_training = variant == "train"
-        x_weight = "instances" if is_training else config.n_test_instances
+        # Not quite right
+        #x_weight = "updates" if is_training else config.n_test_instances/config.batch_size
+
+        #x_weight = "instances" if is_training else config.n_test_instances
+        x_weight = "training_pred_count" if is_training else "test_pred_length_static" # should be a key in the counter object
 
         # Always include L1 loss
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Updates", y_title="Loss", name=f"l1_{variant}", train=is_training))
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
+
+        # TOTAL ACTUAL LOSS
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Loss", name=f"Actual_Loss_Function_{variant}", train=is_training))
 
         # NN Loss
-        config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Updates", y_title="Loss", name=f"nn_{variant}", train=is_training))
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Loss", name=f"nn_{variant}", train=is_training))
+
+        # Include how many GT points there were for this update
+        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                     x_title="Epochs", y_title="Points Predicted", name=f"point_count_{variant}", train=is_training))
 
         # All other loss functions
-        for loss in [config[key].lower() for key in config.keys() if "loss_fn" in key]:
+        for loss in config.all_losses:
             if loss!="l1":
-                config_stats.append(AutoStat(x_counter=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                         x_title="Updates", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
+                config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+                                             x_title="Epochs", y_title="Loss", name=f"{loss}_{variant}", train=is_training))
     for stat in config_stats:
         if config["use_visdom"]:
             config["visdom_manager"].register_plot(stat.name, stat.x_title, stat.y_title, ymax=stat.ymax)
@@ -1029,6 +1112,18 @@ def plot_tensor(tensor):
     plt.imshow(t, cmap='gray')
     plt.show()
 
+def kill_gpu_hogs():
+    ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
+    if is_galois():
+        ## KILL ALL OTHER PYTHON SCRIPTS
+        from subprocess import Popen
+        pid = os.getpid()
+        # All GPU processes
+        find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
+        # All python commands
+        find_processes_command = f"pgrep -fl python"
+        command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
+        result = Popen(command, shell=True)
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot
