@@ -314,7 +314,7 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        pred_logits = self.model(line_imgs).cpu()
+        pred_logits = self.model(line_imgs, gt).cpu()
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Shorten
