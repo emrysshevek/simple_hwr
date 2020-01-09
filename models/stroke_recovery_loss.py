@@ -330,7 +330,7 @@ class StrokeLoss:
 
         kd = KDTree(gts)
         gt_seg = [(gts[i - 1], gts[i]) for i in range(1, len(gts))]
-        post, corrected, which_corrected = post_process(preds, kd, gts)
+        post, corrected, which_corrected = postprocess(preds, kd, gts)
         for i in range(len(gt_seg) - 1):
             for j in range(i + 2, len(gt_seg)):
                 correct = False
