@@ -57,7 +57,7 @@ class Stat:
         if not self.accumlator_active:
             self.accumlator_active = True
 
-    def reset_accumlator(self, new_x):
+    def reset_accumulator(self, new_x):
         if self.accumlator_active:
 
             self.y.append(self.current_sum / self.current_weight)
@@ -73,19 +73,29 @@ class Stat:
     def __repr__(self):
         return str(self.__dict__)
 
+    def get_last(self):
+        if self.y:
+            return self.y[-1]
+        else:
+            print("Stat error: No y-value yet")
+            return 0
+
+
 primitive = (int, str, bool, float)
 def is_primitive(thing):
     return isinstance(thing, primitive)
 
 class AutoStat(Stat):
-    def __init__(self, x_counter, x_weight, x_plot, x_title="", y_title="", name="", plot=True, ymax=None, train=True):
+    def __init__(self, counter_obj, x_weight, x_plot, x_title="", y_title="", name="", plot=True, ymax=None, train=True):
         """ AutoStat - same as Stat, but don't need to specify the x-coords every time
-            Specify the x_value once, which should be an ADDRESS of some object (not an actual number)
+            Specify the x_weight once, which should be an ADDRESS of some object (not an actual number) (e.g. number of instances, number of datapoints)
+            Specify the x_plot once, which should be an ADDRESS of some object (not an actual number) (e.g. number of epochs -- this will be the x-axis)
 
         Args:
             (x: the x plot values)
-            x_counter: A TrainingCounter object
-            x_weight (str): The attribute in the counter object that will be used for determining the weight
+            counter_obj: A TrainingCounter object - keeps tack of number of epochs etc.
+            x_weight (str): The attribute in the counter object that will be used for determining the weighting
+            x_plot (str): The attribute in the counter object that will be used for determining the x-axis label
             x_title:
             y_title:
             name:
@@ -95,7 +105,7 @@ class AutoStat(Stat):
         """
         super().__init__(y=[None], x=[0], x_title=x_title, y_title=y_title, name=name, plot=plot, ymax=ymax)
         self.last_weight_step = 0
-        self.x_counter = x_counter
+        self.x_counter = counter_obj
         self.x_weight = x_weight
         self.x_plot = x_plot
         self.train = train
@@ -106,7 +116,7 @@ class AutoStat(Stat):
             weight = (new_step - self.last_weight_step)
             self.last_weight_step = new_step
         else:
-            weight = self.x_weight
+            weight = self.x_counter.__dict__[self.x_weight]
         if weight == 0:
             print("Error with weight - should be non-zero - using 1")
             weight = 1
@@ -121,7 +131,7 @@ class AutoStat(Stat):
         if not self.accumlator_active:
             self.accumlator_active = True
 
-    def reset_accumlator(self, new_x=None):
+    def reset_accumulator(self, new_x=None):
         if self.accumlator_active:
             weight = self.get_weight()
 
@@ -135,21 +145,51 @@ class AutoStat(Stat):
             self.updated_since_plot = True
 
 
-class TrainingCounter:
-    def __init__(self, instances_per_epoch=1, epochs=0, updates=0, instances=0):
-        self.epoch = epochs
+class Counter:
+    def __init__(self, instances_per_epoch=1, epochs=0, updates=0, instances=0, training_pred_count=0, test_instances=1, test_pred_length_static=1, test_pred_count=0):
+        """
+
+        Args:
+            instances_per_epoch:
+            epochs:
+            updates:
+            instances:
+            training_pred_count: Running count of the number of individual predictions (i.e. stroke points) in training data
+            test_instances: Size of test data (instances)
+            test_pred_length_static: Total number of predictions (i.e. stroke points) in test data
+        """
+
+        self.epochs = epochs
         self.updates = updates
         self.instances = instances
         self.instances_per_epoch = instances_per_epoch
-        self.epoch_decimal =  self.instances/self.instances_per_epoch
 
-    def update(self, epochs=0, instances=0, updates=0):
+        if self.instances_per_epoch: # if there are training instances
+            self.epoch_decimal = self.instances/self.instances_per_epoch
+        else:
+            self.epoch_decimal = 0
+
+        self.training_pred_count = training_pred_count
+
+        self.test_instances = test_instances
+        self.test_pred_length_static = test_pred_length_static # If this is not constant, put it in train mode!
+        self.test_pred_count = test_pred_count
+
+    def update(self, epochs=0, instances=0, updates=0, training_pred_count=0, test_pred_count=0):
         self.epochs += epochs
         self.instances += instances
         self.updates += updates
         self.epoch_decimal = self.instances / self.instances_per_epoch
 
+        if training_pred_count:
+            self.training_pred_count = training_pred_count
+        if test_pred_count:
+            self.test_pred_count = test_pred_count
+
 
 if __name__=='__main__':
-    AutoStat()
-    object.__dict__
+    training_counter = Counter()
+    training_counter.epochs += 1
+    print(training_counter.epochs)
+    #AutoStat()
+

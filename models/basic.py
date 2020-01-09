@@ -155,6 +155,7 @@ class CNN(nn.Module):
         self.pool = nn.MaxPool2d(3, (4, 1), padding=1)
         self.intermediate_pass = 13 if cnn_type == "intermediates" else None
         self.verbose = verbose
+        self.cnn_type = cnn_type
 
         print("Intermediate pass {}".format(self.intermediate_pass))
 

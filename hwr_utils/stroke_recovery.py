@@ -86,7 +86,8 @@ def create_functions_from_strokes(stroke_dict):
     return x_func, y_func
 
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
-    """ Takes in a "raw" stroke dictionary for one image
+    """ Takes in a "raw" stroke list for one image
+        Each element of stroke_list is a dict with keys x,y,time
 
         time_interval (float): duration of upstroke events; None=original duration
         Returns:
@@ -155,17 +156,82 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
         t_list = t_list * time_factor
         start_times = start_times * time_factor
 
-
     # Have interpolation not move after last point
     x_list = np.append(x_list, x_list[-1])
     y_list = np.append(y_list, y_list[-1])
     t_list = np.append(t_list, t_list[-1] + 20)
     x_to_y = np.max(x_list) / np.max(y_list)
 
+    # Start strokes (binary list) will now be 1 short!
+
     output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1], "trange":start_times[-1]-start_times[0]})
     return output
 
+## DOES THIS WORK? SHOULD BE THE SAME AS BATCH_TORCH, NEED TO TEST
+def relativefy_batch(batch, reverse=False):
+    """ A tensor: Batch, Width, Vocab
+
+    Args:
+        batch:
+        reverse:
+
+    Returns:
+
+    """
+    import warnings
+    warnings.warn("relativefy_batch: Untested")
+    for i,b in enumerate(batch):
+        #print(batch.size(), batch)
+        #print(batch[i,:,0])
+        #print(i, b)
+        relativefy(b[:, 0], reverse=reverse)
+        batch[i] = relativefy(b[:,0], reverse=reverse)
+    return batch
+
+def relativefy_batch_torch(batch, reverse=False):
+    """ A tensor: Batch, Width, Vocab
+    """
+    if reverse:
+        # Only update the x-coords
+        batch[:, :, 0] = torch.cumsum(batch[:, :, 0], dim=1)
+        return batch
+    else:
+        # The first item in batch is not changed
+        # Subtract the current item from next item to get delta
+        batch[:,1:,0] = batch[:, 1:, 0]-batch[:, :-1, 0] # all items in batch, entire sequence, only X coords
+        return batch
+
 def relativefy(x, reverse=False):
+    """
+    Args:
+        x:
+        reverse:
+
+    Returns:
+
+    """
+    if isinstance(x, np.ndarray):
+        relativefy_numpy(x, reverse)
+    elif isinstance(x, torch.Tensor):
+        relativefy_torch(x, reverse)
+    else:
+        raise Exception(f"Unexpected type {type(x)}")
+
+def relativefy_numpy(x, reverse=False):
+    """ Make the x-coordinate relative to the previous one
+        First coordinate is relative to 0
+    Args:
+        x (array-like): Just an array of x's coords!
+
+    Returns:
+
+    """
+    if reverse:
+        return np.cumsum(x,axis=0)
+    else:
+        return np.insert(x[1:]-x[:-1], 0, x[0])
+
+def relativefy_torch(x, reverse=False):
     """ Make the x-coordinate relative to the previous one
         First coordinate is relative to 0
     Args:
@@ -175,9 +241,11 @@ def relativefy(x, reverse=False):
 
     """
     if reverse:
-        return np.cumsum(x,axis=0)
+        return torch.cumsum(x,dim=0)
     else:
-        return np.insert(x[1:]-x[:-1], 0, x[0])
+        r = torch.zeros(x.shape)
+        r[1:] = x[1:]-x[:-1]
+        return r
 
 
 def get_all_substrokes(stroke_dict, length=3):
@@ -228,6 +296,7 @@ def get_all_substrokes(stroke_dict, length=3):
                      "raw":raw})
         assert start_times[0]==t[0]
         yield output
+
 
 def normalize(x_list, scale_param=None):
     x_list -= np.min(x_list)
