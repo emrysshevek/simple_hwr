@@ -116,12 +116,12 @@ class AutoStat(Stat):
             weight = (new_step - self.last_weight_step)
             self.last_weight_step = new_step
         else:
-            weight = self.x_weight
+            weight = self.x_counter.__dict__[self.x_weight]
         if weight == 0:
             print("Error with weight - should be non-zero - using 1")
             weight = 1
         return weight
-
+github
     def get_x(self):
         return self.x_counter.__dict__[self.x_plot]
 
@@ -180,8 +180,11 @@ class Counter:
         self.instances += instances
         self.updates += updates
         self.epoch_decimal = self.instances / self.instances_per_epoch
-        self.training_pred_count = training_pred_count
-        self.test_pred_count = test_pred_count
+
+        if training_pred_count:
+            self.training_pred_count = training_pred_count
+        if test_pred_count:
+            self.test_pred_count = test_pred_count
 
 
 if __name__=='__main__':

@@ -1065,7 +1065,7 @@ def stat_prep_strokes(config):
         #x_weight = "updates" if is_training else config.n_test_instances/config.batch_size
 
         #x_weight = "instances" if is_training else config.n_test_instances
-        x_weight = "training_pred_count" if is_training else "test_pred_length" # should be a key in the counter object
+        x_weight = "training_pred_count" if is_training else "test_pred_length_static" # should be a key in the counter object
 
         # Always include L1 loss
         config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
