@@ -163,7 +163,12 @@ class Counter:
         self.updates = updates
         self.instances = instances
         self.instances_per_epoch = instances_per_epoch
-        self.epoch_decimal = self.instances/self.instances_per_epoch
+
+        if self.instances_per_epoch: # if there are training instances
+            self.epoch_decimal = self.instances/self.instances_per_epoch
+        else:
+            self.epoch_decimal = 0
+
         self.training_pred_count = training_pred_count
 
         self.test_instances = test_instances

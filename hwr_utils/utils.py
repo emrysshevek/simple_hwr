@@ -449,6 +449,9 @@ def symlink(target, link_location):
 def get_computer():
     return socket.gethostname()
 
+def is_galois():
+    get_computer() == "Galois"
+
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
     log_print(GPUtil.getGPUs())
@@ -566,6 +569,77 @@ def dict_to_list(d):
     return idx_to_char
 
 def load_model(config):
+    # User can specify folder or .pt file; other files are assumed to be in the same folder
+    if os.path.isfile(config["load_path"]):
+        old_state = torch.load(config["load_path"])
+        path, child = os.path.split(config["load_path"])
+    else:
+        old_state = torch.load(os.path.join(config["load_path"], "baseline_model.pt"))
+        path = config["load_path"]
+
+    # Load the definition of the loaded model if it was saved
+    # if "model_definition" in old_state.keys():
+    #     config["model"] = old_state['model_definition']
+
+    for key in ["idx_to_char", "char_to_idx"]:
+        if key in old_state.keys():
+            if key == "idx_to_char":
+                old_state[key] = dict_to_list(old_state[key])
+            config[key] = old_state[key]
+
+    if "model" in old_state.keys():
+        config["model"].load_state_dict(old_state["model"])
+        if "optimizer" in config.keys():
+            config["optimizer"].load_state_dict(old_state["optimizer"])
+        config["global_counter"] = old_state["global_step"]
+        config["starting_epoch"] = old_state["epoch"]
+        config["current_epoch"] = old_state["epoch"]
+    else:
+        config["model"].load_state_dict(old_state)
+
+    # Launch visdom
+    if config["use_visdom"]:
+        try:
+            config["visdom_manager"].load_log(os.path.join(path, "visdom.json"))
+        except:
+            warnings.warn("Unable to load from visdom.json; does the file exist?")
+            ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
+
+    # Load Loss History
+    stat_path = os.path.join(path, "all_stats.json")
+    loss_path = os.path.join(path, "losses.json")
+
+    if Path(loss_path).exists():
+        with open(loss_path, 'r') as fh:
+            losses = json.load(fh)
+    else:
+        print("losses.json not found in load_path folder")
+    try:
+        config["train_cer"] = losses["train_cer"]
+        config["test_cer"] = losses["test_cer"]
+        config["validation_cer"] = losses["validation_cer"]
+    except:
+        warnings.warn("Could not load from losses.json")
+        config["train_cer"]=[]
+        config["test_cer"] = []
+
+    # Load stats
+    try:
+        with open(stat_path, 'r') as fh:
+            stats = json.load(fh)
+
+        for name, stat in config["stats"].items():
+            if isinstance(stat, Stat):
+                config["stats"][name].y = stats[name]["y"]
+            else:
+                for i in stats[name]: # so we don't mess up the reference etc.
+                    config["stats"][name].append(i)
+
+    except:
+        warnings.warn("Could not load from all_stats.json")
+
+
+def load_model_strokes(config):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
         old_state = torch.load(config["load_path"])
@@ -1038,6 +1112,18 @@ def plot_tensor(tensor):
     plt.imshow(t, cmap='gray')
     plt.show()
 
+def kill_gpu_hogs():
+    ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
+    if is_galois():
+        ## KILL ALL OTHER PYTHON SCRIPTS
+        from subprocess import Popen
+        pid = os.getpid()
+        # All GPU processes
+        find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
+        # All python commands
+        find_processes_command = f"pgrep -fl python"
+        command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
+        result = Popen(command, shell=True)
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot

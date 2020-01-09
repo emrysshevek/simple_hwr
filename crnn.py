@@ -320,14 +320,7 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        preds = self.eval(line_imgs, self.model)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
-
-        ## Make predictions relative
-        if self.config.relative_x_pred_abs_eval:
-            preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
-
-        ## Shorten
-        preds = self.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.config.relative_x_pred_abs_eval)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
@@ -345,13 +338,23 @@ class TrainerStrokeRecovery:
         return self.train(item, train=False, **kwargs)
 
     @staticmethod
-    def eval(line_imgs, model):
+    def eval(line_imgs, model, label_lengths=None, relative=False):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
         pred_logits = model(line_imgs).cpu()
-        return pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
+        ## Make absolute preds from relative preds - must be done before truncation
+        if relative:
+            preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
+
+        ## Shorten - label lengths currently = width of image after CNN
+        if not label_lengths is None:
+            preds = TrainerStrokeRecovery.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
+
+
+        return preds
 
     def update_stats(self, item, preds, train=True):
         suffix = "_train" if train else "_test"

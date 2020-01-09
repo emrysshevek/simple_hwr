@@ -11,8 +11,11 @@ from tqdm import tqdm
 
 from hwr_utils import stroke_recovery
 from hwr_utils.utils import unpickle_it
+import pickle
 from pathlib import Path
 import logging
+from hwr_utils.utils import EnhancedJSONEncoder
+
 logger = logging.getLogger("root."+__name__)
 
 PADDING_CONSTANT = 0
@@ -46,18 +49,32 @@ def read_img(image_path, num_of_channels=1, target_height=60):
 
     return img
 
-
 class BasicDataset(Dataset):
-    def __init__(self, root, extension=".png"):
+    def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
         # Create dictionary with all the paths and some index
         root = Path(root)
         self.root = root
         self.data = []
         self.num_of_channels = 1
         self.collate = collate_stroke_eval
-        for i in root.rglob("*" + extension):
-            self.data.append({"image_path":i})
-        logger.info(("SELF", len(self.data)))
+        self.cnn = cnn
+        if pickle_file:
+            self.data = unpickle_it(pickle_file)
+        else:
+            # Rebuild the dataset
+            for i in root.rglob("*" + extension):
+                self.data.append({"image_path":i.as_posix()})
+            logger.info(("Length of data", len(self.data)))
+
+            # Add label lengths
+            if self.cnn:
+                output = Path(root / "stroke_cached")
+                output.mkdir(parents=True, exist_ok=True)
+                filename = output / (self.cnn.cnn_type + ".pickle")
+                add_output_size_to_data(self.data, self.cnn, key="label_length", root=self.root)
+                logger.info(f"DUMPING cached version to: {filename}")
+                pickle.dump(self.data, filename.open(mode="wb"))
+
 
     def __len__(self):
         return len(self.data)
@@ -66,7 +83,7 @@ class BasicDataset(Dataset):
         item = self.data[idx]
         image_path = self.root / item['image_path']
         img = read_img(image_path, num_of_channels=self.num_of_channels)
-
+        label_length = item["label_length"] if self.cnn else None
         return {
             "line_img": img,
             "gt": [],
@@ -74,9 +91,9 @@ class BasicDataset(Dataset):
             "x_func": None,
             "y_func": None,
             "start_times": None,
-            "x_relative": None
+            "x_relative": None,
+            "label_length": label_length
         }
-
 
 
 class StrokeRecoveryDataset(Dataset):
@@ -124,7 +141,6 @@ class StrokeRecoveryDataset(Dataset):
         return item
 
     def resample_data(self, data_list, parallel=True):
-
         if parallel:
             poolcount = max(1, multiprocessing.cpu_count()-3)
             pool = multiprocessing.Pool(processes=poolcount)
@@ -149,7 +165,7 @@ class StrokeRecoveryDataset(Dataset):
                 data.extend(new_data)
         # Calculate how many points are needed
         if self.cnn:
-            add_output_size_to_data(data, self.cnn)
+            add_output_size_to_data(data, self.cnn, root=self.root)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
@@ -292,7 +308,7 @@ def calculate_output_size(data, cnn):
         width_to_output_mapping[i] = shape[-1]
     return width_to_output_mapping
 
-def add_output_size_to_data(data, cnn):
+def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
     """ Calculate how wide the GTs should be based on the output width of the CNN
     Args:
         data:
@@ -303,12 +319,22 @@ def add_output_size_to_data(data, cnn):
     #cnn.to("cpu")
     width_to_output_mapping = {}
     for instance in data:
-        width = instance["shape"][1] # H,W,Channels
+        if "shape" in instance:
+            width = instance["shape"][1] # H,W,Channels
+        elif root:
+            image_path = root / instance['image_path']
+            img = read_img(image_path)
+            instance["img"] = img
+            instance["shape"] = img.shape
+            width = instance["shape"][1] # H,W,Channels
+        else:
+            raise Exception("No shape and no image root directory")
+
         if width not in width_to_output_mapping:
             t = torch.zeros(1, 1, 32, width).to("cuda")
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
-        instance["number_of_samples"]=width_to_output_mapping[width]
+        instance[key]=width_to_output_mapping[width]
     #cnn.to("cuda")
 
 ## Hard coded -- ~20% faster
@@ -464,7 +490,7 @@ def collate_stroke_eval(batch, device="cpu"):
         "gt": None,
         "gt_list": None, # List of numpy arrays
         "x_relative": None,
-        "label_lengths": None,
+        "label_lengths": [b["label_length"] for b in batch],
         "paths": [b["path"] for b in batch],
         "x_func": None,
         "y_func": None,

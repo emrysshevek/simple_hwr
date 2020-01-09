@@ -18,6 +18,7 @@ import logging
 from hwr_utils.hwr_logger import logger
 
 torch.cuda.empty_cache()
+utils.kill_gpu_hogs()
 
 ## Change CWD to the folder containing this script
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -142,7 +143,6 @@ def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
     config = utils.load_config(config_path, hwr=False)
-    LOGGER = config.logger
     test_size = config.test_size
     train_size = config.train_size
     batch_size = config.batch_size
@@ -153,8 +153,6 @@ def main(config_path):
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
-    loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats, counter=config.counter)
-    config.loss_obj = loss_obj
     # folder = Path("online_coordinate_data/3_stroke_32_v2")
     # folder = Path("online_coordinate_data/3_stroke_vSmall")
     # folder = Path("online_coordinate_data/3_stroke_vFull")
@@ -204,7 +202,7 @@ def main(config_path):
     n_test_points = 0
     for i in test_dataloader:
         n_test_points += sum(i["label_lengths"])
-    config.n_test_instances = len(train_dataloader.dataset)
+    config.n_test_instances = len(test_dataloader.dataset)
     config.n_test_points = n_test_points
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
@@ -214,9 +212,11 @@ def main(config_path):
         visualize.initialize_visdom(config["full_specs"], config)
     utils.stat_prep_strokes(config)
 
+    # Create loss object
+    config.loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats, counter=config.counter)
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=loss_obj)
+    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
 
     config.optimizer=optimizer
     config.trainer=trainer
