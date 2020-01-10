@@ -131,8 +131,8 @@ def main(config_path):
     batch_size = config.batch_size
     vocab_size = config.vocab_size
 
-    # device = torch.device("cuda") # cpu, cuda
-    device = torch.device("cpu")  # cpu, cuda
+    device = torch.device("cuda") # cpu, cuda
+    # device = torch.device("cpu")  # cpu, cuda
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
@@ -204,7 +204,7 @@ def main(config_path):
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
 
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
+    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj, device=device)
 
     config.optimizer = optimizer
     config.trainer = trainer

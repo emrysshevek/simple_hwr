@@ -168,7 +168,7 @@ class StrokeRecoveryDataset(Dataset):
                 data.extend(new_data)
         # Calculate how many points are needed
         if self.cnn:
-            add_output_size_to_data(data, self.cnn, root=self.root)
+            add_output_size_to_data(data, self.cnn, root=self.root, device=self.device)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:

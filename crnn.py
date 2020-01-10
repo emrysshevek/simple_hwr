@@ -339,11 +339,10 @@ class TrainerStrokeRecovery:
         self.model.eval()
         return self.train(item, train=False, **kwargs)
 
-    @staticmethod
-    def eval(line_imgs, model, label_lengths=None, relative=False):
+    def eval(self, line_imgs, model, label_lengths=None, relative=False):
         """ For offline data, that doesn't have ground truths
         """
-        line_imgs = line_imgs.to(device)
+        line_imgs = line_imgs.to(self.device)
         pred_logits = model(line_imgs).cpu()
         preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
