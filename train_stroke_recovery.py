@@ -131,8 +131,7 @@ def main(config_path):
     batch_size = config.batch_size
     vocab_size = config.vocab_size
 
-    device = torch.device("cuda") # cpu, cuda
-    # device = torch.device("cpu")  # cpu, cuda
+    device = torch.device("cuda" if torch.cuda.is_available() and config.gpu else "cpu")  # cpu, cuda
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
