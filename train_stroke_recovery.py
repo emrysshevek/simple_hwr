@@ -1,5 +1,6 @@
 from pathlib import Path
 import numpy as np
+from gitinfo import get_git_info
 from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
@@ -123,6 +124,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 
 
 def main(config_path):
+    logger.info(f'Using commit: {get_git_info()["commit"]}')
+    logger.info(f"Commit date: {get_git_info()['author_date']}")
+
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
     config = utils.load_config(config_path, hwr=False)
@@ -143,10 +147,9 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
-
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
-    cnn = model.get_cnn() # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
-    logger.info(("Current dataset: ", folder))
+    cnn = model.get_cnn()  # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
+    logger.info(("Current dataset:", folder))
 
     ## LOAD DATASET
     train_dataset = StrokeRecoveryDataset([folder / "train_online_coords.json"],
