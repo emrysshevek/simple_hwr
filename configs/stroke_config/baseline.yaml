@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: true # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -12,7 +12,7 @@ logging: info
 # General
 output_folder: ./results
 epochs_to_run: 200
-update_freq: 200 # print out updates, update graphs etc. after this many updates
+update_freq: 20 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
@@ -25,6 +25,8 @@ data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 
+# Distortions
+warp: true
 
 # LR schedule
 learning_rate: 5e-4          # LR
@@ -70,6 +72,9 @@ coordconv_0_center: true # 0 center
 # Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
 relative_x: false # true, false, both; predict both
 relative_x_pred_abs_eval: true # predict relative coordinates, loss based on absolute ones
+
+# Visdom
+visdom_port: 9001
 
 ## Default
 # L1, DTW, SSL etc.

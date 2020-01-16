@@ -2,6 +2,7 @@ import torch
 import robust_loss_pytorch
 import numpy as np
 import torch.nn as nn
+from torch import Tensor
 from pydtw import dtw
 from scipy import spatial
 from robust_loss_pytorch import AdaptiveLossFunction
@@ -79,7 +80,7 @@ class StrokeLoss:
                 raise Exception(f"Unknown loss: {loss_name}")
             loss_fns.append(loss_fn)
 
-        self.coefs = coefs
+        self.coefs = Tensor(coefs)
         self.loss_fns = loss_fns
         self.loss_names = loss_names
 
@@ -121,25 +122,26 @@ class StrokeLoss:
         losses = torch.zeros(len(self.loss_fns))
         batch_size = len(preds)
         total_points = tensor_sum(label_lengths)
-        cum_loss = 0
 
         ## Loop through loss functions
         for i, loss_fn in enumerate(self.loss_fns):
-            loss_tensor = loss_fn(preds, targs, label_lengths) * self.coefs[i] ## TEMPORARY WHILE BALANCING LOSS FUNCTIONS! NORMALLY DON'T MULTIPLY BY COEF UNTIL AFTER LOSSES SAVED (SO THAT THEY ARE ALL ON THE SAME SCALE)
+            loss_tensor = loss_fn(preds, targs, label_lengths)
             loss = to_value(loss_tensor)
-            cum_loss += loss # adjusted to be training-instance based later; don't bother to do point-based right now
+            #print(loss, loss_fn.__name__)
+            assert loss > 0
             losses[i] = loss_tensor
-
             # Update loss stat
             self.stats[self.loss_names[i] + suffix].accumulate(loss)
 
         if suffix == "_train":
             self.counter.update(training_pred_count=total_points)
+            #print(total_points)
         elif suffix == "_test":
             self.counter.update(test_pred_count=total_points)
 
-        combined_loss = torch.sum(losses) / batch_size # only for the actual gradient loss so that the loss doesn't change with bigger batch sizes;, not the reported one since it will be divided by instances later
-        return combined_loss, cum_loss
+        combined_loss = torch.sum(losses * self.coefs) # only for the actual gradient loss so that the loss doesn't change with bigger batch sizes;, not the reported one since it will be divided by instances later
+        combined_loss_value = to_value(combined_loss)
+        return combined_loss, combined_loss_value/batch_size # does the total loss makes most sense at the EXAMPLE level?
 
     def dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0

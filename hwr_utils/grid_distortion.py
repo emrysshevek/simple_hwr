@@ -7,6 +7,7 @@ from scipy.ndimage.interpolation import map_coordinates
 from scipy.ndimage.filters import gaussian_filter
 import numpy as np
 import matplotlib.pylab as plt
+import math
 
 INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,

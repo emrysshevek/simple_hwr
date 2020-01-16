@@ -43,7 +43,6 @@ def read_img(image_path, num_of_channels=1, target_height=60):
     if num_of_channels == 1:
         img = img[:, :, np.newaxis]
 
-
     img = img.astype(np.float32)
     img = img / 128.0 - 1.0
 
@@ -413,7 +412,6 @@ def collate_stroke(batch, device="cpu"):
     label_lengths = []
 
     # Make input square (variable vidwth
-
     input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
     max_label = max([b['gt'].shape[0] for b in batch]) # width
     labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(np.float32)

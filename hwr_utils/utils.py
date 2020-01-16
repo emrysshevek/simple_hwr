@@ -20,6 +20,7 @@ from hwr_utils import visualize, string_utils, error_rates
 from hwr_utils.stat import Stat, AutoStat, Counter
 import traceback
 from hwr_utils import hwr_logger
+from subprocess import Popen, DEVNULL, STDOUT
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -190,7 +191,8 @@ hwr_defaults = {"load_path":False,
             "occlusion_level": .4,
             "exclude_offline": False,
             "validation_jsons": [],
-            "elastic_transform": False
+            "elastic_transform": False,
+            "visdom_port": 9001
             }
 
 stroke_defaults = {"SMALL_TRAINING": False,
@@ -203,6 +205,7 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "data_root_local":".",
                    "training_nn_loss": False,
                    "test_nn_loss": False,
+                   "visdom_port": 9001
 }
 
 
@@ -450,7 +453,7 @@ def get_computer():
     return socket.gethostname()
 
 def is_galois():
-    get_computer() == "Galois"
+    return get_computer() == "Galois"
 
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
@@ -1115,19 +1118,29 @@ def plot_tensor(tensor):
 def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_galois():
+        hwr_logger.logger.info("Killing GPU hogs")
         ## KILL ALL OTHER PYTHON SCRIPTS
-        from subprocess import Popen
         pid = os.getpid()
         # All GPU processes
-        find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
-        # All python commands
+        # find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
+
+        # All python commands - this works a little better, but will kill visdom
         find_processes_command = f"pgrep -fl python"
         command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
         result = Popen(command, shell=True)
+        return result
+
+def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
+    # Error is "OSError: [Errno 98] Address already in use"
+    my_env = os.environ.copy()
+    my_env["PATH"] = "/usr/sbin:/sbin:" + my_env["PATH"]
+    stderr = DEVNULL if suppress_errors else STDOUT
+    stdout = DEVNULL if suppress_output else STDOUT
+    Popen("python -m visdom.server -p {}".format(port), shell=True, env=my_env, stdout=stdout, stderr=stderr)
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot
-    viz = Plot()
+    viz = Plot(port=9001)
     viz.viz.close()
     viz.load_all_env("./results")
 

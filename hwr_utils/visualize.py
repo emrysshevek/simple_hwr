@@ -10,6 +10,7 @@ from hwr_utils.stat import Stat
 import traceback
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
+DEFAULT_PORT = 9001
 
 class Plot(object):
     def __init__(self, title="", env_name="", config=None, port=8080):
@@ -111,7 +112,7 @@ def initialize_visdom(env_name, config):
     if not config["use_visdom"]:
         return
     try:
-        config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config)
+        config["visdom_manager"] = Plot("Loss", env_name=env_name, config=config, port=config.visdom_port)
         return config["visdom_manager"]
     except:
         config["use_visdom"] = False
@@ -149,7 +150,7 @@ def close_all_env(plotter):
 
 def load_all_hwr(path, key='test_cer', clear=True, keywords=""):
     # python -m visdom.server -p 8080
-    plotter = Plot("NewEnv")
+    plotter = Plot("NewEnv", port=DEFAULT_PORT)
     close_all_env(plotter)
 
     for p in Path(path).rglob("losses.json"):
@@ -162,7 +163,7 @@ def load_all_hwr(path, key='test_cer', clear=True, keywords=""):
             if len(split_name) > 4:
                 name += "_".join(split_name[4:])
 
-            plotter = Plot(name)
+            plotter = Plot(name, port=DEFAULT_PORT)
             losses = json.loads(p.read_text())[key]
             x = list(range(len(losses)))
             plotter.register_plot(key, "Epoch", key, plot_type="line", ymax=.1)
@@ -175,7 +176,7 @@ def load_all_hwr(path, key='test_cer', clear=True, keywords=""):
 def load_all(path, key=None, clear=True, keywords=""):
     # python -m visdom.server -p 8080
     if False:
-        plotter = Plot("NewEnv")
+        plotter = Plot("NewEnv", port=DEFAULT_PORT)
         close_all_env(plotter)
 
     for p in Path(path).rglob("all_stats.json"):
@@ -183,7 +184,7 @@ def load_all(path, key=None, clear=True, keywords=""):
             print(p)
             name = p.parent.name.replace("-", "_")
 
-            plotter = Plot(name, port=8081)
+            plotter = Plot(name, port=DEFAULT_PORT)
             stats = json.loads(p.read_text())
             for key in stats.keys():
                 losses = stats[key]

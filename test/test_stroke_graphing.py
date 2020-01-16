@@ -6,7 +6,7 @@ from torch import nn
 from models.stroke_recovery_loss import StrokeLoss
 import torch
 from models.CoordConv import CoordConv
-from crnn import TrainerStrokeRecovery
+from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils

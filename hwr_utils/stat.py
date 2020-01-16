@@ -21,7 +21,7 @@ class Stat:
         self.current_weight = 0
         self.current_sum = 0
         self.accumlator_active = False
-        self.updated_since_plot = False
+        self.updated_since_plot = False # has the value of this stat been changed since the last time it was updated?
         self.accumulator_freq = None # epoch or instances; when should this statistic accumulate?
 
         # Plot details
@@ -43,14 +43,13 @@ class Stat:
         """
         self.x.append(new_x)
         self.y.append(new_y)
-
-        if not self.updated_since_plot:
-            self.updated_since_plot = True
+        self.updated_since_plot = True
 
     def default(self, o):
         return o.__dict__
 
     def accumulate(self, sum, weight):
+        assert self.current_sum > 0
         self.current_sum += sum
         self.current_weight += weight
 
@@ -115,26 +114,28 @@ class AutoStat(Stat):
             new_step = self.x_counter.__dict__[self.x_weight]
             weight = (new_step - self.last_weight_step)
             self.last_weight_step = new_step
-        else:
+        else: # if not training, the length is constant;
+            assert "test" in self.x_weight # make sure the key is appropriate
             weight = self.x_counter.__dict__[self.x_weight]
         if weight == 0:
             print("Error with weight - should be non-zero - using 1")
             weight = 1
+        try:
+            assert weight > 0
+        except:
+            raise Exception(f"Negative Weight: {self.__dict__}")
         return weight
-github
+
     def get_x(self):
         return self.x_counter.__dict__[self.x_plot]
 
     def accumulate(self, sum, weight=None):
         self.current_sum += sum
-
-        if not self.accumlator_active:
-            self.accumlator_active = True
+        self.accumlator_active = True
 
     def reset_accumulator(self, new_x=None):
         if self.accumlator_active:
             weight = self.get_weight()
-
             # Update plot values
             self.y.append(self.current_sum / weight)
             self.x.append(self.get_x())
@@ -181,10 +182,9 @@ class Counter:
         self.updates += updates
         self.epoch_decimal = self.instances / self.instances_per_epoch
 
-        if training_pred_count:
-            self.training_pred_count = training_pred_count
-        if test_pred_count:
-            self.test_pred_count = test_pred_count
+        # Both are same as above, always incrementing
+        self.training_pred_count += training_pred_count
+        self.test_pred_count += test_pred_count
 
 
 if __name__=='__main__':

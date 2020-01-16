@@ -7,7 +7,7 @@ from torch import nn
 from models.stroke_recovery_loss import StrokeLoss
 import torch
 from models.CoordConv import CoordConv
-from crnn import TrainerStrokeRecovery
+from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
@@ -203,12 +203,14 @@ def main(config_path):
     for i in test_dataloader:
         n_test_points += sum(i["label_lengths"])
     config.n_test_instances = len(test_dataloader.dataset)
-    config.n_test_points = n_test_points
+    config.n_test_points = int(n_test_points)
+
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
 
     ## Stats
     if config.use_visdom:
+        utils.start_visdom(port=config.visdom_port)
         visualize.initialize_visdom(config["full_specs"], config)
     utils.stat_prep_strokes(config)
 
