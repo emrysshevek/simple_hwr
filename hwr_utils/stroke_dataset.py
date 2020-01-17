@@ -102,7 +102,7 @@ class StrokeRecoveryDataset(Dataset):
                  num_of_channels=3,
                  root= project_root / "data",
                  max_images_to_load=None,
-                 x_relative_positions=True,
+                 x_relative_positions=False,
                  cnn=None,
                  logger=None, **kwargs):
 
@@ -156,11 +156,11 @@ class StrokeRecoveryDataset(Dataset):
         data = []
         for data_path in data_paths:
             data_path = str(data_path)
+            print(os.path.join(root, data_path))
             with open(os.path.join(root, data_path)) as fp:
                 new_data = json.load(fp)
                 if isinstance(new_data, dict):
                     new_data = [item for key, item in new_data.items()]
-
                 data.extend(new_data)
         # Calculate how many points are needed
         if self.cnn:
@@ -183,24 +183,14 @@ class StrokeRecoveryDataset(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         image_path = self.root / item['image_path']
-        if self.num_of_channels == 3:
-            img = cv2.imread(image_path.as_posix())
-        elif self.num_of_channels == 1:  # read grayscale
-            img = cv2.imread(image_path.as_posix(), 0)
-        else:
-            raise Exception("Unexpected number of channels")
-        if img is None:
-            logger.warning("Warning: image is None:", self.root / item['image_path'])
-            return None
 
-        percent = float(self.img_height) / img.shape[0]
+        # GRID_DISTORTION.WARP_POINTS()
+        # ADD NOISE
+        # RE-RENDER
+        # def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
+        # stroke_plotting.draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=new_img_path, line_width=.8)
 
-        # Add channel dimension, since resize and warp only keep non-trivial channel axis
-        if self.num_of_channels == 1:
-            img = img[:, :, np.newaxis]
-
-        img = img.astype(np.float32)
-        img = img / 128.0 - 1.0
+        img = read_img(image_path)
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
@@ -243,7 +233,7 @@ class StrokeRecoveryDataset(Dataset):
 #     arr[mask] = np.concatenate(list_of_numpy_arrays)  # fast 1d assignment
 #     return arr.reshape(batch_size, *dims)
 
-def create_gts_from_raw_dict(item, interval, noise, relative_x_positions=False):
+def create_gts_from_raw_dict(item, interval, noise, relative_x_positions):
     """
     Args:
         item: Dictionary with a "raw" item
@@ -254,6 +244,28 @@ def create_gts_from_raw_dict(item, interval, noise, relative_x_positions=False):
     x_func, y_func = stroke_recovery.create_functions_from_strokes(output)
     number_of_samples = int(output.trange/interval)
     return create_gts(x_func, y_func, output.start_times, number_of_samples=number_of_samples, noise=noise, relative_x_positions=relative_x_positions)
+
+
+def cumulative_distance():
+    pass
+
+def stroke_distance(x,y,start_point):
+    #start_point = np.array([1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0])
+    start_indices = np.where(start_point)[0]
+    start_point_ct = len(start_indices)
+    total_point_ct = len(start_point)
+    xs = np.repeat(start_indices, 2)
+    xs[::2] -= 1
+    xs = np.append(xs[1:], total_point_ct)
+    ys = np.zeros(2 * start_point_ct)
+    ys[1::2] += 1
+    print(xs, ys)
+
+    # make it distance traveled!
+
+    interp_xs = np.array(range(0, total_point_ct))
+    out = np.interp(interp_xs, xs, ys)
+    print(out)
 
 def create_gts(x_func, y_func, start_times, number_of_samples, noise=None, relative_x_positions=False):
     """ Return LENGTH X VOCAB
@@ -266,18 +278,23 @@ def create_gts(x_func, y_func, start_times, number_of_samples, noise=None, relat
         noise:
 
     Returns:
-
+        gt array: SEQ_LEN x [X, Y, IS_STROKE_START, IS_END_OF_SEQUENCE]
     """
+    # Sample from x/y functions
     x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, start_times,
                                                    number_of_samples=number_of_samples, noise=noise)
 
+    # Make coordinates relative to previous one
     if relative_x_positions:
         x = stroke_recovery.relativefy(x)
 
     # Create GT matrix
     end_of_sequence_flag = np.zeros(x.shape[0])
     end_of_sequence_flag[-1] = 1
-    gt = np.array([x, y, is_start_stroke, end_of_sequence_flag]).transpose([1,0])
+
+    #
+    []
+    gt = np.array([x, y, is_start_stroke, end_of_sequence_flag]).transpose([1,0]) # swap axes
     return gt
 
 

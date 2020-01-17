@@ -211,9 +211,9 @@ def relativefy(x, reverse=False):
 
     """
     if isinstance(x, np.ndarray):
-        relativefy_numpy(x, reverse)
+        return relativefy_numpy(x, reverse)
     elif isinstance(x, torch.Tensor):
-        relativefy_torch(x, reverse)
+        return relativefy_torch(x, reverse)
     else:
         raise Exception(f"Unexpected type {type(x)}")
 
@@ -308,6 +308,19 @@ def normalize(x_list, scale_param=None):
     return x_list, scale_param
 
 def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plot=False):
+    """ Given some ipolate functions, return
+
+    Args:
+        function_x:
+        function_y:
+        starts:
+        number_of_samples:
+        noise:
+        plot:
+
+    Returns:
+        list of x_points, list of y_points, binary list of whether the corresponding point is a start stroke
+    """
     last_time = starts[-1]
     interval = last_time / number_of_samples
     std_dev = interval / 4

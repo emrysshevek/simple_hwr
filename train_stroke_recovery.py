@@ -17,12 +17,8 @@ import argparse
 import logging
 from hwr_utils.hwr_logger import logger
 
-torch.cuda.empty_cache()
-utils.kill_gpu_hogs()
-
 ## Change CWD to the folder containing this script
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
-os.chdir(ROOT_DIR)
 
 ## Variations:
 # Relative position
@@ -142,6 +138,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
+    utils.kill_gpu_hogs()
+    os.chdir(ROOT_DIR)
+
     config = utils.load_config(config_path, hwr=False)
     test_size = config.test_size
     train_size = config.train_size
