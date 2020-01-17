@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -12,7 +12,7 @@ logging: info
 # General
 output_folder: ./results
 epochs_to_run: 200
-update_freq: 20 # print out updates, update graphs etc. after this many updates
+update_freq: 50 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
@@ -43,7 +43,6 @@ scheduler_gamma: .95          # LR decay rate
 test_size: null
 train_size: null
 batch_size: 16
-x_relative_positions: False
 vocab_size: 4
 
 ## Loss function
@@ -70,8 +69,8 @@ coordconv_default: true # x-coordinates on -1 to 1 range
 coordconv_0_center: true # 0 center
 
 # Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
-relative_x: false # true, false, both; predict both
-relative_x_pred_abs_eval: true # predict relative coordinates, loss based on absolute ones
+x_relative_positions: False # The GT data should be converted to relative positions, rather than absolute
+relative_x_pred_abs_eval: true # predict relative coordinates, loss and GTs based on absolute ones
 
 # Visdom
 visdom_port: 9001

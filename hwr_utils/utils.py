@@ -10,6 +10,7 @@ import pickle
 import yaml
 import json
 import os
+import signal
 from Bio import pairwise2
 import numpy as np
 import warnings
@@ -20,7 +21,7 @@ from hwr_utils import visualize, string_utils, error_rates
 from hwr_utils.stat import Stat, AutoStat, Counter
 import traceback
 from hwr_utils import hwr_logger
-from subprocess import Popen, DEVNULL, STDOUT
+from subprocess import Popen, DEVNULL, STDOUT, check_output
 
 def to_numpy(tensor, astype="float64"):
     if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
@@ -349,7 +350,7 @@ def make_config_consistent_stroke(config):
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
-    if config.relative_x not in (True, False):
+    if config.x_relative_positions not in (True, False):
         raise NotImplemented
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
@@ -1121,13 +1122,22 @@ def kill_gpu_hogs():
         hwr_logger.logger.info("Killing GPU hogs")
         ## KILL ALL OTHER PYTHON SCRIPTS
         pid = os.getpid()
-        # All GPU processes
-        # find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
-
-        # All python commands - this works a little better, but will kill visdom
-        find_processes_command = f"pgrep -fl python"
-        command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
-        result = Popen(command, shell=True)
+        if False:
+            # All GPU processes
+            # find_processes_command = "nvidia-smi | sed -n 's/|\s*[0-9]*\s*\([0-9]*\)\s*.*/\1/p' | sort | uniq | sed '/^\$/d'"
+            # All python commands - this works a little better, but will kill visdom
+            find_processes_command = f"pgrep -fl python"
+            command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
+            result = Popen(command, shell=True)
+        else:
+            exclusion_words = "visdom", "jupyter"
+            find_processes_command = f"ps all | grep python"  + f" | awk '!/{pid}/'"
+            x = check_output([find_processes_command], shell=True)
+            all_python_processes = x.decode().split("\n")[:-1]
+            for process in all_python_processes:
+                if not any([ew in process for ew in exclusion_words]):
+                    hwr_logger.logger.info(f"killing {process}")
+                    os.kill(int(process.split()[2]), signal.SIGTERM)
         return result
 
 def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
