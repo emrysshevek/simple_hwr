@@ -34,13 +34,14 @@ def parse_args():
     return opts
 
 class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None):
+    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None, sigmoid_slice=slice(2,None)):
         super().__init__()
         if first_conv_op:
             first_conv_op = CoordConv
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
         self.sigmoid =torch.nn.Sigmoid().to(device)
+        self.sigmoid_slice = sigmoid_slice
 
     def forward(self, input):
         if self.training:
@@ -52,7 +53,7 @@ class StrokeRecoveryModel(nn.Module):
     def _forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
+        rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,self.sigmoid_slice]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
         return rnn_output
 
 def run_epoch(dataloader, report_freq=500):
@@ -147,7 +148,8 @@ def main(config_path):
     batch_size = config.batch_size
     vocab_size = config.vocab_size
 
-    device=torch.device("cuda") # cpu, cuda
+    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
+    device = config.device
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)
@@ -159,7 +161,12 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
-    model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
+    model = StrokeRecoveryModel(vocab_size=vocab_size,
+                                device=device,
+                                cnn_type=config.cnn_type,
+                                first_conv_op=config.coordconv,
+                                first_conv_opts=config.coordconv_opts,
+                                sigmoid_slice=config.sigmoid_slice).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     logger.info(("Current dataset: ", folder))
 

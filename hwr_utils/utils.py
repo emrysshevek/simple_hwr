@@ -18,7 +18,7 @@ import glob
 from pathlib import Path
 from easydict import EasyDict as edict
 from hwr_utils import visualize, string_utils, error_rates
-from hwr_utils.stat import Stat, AutoStat, Counter
+from hwr_utils.stattrack import Stat, AutoStat, Counter
 import traceback
 from hwr_utils import hwr_logger
 from subprocess import Popen, DEVNULL, STDOUT, check_output
@@ -158,7 +158,7 @@ hwr_defaults = {"load_path":False,
             "testing_shuffle": False,
             "test_only": False,
             "TESTING": False,
-            "GPU": True,
+            "gpu_if_available": True,
             "SKIP_TESTING": False,
             "OVERFIT": False,
             "TEST_FREQ": 1,
@@ -206,8 +206,10 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "data_root_local":".",
                    "training_nn_loss": False,
                    "test_nn_loss": False,
-                   "visdom_port": 9001
-}
+                   "visdom_port": 9001,
+                   "sos_distance": True,
+                   "gpu_if_available": True
+                    }
 
 
 def debugger(func):
@@ -245,6 +247,11 @@ def load_config(config_path, hwr=True):
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
+
+    if config.sos_distance:
+        config.sigmoid_slice = slice(3, None)
+    else:
+        config.sigmoid_slice = slice(2, None)
 
     # Main output folder
     if config["load_path"]:

@@ -245,29 +245,7 @@ def create_gts_from_raw_dict(item, interval, noise, relative_x_positions):
     number_of_samples = int(output.trange/interval)
     return create_gts(x_func, y_func, output.start_times, number_of_samples=number_of_samples, noise=noise, relative_x_positions=relative_x_positions)
 
-
-def cumulative_distance():
-    pass
-
-def stroke_distance(x,y,start_point):
-    #start_point = np.array([1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0])
-    start_indices = np.where(start_point)[0]
-    start_point_ct = len(start_indices)
-    total_point_ct = len(start_point)
-    xs = np.repeat(start_indices, 2)
-    xs[::2] -= 1
-    xs = np.append(xs[1:], total_point_ct)
-    ys = np.zeros(2 * start_point_ct)
-    ys[1::2] += 1
-    print(xs, ys)
-
-    # make it distance traveled!
-
-    interp_xs = np.array(range(0, total_point_ct))
-    out = np.interp(interp_xs, xs, ys)
-    print(out)
-
-def create_gts(x_func, y_func, start_times, number_of_samples, noise=None, relative_x_positions=False):
+def create_gts(x_func, y_func, start_times, number_of_samples, noise=None, relative_x_positions=False, use_distance_sos=True):
     """ Return LENGTH X VOCAB
 
     Args:
@@ -288,12 +266,15 @@ def create_gts(x_func, y_func, start_times, number_of_samples, noise=None, relat
     if relative_x_positions:
         x = stroke_recovery.relativefy(x)
 
+    # Instead of using 1 to denote start of stroke, use 0, increment for each additional stroke based on distance of stroke
+    if use_distance_sos:
+        is_start_stroke = stroke_recovery.get_stroke_length_gt(x, y, is_start_stroke)
+
     # Create GT matrix
     end_of_sequence_flag = np.zeros(x.shape[0])
     end_of_sequence_flag[-1] = 1
 
-    #
-    []
+    # Put it together
     gt = np.array([x, y, is_start_stroke, end_of_sequence_flag]).transpose([1,0]) # swap axes
     return gt
 

@@ -9,8 +9,6 @@ from hwr_utils.stroke_recovery import relativefy, relativefy_batch, relativefy_b
 import logging
 logger = logging.getLogger("root."+__name__)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 MAX_LENGTH=60
 
 def to_value(loss_tensor):
@@ -90,7 +88,7 @@ class TrainerBaseline(json.JSONEncoder):
         if force_training:
             self.model.train()
         else:
-            self.model.eval()
+            self.model.eval(device=self.config.device)
 
         pred_tup = self.model(line_imgs, online)
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
@@ -122,7 +120,7 @@ class TrainerBaseline(json.JSONEncoder):
         if force_training:
             self.model.train()
         else:
-            self.model.eval()
+            self.model.eval(device=self.config.device)
 
         #use_lm = config['testing_language_model']
         #n_warp_iterations = config['n_warp_iterations']
@@ -200,7 +198,7 @@ class TrainerStrokeRecovery:
         Returns:
 
         """
-        line_imgs = item["line_imgs"].to(device)
+        line_imgs = item["line_imgs"].to(self.config.device)
         label_lengths = item["label_lengths"]
         gt = item["gt_list"]
         suffix = "_train" if train else "_test"
@@ -210,7 +208,7 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.config.relative_x_pred_abs_eval)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.config.relative_x_pred_abs_eval, device=self.config.device)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
@@ -224,11 +222,11 @@ class TrainerStrokeRecovery:
         return loss, preds, None
 
     def test(self, item, **kwargs):
-        self.model.eval()
+        self.model.eval(device=self.config.device)
         return self.train(item, train=False, **kwargs)
 
     @staticmethod
-    def eval(line_imgs, model, label_lengths=None, relative=False):
+    def eval(line_imgs, model, label_lengths=None, relative=False, device="cuda"):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)

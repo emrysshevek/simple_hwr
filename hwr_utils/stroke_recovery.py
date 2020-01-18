@@ -38,6 +38,9 @@ from hwr_utils.stroke_plotting import *
 # Add more instances -- otherwise make it so the first instance is at the start of the letter
 
 
+# euclidean distance metric
+distance_metric = lambda x, y: ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
+
 def read_stroke_xml(path, start_stroke=None, end_stroke=None):
     """
     Args:
@@ -107,9 +110,6 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
         time_interval = epsilon * 3
 
     distance = 0
-
-    # euclidean distance metric
-    distance_metric = lambda x, y: ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
 
     # Loop through each stroke
     for i, stroke_dict in enumerate(strokes):
@@ -367,7 +367,79 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     #print(time)
     return function_x(time), function_y(time), is_start_stroke
 
+def calc_stroke_distances(x,y,start_strokes):
+    """
+
+    Args:
+        x: List of x's
+        y: List of y's
+        start_strokes: List of start stroke identifiers [1,0,0,1...
+
+    Returns:
+
+    """
+    [start_indices] = np.where(start_strokes)
+    end_idx = len(start_strokes)-1
+    end_indices = np.append((start_indices-1)[1:], end_idx)
+    distances = distance_metric(x,y)
+    cum_sum = np.append(0, np.cumsum(distances)) # distance is 0 at first point; keeps length the same
+    lengths = cum_sum[end_indices] - cum_sum[start_indices]
+    return lengths
+
+def get_stroke_length_gt(x, y, start_points, use_distance=True):
+    start_indices = np.where(start_points)[0]
+    start_point_ct = len(start_indices)
+    last_idx = len(start_points)-1
+
+    # Create list of start and end points (x's for interpolation)
+    xs = np.repeat(start_indices,2)
+    xs[::2] -= 1
+    xs = np.append(xs[1:], last_idx)
+
+    ## Create y's for interpolation (the target values)
+    ys = np.zeros(2*start_point_ct)
+
+
+    # Make each target the actual stroke length
+    if use_distance:
+        distances = calc_stroke_distances(x,y, start_points)
+        ys[1::2] = distances
+    else:
+        # Make each stroke length "1" unit
+        ys[1::2] += 1
+    interp_xs = np.array(range(0, last_idx+1))
+    out = np.interp(interp_xs, xs, ys)
+    return out
+
+def test_gt_stroke_length_generator():
+    x = np.array(range(0,17))#**2
+    y = np.array(range(0,17))#**2
+    m = np.array([1,0,0,1,0,0,0,0,1,0,0,0,0,0,1,0,0])
+    final = get_stroke_length_gt(x, y, m)
+    print(final)
+    assert np.allclose(final, to_numpy("""[0.         1.41421356 2.82842712 0.         1.41421356 2.82842712, 4.24264069 5.65685425 0.
+                               1.41421356 2.82842712 4.24264069, 5.65685425 7.07106781 0.         1.41421356 2.82842712]"""))
+
+    x = np.array(range(0,4))#**2
+    y = np.array(range(0,4))#**2
+    m = np.array([1,1,0,0,])
+    final = get_stroke_length_gt(x, y, m)
+    print(final)
+    assert np.allclose(final, np.array([0.,0.,1.41421356,2.82842712]))
+
+
+
+def to_numpy(array_string):
+    from ast import literal_eval
+    import numpy as np
+    import re
+    array_string = re.sub('[\s,]+', ',', array_string)
+    array_string = np.array(literal_eval(array_string))
+    return array_string
+
 if __name__=="__main__":
+    test_gt_stroke_length_generator()
+    Stop
     os.chdir("../data")
     with open("online_coordinate_data/3_stroke_16_v2/train_online_coords.json") as f:
         output_dict = json.load(f)

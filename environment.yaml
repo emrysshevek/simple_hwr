@@ -14,9 +14,11 @@ dependencies:
   - matplotlib
   - cython
   - nose
+  - jupyter
   #- scikit-learn
   - pip:
     - easydict
+    - jsonpatch
     - biopython==1.73
     - editdistance==0.5.3
     - gputil==1.4.0
