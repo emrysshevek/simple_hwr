@@ -126,7 +126,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             idx = config.gt_format.index("stroke_number")
             coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
-        render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"temp{i}_{name}{suffix}.png")
+        render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"{i}_{name}{suffix}.png")
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
@@ -226,7 +226,7 @@ def main(config_path):
     utils.stat_prep_strokes(config)
 
     # Create loss object
-    config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter)
+    config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
     config.loss_obj.build_losses(config.loss_fns)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)

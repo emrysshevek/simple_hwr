@@ -374,27 +374,7 @@ def make_config_consistent_stroke(config):
     #         else:
     #             config[key][i] = (loss, float(coef))
     #             config.all_losses.add(loss)
-
-    # Process loss functions
-    for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]: # [loss_fns, loss_fns2]
-        for i, loss in enumerate(config[loss_fn_group]): # [{name: , coef: } ...]
-            indices = [config.gt_format.index(k) for k in loss["gts"]]
-
-            # Add to list used for AUTOSTATS
-            if loss["name"] not in config.all_losses:
-                config.all_losses.add(loss["name"])
-            else:
-                warnings.warn(f"{loss['name']} loss already added to stats")
-
-            # Convert to a slice?? no
-            config[loss_fn_group][i]["loss_indices"] = indices
-
-            if "dtw_mapping_basis" in loss.keys():
-                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in loss["dtw_mapping_basis"]]
-    if not "loss_fns2" in config.keys():
-        config.loss_fns2 = None
-
-    config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
+    validate_and_prep_loss(config)
     return config
 
 def make_config_consistent_hwr(config):
@@ -561,6 +541,40 @@ def get_last_index(my_list, value):
 def write_out(folder, fname, text):
     with open(os.path.join(folder, fname), "a") as f:
         f.writelines(text+"\n\n")
+
+def validate_and_prep_loss(config):
+    # Each should be the same length
+    assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
+
+    # Process loss functions
+    for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
+        for i, loss in enumerate(config[loss_fn_group]):  # [{name: , coef: } ...]
+            indices = [config.gt_format.index(k) for k in loss["gts"]] # This will throw an error if the loss expected something not in the GT
+
+            # Add to list used for AUTOSTATS
+            if loss["name"] not in config.all_losses:
+                config.all_losses.add(loss["name"])
+            else:
+                warnings.warn(f"{loss['name']} loss already added to stats")
+
+            # Convert to a slice?? no
+            config[loss_fn_group][i]["loss_indices"] = indices
+
+            if "dtw_mapping_basis" in loss.keys():
+                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
+                                                                 loss["dtw_mapping_basis"]]
+
+            if "subcoef" in loss.keys():
+                subcoef = loss["subcoef"]
+                if isinstance(loss["subcoef"], str):
+                    subcoef = [float(s) for s in loss["subcoef"].split(",")]
+                config[loss_fn_group][i] = subcoef
+                assert len(subcoef) == len(loss["gts"])
+    if not "loss_fns2" in config.keys():
+        config.loss_fns2 = None
+
+    config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
+    return config
 
 class CharAcc:
     def __init__(self, char_to_idx):

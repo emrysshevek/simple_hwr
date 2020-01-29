@@ -23,7 +23,7 @@ PADDING_CONSTANT = 0
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
-def read_img(image_path, num_of_channels=1, target_height=60, resize=False):
+def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
     if num_of_channels == 3:
         img = cv2.imread(image_path.as_posix())
     elif num_of_channels == 1:  # read grayscale
@@ -37,7 +37,6 @@ def read_img(image_path, num_of_channels=1, target_height=60, resize=False):
     percent = float(target_height) / img.shape[0]
 
     if percent != 1 and resize:
-        print(percent)
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
     # Add channel dimension, since resize and warp only keep non-trivial channel axis
@@ -50,6 +49,9 @@ def read_img(image_path, num_of_channels=1, target_height=60, resize=False):
     return img
 
 class BasicDataset(Dataset):
+    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
+
+    """
     def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
         # Create dictionary with all the paths and some index
         root = Path(root)
@@ -61,12 +63,12 @@ class BasicDataset(Dataset):
         if pickle_file:
             self.data = unpickle_it(pickle_file)
         else:
-            # Rebuild the dataset
+            # Rebuild the dataset - find all PNG files
             for i in root.rglob("*" + extension):
                 self.data.append({"image_path":i.as_posix()})
             logger.info(("Length of data", len(self.data)))
 
-            # Add label lengths
+            # Add label lengths - save to pickle
             if self.cnn:
                 output = Path(root / "stroke_cached")
                 output.mkdir(parents=True, exist_ok=True)
@@ -74,7 +76,6 @@ class BasicDataset(Dataset):
                 add_output_size_to_data(self.data, self.cnn, key="label_length", root=self.root)
                 logger.info(f"DUMPING cached version to: {filename}")
                 pickle.dump(self.data, filename.open(mode="wb"))
-
 
     def __len__(self):
         return len(self.data)
@@ -166,7 +167,7 @@ class StrokeRecoveryDataset(Dataset):
 
     def load_data(self, root, images_to_load, data_paths):
         data = []
-        for data_path in data_paths:
+        for data_path in data_paths: # loop through JSONs
             data_path = str(data_path)
             print(os.path.join(root, data_path))
             with open(os.path.join(root, data_path)) as fp:
@@ -202,12 +203,19 @@ class StrokeRecoveryDataset(Dataset):
         # def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         # stroke_plotting.draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=new_img_path, line_width=.8)
 
-        img = read_img(image_path)
+        # Check if the image is already loaded
+        if "line_img" in item:
+            img = item["line_img"]
+        else:
+            # Maybe delete this option
+            # The GTs will be the wrong size if the image isn't resized the same way as earlier
+            # Assuming e.g. we pass everything through the CNN every time etc.
+            img = read_img(image_path)
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
         gt = np.asarray(item["gt"]) # LENGTH, VOCAB #.transpose([1,0])
-        #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke
+        #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke; but it could be for e.g. a dotted i
         # print(gt.shape)
         # print(gt)
         # (32, 5)
@@ -349,12 +357,15 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
     """
     #cnn.to("cpu")
     width_to_output_mapping = {}
-    for instance in data:
+    for i, instance in enumerate(data):
         if "shape" in instance:
             width = instance["shape"][1] # H,W,Channels
         elif root:
             image_path = root / instance['image_path']
             img = read_img(image_path)
+
+            # Add the image to the datafile!
+            data[i]["line_imgs"] = img
             instance["img"] = img
             instance["shape"] = img.shape
             width = instance["shape"][1] # H,W,Channels

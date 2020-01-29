@@ -16,7 +16,7 @@ import time
 from losses import *
 
 class StrokeLoss:
-    def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, **kwargs):
+    def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, device="cuda", **kwargs):
         super(StrokeLoss, self).__init__()
         ### Relative preds and relative GTs:
             # Resample GTs to be relative
@@ -26,7 +26,7 @@ class StrokeLoss:
         ### Relative preds from network, then convert to absolute before loss
             # Return unrelative preds
 
-        #device = torch.device("cuda")
+        self.device = device
         self.vocab_size = vocab_size
         self.cosine_similarity = nn.CosineSimilarity(dim=1)
         self.cosine_distance = lambda x, y: 1 - self.cosine_similarity(x, y)
@@ -43,6 +43,7 @@ class StrokeLoss:
         self.loss_fns = []
         self.loss_names_and_coef = None
 
+
     def build_losses(self, loss_fn_definition):
         if loss_fn_definition is None:
             return
@@ -56,15 +57,15 @@ class StrokeLoss:
                 idx = self.loss_names.index(loss["name"])
                 loss_fn = self.loss_fns[idx]
             elif loss["name"].lower().startswith("l1"):
-                loss_fn = L1(**loss).lossfun
+                loss_fn = L1(**loss, device=self.device).lossfun
             elif loss["name"].lower().startswith("dtw"):
-                loss_fn = DTWLoss(**loss).lossfun
+                loss_fn = DTWLoss(**loss, device=self.device).lossfun
             elif loss["name"].lower().startswith("barron"):
                 loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
             elif loss["name"].lower().startswith("ssl"):
-                loss_fn = SSL(**loss).lossfun
+                loss_fn = SSL(**loss, device=self.device).lossfun
             elif loss["name"].lower().startswith("cross_entropy"):
-                loss_fn = CrossEntropy(**loss).lossfun
+                loss_fn = CrossEntropy(**loss,device=self.device).lossfun
             else:
                 raise Exception(f"Unknown loss: {loss['name']}")
 
