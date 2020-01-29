@@ -23,17 +23,17 @@ class CustomLoss(nn.Module):
     def __init__(self, loss_indices, device="cuda", **kwargs):
         super().__init__()
         self.loss_indices = loss_indices
-        self.device="cuda"
+        self.device="cpu" # I guess this needs to be CPU? IDK
         self.__dict__.update(**kwargs)
         if "subcoef" in kwargs:
             subcoef = kwargs["subcoef"]
             if isinstance(subcoef, str):
                 subcoef = [float(s) for s in subcoef.split(",")]
-            self.subcoef = Tensor(subcoef).to(device)
+            self.subcoef = Tensor(subcoef).to(self.device)
         else:
             # MAY NOT ALWAYS BE 4!!!
             length = len(range(*loss_indices.indices(4))) if isinstance(loss_indices, slice) else len(loss_indices)
-            self.subcoef = torch.ones(length).to(device)
+            self.subcoef = torch.ones(length).to(self.device)
 
 class DTWLoss(CustomLoss):
     def __init__(self, loss_indices, dtw_mapping_basis=None, **kwargs):

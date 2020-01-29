@@ -2,7 +2,7 @@ from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
-from stroke_recovery_loss import StrokeLoss
+from loss_module.stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
 from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
@@ -12,7 +12,7 @@ from torch.optim import lr_scheduler
 from timeit import default_timer as timer
 import argparse
 from hwr_utils.hwr_logger import logger
-import losses
+from loss_module import losses
 
 ## Change CWD to the folder containing this script
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -142,7 +142,6 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
-    utils.kill_gpu_hogs()
     os.chdir(ROOT_DIR)
 
     config = utils.load_config(config_path, hwr=False)
@@ -153,6 +152,10 @@ def main(config_path):
 
     config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
     device = config.device
+
+    # Free GPU memory if necessary
+    if config.device == "cuda":
+        utils.kill_gpu_hogs()
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
     output = Path(config.results_dir)

@@ -357,6 +357,7 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
     """
     #cnn.to("cpu")
     width_to_output_mapping = {}
+    device = "cuda"
     for i, instance in enumerate(data):
         if "shape" in instance:
             width = instance["shape"][1] # H,W,Channels
@@ -373,7 +374,12 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
             raise Exception("No shape and no image root directory")
 
         if width not in width_to_output_mapping:
-            t = torch.zeros(1, 1, 32, width).to("cuda")
+            try:
+                t = torch.zeros(1, 1, 32, width).to(device)
+            except:
+                device = "cpu"
+                t = torch.zeros(1, 1, 32, width).to(device)
+
             shape = cnn(t).shape
             width_to_output_mapping[width] = shape[0]
         instance[key]=width_to_output_mapping[width]

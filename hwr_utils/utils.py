@@ -482,16 +482,20 @@ def choose_optimal_gpu(priority="memory"):
     except:
         return None
 
-def wait_for_gpu():
-    if get_computer() != "Galois":
-        return
-
-    ## Wait until GPU is available -- only on Galois
+def get_gpu_utilization():
     import GPUtil
     GPUtil.showUtilization()
     GPUs = GPUtil.getGPUs()
     utilization = GPUs[0].load * 100  # memoryUtil
     memory_utilization = GPUs[0].memoryUtil * 100  #
+    return utilization, memory_utilization
+
+def wait_for_gpu():
+    if get_computer() != "Galois":
+        return
+
+    ## Wait until GPU is available -- only on Galois
+    utilization, memory_utilization = get_gpu_utilization()
     log_print(utilization)
     if memory_utilization > 40:
         warnings.warn("Memory utilization is high; close other GPU processes")
@@ -568,7 +572,7 @@ def validate_and_prep_loss(config):
                 subcoef = loss["subcoef"]
                 if isinstance(loss["subcoef"], str):
                     subcoef = [float(s) for s in loss["subcoef"].split(",")]
-                config[loss_fn_group][i] = subcoef
+                config[loss_fn_group][i]["subcoef"] = subcoef
                 assert len(subcoef) == len(loss["gts"])
     if not "loss_fns2" in config.keys():
         config.loss_fns2 = None
@@ -1163,6 +1167,13 @@ def plot_tensor(tensor):
 def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_galois():
+        utilization, memory_utilization = get_gpu_utilization()
+        if memory_utilization > .5:
+            kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
+            if kill_all.lower()!="y":
+                return
+        else:
+            return
         hwr_logger.logger.info("Killing GPU hogs")
         ## KILL ALL OTHER PYTHON SCRIPTS
         pid = os.getpid()

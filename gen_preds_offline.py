@@ -2,7 +2,7 @@ from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
-from losses.stroke_recovery_loss import StrokeLoss
+from loss_module.stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
 from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import BasicDataset
@@ -15,6 +15,7 @@ from pathlib import Path
 
 import os
 from subprocess import Popen
+
 
 utils.kill_gpu_hogs()
 pid = os.getpid()

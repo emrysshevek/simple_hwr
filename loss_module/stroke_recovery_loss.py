@@ -13,7 +13,7 @@ from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
 from scipy.spatial import KDTree
 import time
-from losses import *
+from loss_module.losses import *
 
 class StrokeLoss:
     def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, device="cuda", **kwargs):
@@ -51,6 +51,7 @@ class StrokeLoss:
         coefs = []
         loss_names = []
         self.loss_fn_definition = loss_fn_definition
+        print(loss_fn_definition)
         for loss in loss_fn_definition:
             # IF THE EXACT SAME LOSS ALREADY EXISTS, DON'T BUILD A NEW ONE
             if loss["name"] in self.loss_names:

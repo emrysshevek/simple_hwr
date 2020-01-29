@@ -4,7 +4,6 @@ from torch.autograd import Variable
 from hwr_utils import utils
 from hwr_utils.stroke_recovery import relativefy_batch_torch
 import logging
-import losses
 
 logger = logging.getLogger("root."+__name__)
 
