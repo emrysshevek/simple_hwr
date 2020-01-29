@@ -16,10 +16,10 @@ def naive_convolve(np.ndarray x, np.ndarray y, ):
     # problems with allowing them in other places, though we'd love to see
     # good and thought out proposals for it).
     #
-    # For the indices, the "int" type is used. This corresponds to a C int,
+    # For the loss_indices, the "int" type is used. This corresponds to a C int,
     # other C types (like "unsigned int") could have been used instead.
     # Purists could use "Py_ssize_t" which is the proper Python type for
-    # array indices.
+    # array loss_indices.
     cdef int vmax = f.shape[0]
     cdef int wmax = f.shape[1]
     cdef int smax = g.shape[0]

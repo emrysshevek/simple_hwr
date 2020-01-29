@@ -1,11 +1,8 @@
-from pathlib import Path
-import numpy as np
 from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
-from models.stroke_recovery_loss import StrokeLoss
-import torch
+from stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
 from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
@@ -14,8 +11,8 @@ from hwr_utils import utils
 from torch.optim import lr_scheduler
 from timeit import default_timer as timer
 import argparse
-import logging
 from hwr_utils.hwr_logger import logger
+import losses
 
 ## Change CWD to the folder containing this script
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -34,14 +31,13 @@ def parse_args():
     return opts
 
 class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None, sigmoid_slice=slice(2,None)):
+    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None, **kwargs):
         super().__init__()
+        self.__dict__.update(kwargs)
         if first_conv_op:
             first_conv_op = CoordConv
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
-        self.sigmoid =torch.nn.Sigmoid().to(device)
-        self.sigmoid_slice = sigmoid_slice
 
     def forward(self, input):
         if self.training:
@@ -53,7 +49,7 @@ class StrokeRecoveryModel(nn.Module):
     def _forward(self, input):
         cnn_output = self.cnn(input)
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,self.sigmoid_slice]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
+        # sigmoids are done in the loss
         return rnn_output
 
 def run_epoch(dataloader, report_freq=500):
@@ -83,7 +79,9 @@ def run_epoch(dataloader, report_freq=500):
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=config.x_relative_positions, epoch=epoch)
+    save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=config.x_relative_positions, epoch=epoch)
+    utils.write_out(save_folder, "example_data", f"{str(item['gt_list'][0])}\nPREDS\n{str(preds_to_graph[0])}")
+
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances
 
@@ -92,7 +90,7 @@ def test(dataloader):
         loss, preds, *_ = trainer.test(item)
         config.stats["Actual_Loss_Function_test"].accumulate(loss)
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=config.x_relative_positions, epoch=epoch)
+    save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=config.x_relative_positions, epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
     return config.stats["Actual_Loss_Function_test"].get_last()
@@ -116,13 +114,17 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             #print("after round", coords[2])
 
             suffix=""
+
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
 
         ## Undo relative positions for X for graphing
-        if x_relative_positions:
-            coords[0] = relativefy_numpy(coords[0], reverse=True)
+        ## In normal mode, the cumulative sum has already been taken
+        # if config.pred_relativefy:
+        if "stroke_number" in config.gt_format:
+            idx = config.gt_format.index("stroke_number")
+            coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
         render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"temp{i}_{name}{suffix}.png")
 
@@ -135,6 +137,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
         subgraph(preds, img_path, name, is_gt=False)
         if i > 8:
             break
+    return save_folder
 
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
@@ -165,8 +168,7 @@ def main(config_path):
                                 device=device,
                                 cnn_type=config.cnn_type,
                                 first_conv_op=config.coordconv,
-                                first_conv_opts=config.coordconv_opts,
-                                sigmoid_slice=config.sigmoid_slice).to(device)
+                                first_conv_opts=config.coordconv_opts).to(device)
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     logger.info(("Current dataset: ", folder))
 
@@ -176,7 +178,7 @@ def main(config_path):
                             num_of_channels = 1,
                             root=config.data_root,
                             max_images_to_load = train_size,
-                            x_relative_positions=config.x_relative_positions,
+                            gt_format=config.gt_format,
                             cnn=cnn
                             )
 
@@ -194,7 +196,7 @@ def main(config_path):
                             num_of_channels = 1.,
                             root=config.data_root,
                             max_images_to_load=test_size,
-                            x_relative_positions=config.x_relative_positions,
+                            gt_format=config.gt_format,
                             cnn=cnn
                             )
 
@@ -215,13 +217,18 @@ def main(config_path):
     # vocab_size = example["gt"].shape[-1]
 
     ## Stats
+    # Generic L1 loss
+    config.L1 = losses.L1(loss_indices=slice(0, 2))
+
     if config.use_visdom:
         utils.start_visdom(port=config.visdom_port)
         visualize.initialize_visdom(config["full_specs"], config)
     utils.stat_prep_strokes(config)
 
     # Create loss object
-    config.loss_obj = StrokeLoss(loss_names=config.loss_fns, loss_stats=config.stats, counter=config.counter)
+    config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter)
+    config.loss_obj.build_losses(config.loss_fns)
+
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
@@ -239,7 +246,7 @@ def main(config_path):
         test_loss = test(test_dataloader)
         logger.info(f"Epoch: {epoch}, Test Loss: {test_loss}")
         if config.first_loss_epochs and epoch == config.first_loss_epochs:
-            config.loss_obj.set_loss(config.loss_fns2)
+            config.loss_obj.build_losses(config.loss_fns2)
 
         if epoch % config.save_freq == 0: # how often to save
             utils.save_model_stroke(config, bsf=False)

@@ -1,12 +1,11 @@
 #from torchvision.models import resnet
-from models.CRCR import CRCR
 from models.deprecated_crnn import *
 from torch.autograd import Variable
-from models.basic import BidirectionalRNN, CNN
-from models.CoordConv import CoordConv
 from hwr_utils import utils
-from hwr_utils.stroke_recovery import relativefy, relativefy_batch, relativefy_batch_torch
+from hwr_utils.stroke_recovery import relativefy_batch_torch
 import logging
+import losses
+
 logger = logging.getLogger("root."+__name__)
 
 MAX_LENGTH=60
@@ -155,7 +154,6 @@ class TrainerBaseline(json.JSONEncoder):
             return loss, err, pred_strs
 
 class TrainerStrokeRecovery:
-    from models import stroke_recovery_loss
     def __init__(self, model, optimizer, config, loss_criterion=None):
         #super().__init__(model, optimizer, config, loss_criterion)
         self.model = model
@@ -166,9 +164,16 @@ class TrainerStrokeRecovery:
             self.logger = utils.setup_logging()
         else:
             self.logger = config.logger
+        self.opts = None
+        self.relative = None
+        self.update_relative(config.pred_opts)
 
     def default(self, o):
         return None
+
+    def update_relative(self, pred_opts):
+        self.relative = [i for i,x in enumerate(pred_opts) if x=="cumsum"]
+        return self.relative
 
     @staticmethod
     def truncate(preds, label_lengths):
@@ -208,7 +213,7 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.config.relative_x_pred_abs_eval, device=self.config.device)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.relative, device=self.config.device)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
@@ -222,11 +227,11 @@ class TrainerStrokeRecovery:
         return loss, preds, None
 
     def test(self, item, **kwargs):
-        self.model.eval(device=self.config.device)
+        self.model.eval()
         return self.train(item, train=False, **kwargs)
 
     @staticmethod
-    def eval(line_imgs, model, label_lengths=None, relative=False, device="cuda"):
+    def eval(line_imgs, model, label_lengths=None, relative=None, device="cuda"):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
@@ -235,13 +240,11 @@ class TrainerStrokeRecovery:
 
         ## Make absolute preds from relative preds - must be done before truncation
         if relative:
-            preds = relativefy_batch_torch(preds, reverse=True)  # assume they were in relative positions, convert to absolute
+            preds = relativefy_batch_torch(preds, reverse=True, indices=relative)  # assume they were in relative positions, convert to absolute
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
             preds = TrainerStrokeRecovery.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
-
-
         return preds
 
     def update_stats(self, item, preds, train=True):
@@ -249,7 +252,8 @@ class TrainerStrokeRecovery:
 
         ## If not using L1 loss, report the stat anyway
         if "l1" not in self.loss_criterion.loss_names:
-            l1_loss = to_value(self.loss_criterion.l1(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch size
+            # Just a generic L1 loss for x,y coords
+            l1_loss = to_value(self.config.L1.lossfun(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch size
             self.config.stats["l1"+suffix].accumulate(l1_loss)
 
         # Don't do the nearest neighbor search by default

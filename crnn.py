@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from models.basic import BidirectionalRNN, CNN
 from models.CoordConv import CoordConv
 from hwr_utils import utils
-from hwr_utils.stroke_recovery import relativefy, relativefy_batch, relativefy_batch_torch
+from hwr_utils.stroke_recovery import relativefy_batch_torch
 import logging
 logger = logging.getLogger("root."+__name__)
 
@@ -267,7 +267,6 @@ class TrainerBaseline(json.JSONEncoder):
             return loss, err, pred_strs
 
 class TrainerStrokeRecovery:
-    from models import stroke_recovery_loss
     def __init__(self, model, optimizer, config, loss_criterion=None):
         #super().__init__(model, optimizer, config, loss_criterion)
         self.model = model

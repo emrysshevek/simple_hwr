@@ -1,19 +1,14 @@
-from pathlib import Path
-import numpy as np
 from hwr_utils import visualize
 from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
-from models.stroke_recovery_loss import StrokeLoss
-import torch
+from losses.stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
 from trainers import TrainerStrokeRecovery
-from hwr_utils.stroke_dataset import StrokeRecoveryDataset, BasicDataset
+from hwr_utils.stroke_dataset import BasicDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
-from timeit import default_timer as timer
-from hwr_utils.utils import debugger
 from train_stroke_recovery import StrokeRecoveryModel, parse_args, graph
 from hwr_utils.hwr_logger import logger
 from pathlib import Path
@@ -94,7 +89,10 @@ def main(config_path):
 
 def eval_only(dataloader, model):
     for i, item in enumerate(dataloader):
-        preds = TrainerStrokeRecovery.eval(item["line_imgs"], model, label_lengths=item["label_lengths"], relative=config.relative_x_pred_abs_eval)
+        preds = TrainerStrokeRecovery.eval(item["line_imgs"], model,
+                                           label_lengths=item["label_lengths"],
+                                           relative=config.pred_relativefy)
+
         preds_to_graph = [p.permute([1, 0]) for p in preds]
         graph(item, preds=preds_to_graph, _type="eval", x_relative_positions=x_relative_positions, epoch="current", config=config)
 

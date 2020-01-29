@@ -207,8 +207,9 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "training_nn_loss": False,
                    "test_nn_loss": False,
                    "visdom_port": 9001,
-                   "sos_distance": True,
-                   "gpu_if_available": True
+                   "gpu_if_available": True,
+                    "start_of_stroke_method":"normal",
+                    "interpolated_sos": "normal"
                     }
 
 
@@ -247,11 +248,6 @@ def load_config(config_path, hwr=True):
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
-
-    if config.sos_distance:
-        config.sigmoid_slice = slice(3, None)
-    else:
-        config.sigmoid_slice = slice(2, None)
 
     # Main output folder
     if config["load_path"]:
@@ -367,11 +363,38 @@ def make_config_consistent_stroke(config):
 
     ## Process loss functions
     config.all_losses = set()
-    for key in [k for k in config.keys() if "loss_fns" in k]:
-        for i, loss in enumerate(config[key]):
-            loss, coef = loss.lower().split(",")
-            config[key][i] = (loss, float(coef))
-            config.all_losses.add(loss)
+    # for key in [k for k in config.keys() if "loss_fns" in k]:
+    #     for i, loss in enumerate(config[key]):
+    #         loss, coef = loss.lower().split(",")
+    #
+    #         # Don't use inconsistent losses
+    #         if "interpolated" in config.interpolated_sos and loss=="ssl":
+    #             warnings.warn("Ignoring SSL, since 'interpolated' start point method doesn't use it")
+    #             del config[key][i]
+    #         else:
+    #             config[key][i] = (loss, float(coef))
+    #             config.all_losses.add(loss)
+
+    # Process loss functions
+    for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]: # [loss_fns, loss_fns2]
+        for i, loss in enumerate(config[loss_fn_group]): # [{name: , coef: } ...]
+            indices = [config.gt_format.index(k) for k in loss["gts"]]
+
+            # Add to list used for AUTOSTATS
+            if loss["name"] not in config.all_losses:
+                config.all_losses.add(loss["name"])
+            else:
+                warnings.warn(f"{loss['name']} loss already added to stats")
+
+            # Convert to a slice?? no
+            config[loss_fn_group][i]["loss_indices"] = indices
+
+            if "dtw_mapping_basis" in loss.keys():
+                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in loss["dtw_mapping_basis"]]
+    if not "loss_fns2" in config.keys():
+        config.loss_fns2 = None
+
+    config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
     return config
 
 def make_config_consistent_hwr(config):
@@ -1137,15 +1160,19 @@ def kill_gpu_hogs():
             command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
             result = Popen(command, shell=True)
         else:
-            exclusion_words = "visdom", "jupyter"
+            exclusion_words = "visdom", "jupyter", "grep"
             find_processes_command = f"ps all | grep python"  + f" | awk '!/{pid}/'"
             x = check_output([find_processes_command], shell=True)
             all_python_processes = x.decode().split("\n")[:-1]
             for process in all_python_processes:
                 if not any([ew in process for ew in exclusion_words]):
                     hwr_logger.logger.info(f"killing {process}")
-                    os.kill(int(process.split()[2]), signal.SIGTERM)
-        return result
+                    try:
+                        os.kill(int(process.split()[2]), signal.SIGTERM)
+                    except:
+                        hwr_logger.logger.info("Didn't work")
+                        pass
+        return
 
 def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
     # Error is "OSError: [Errno 98] Address already in use"
@@ -1154,6 +1181,12 @@ def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
     stderr = DEVNULL if suppress_errors else STDOUT
     stdout = DEVNULL if suppress_output else STDOUT
     Popen("python -m visdom.server -p {}".format(port), shell=True, env=my_env, stdout=stdout, stderr=stderr)
+
+def get_index(l, item):
+    if item in l:
+        return l.index(item)
+    else:
+        return -1
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot

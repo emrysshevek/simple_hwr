@@ -46,15 +46,73 @@ train_size: null
 batch_size: 16
 vocab_size: 4
 
-## Loss function
-loss_fns:
-  - l1, .1
-  - ssl, 5
-loss_fns2:
-  - dtw, .1
-  - ssl, 5
+## GTs
+# All options include:
+  # x pos, y pos
+  # sos - 'is start of stroke' (1's for yes, 0's for no)
+  # sos_interp - 'is start of stroke' interpolated
+  # sos_interp_dist - 'is start of stroke' interpolated
+  # stroke_number - 'is start of stroke' interpolated
+  # eos - 'is start of stroke' interpolated
 
-first_loss_epochs: 5
+# interpolated_sos: interpolated # normal: use 1's for starts; interpolated: start is a "0" and increases from there based on distance of stroke
+gt_format: # if relative etc., specify that here; e.g., opts:rel
+  - x
+  - y
+  - stroke_number
+  - eos
+
+# NOT IMPLEMENTED
+gt_opts:
+  - null
+  - null
+  - null
+  - null
+
+# stroke_number is the cumsum of sos; gt_format, gt_opts, pred_opts: "sos", "cumsum", "cumsum" = "start_stroke", "null", "cumsum"
+# E.g. cumsum will predict RELATIVE positions; if "null" is specified for gt, it will compare to absolute values
+pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
+  - cumsum
+  - null
+  - cumsum
+  - null
+
+## Loss function
+# l1, dtw, ssl, cross_entropy
+# can also add activation functions here NOT IMPLEMENTED
+# LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
+loss_fns:
+  - name: l1_with_stroke_numbers
+    coef: .2
+    gts:
+      - x
+      - y
+      - stroke_number
+    subcoef: 1,1,.1
+  - name: cross_entropy
+    coef: 1
+    gts:
+      - eos
+    activation: sigmoid
+
+loss_fns2:
+  - name: dtw
+    coef: .2
+    gts:
+      - x
+      - y
+      - stroke_number
+    subcoef: 1,1,.05
+    dtw_mapping_basis:
+      - x
+      - y
+  - name: cross_entropy
+    coef: 1
+    gts:
+      - eos
+    activation: sigmoid
+
+first_loss_epochs: 200
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance
 
@@ -70,7 +128,7 @@ coordconv_default: true # x-coordinates on -1 to 1 range
 coordconv_0_center: true # 0 center
 
 # Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
-x_relative_positions: False # The GT data should be converted to relative positions, rather than absolute
+x_relative_positions: false # The GT data should be converted to relative positions, rather than absolute
 relative_x_pred_abs_eval: true # predict relative coordinates, loss and GTs based on absolute ones
 
 # Visdom
