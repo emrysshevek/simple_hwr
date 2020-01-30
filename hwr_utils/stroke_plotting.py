@@ -30,6 +30,9 @@ def plot_stroke_points(x,y, start_points, square=False):
     plt.scatter(x_start_strokes, y_start_strokes, s=3)
 
 def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=None):
+    if isinstance(img_path, str):
+        img_path = Path(img_path)
+
     gts = np.array(gts)
     pixel_height = 60
 
@@ -157,6 +160,38 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     # plt.NullFormatter()
     if line_width is None:
         line_width = max(random.gauss(1, .5), .4)
+    if x_to_y != 1 and not x_to_y is None:
+        for stroke in stroke_list:
+            stroke["x"] = [item * x_to_y for item in stroke["x"]]
+
+    y_min = min([min(x["y"]) for x in stroke_list])
+    y_max = max([max(x["y"]) for x in stroke_list])
+    x_min = min([min(x["x"]) for x in stroke_list])
+    x_max = max([max(x["x"]) for x in stroke_list])
+
+    if x_to_y:
+        size = (ceil(x_to_y),1)
+    else:
+        size = (ceil((x_max-x_min)/(y_max-y_min)), 1)
+        print("HERE", size)
+
+    if save_path:
+        prep_figure(pad_dpi["dpi"], size=size)
+
+    plt.ylim([y_min, y_max])
+    plt.xlim([x_min, x_max])
+
+    for stroke in stroke_list:
+        plt.plot(stroke["x"], stroke["y"], linewidth=line_width, color="black")
+
+    if save_path:
+        plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
+        plt.close()
+
+def draw_strokes_from_gt_list(stroke_list, x_to_y=1, line_width=None, save_path=""):
+    # plt.NullFormatter()
+    if line_width is None:
+        line_width = max(random.gauss(1, .5), .4)
     if x_to_y != 1:
         for stroke in stroke_list:
             stroke["x"] = [item * x_to_y for item in stroke["x"]]
@@ -178,6 +213,7 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
         plt.close()
+
 
 def normalize_stroke_list(stroke_list, maintain_ratio=False):
     """ Max/min rescale to -1,1 range

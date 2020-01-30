@@ -8,7 +8,7 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false # Do not train
 offline_pred: false
 logging: info
-gpu_if_available: false
+gpu_if_available: true
 
 # General
 output_folder: ./results
@@ -44,7 +44,6 @@ scheduler_gamma: .95          # LR decay rate
 test_size: null
 train_size: null
 batch_size: 16
-vocab_size: 4
 
 ## GTs
 # All options include:

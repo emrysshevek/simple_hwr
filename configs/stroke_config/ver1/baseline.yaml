@@ -1,6 +1,5 @@
 ## TO DO IMMEDIATELY:
-# DEBUG TEST/TRAIN LOSS
-# RELATIVE COORDS CONFIG
+# WHY DIDN'T THIS WORK AT ALL??
 
 # Load model
 TESTING: false # this is for debugging, do it on a small dataset

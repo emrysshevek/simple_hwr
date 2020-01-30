@@ -24,6 +24,9 @@ script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
 def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
+    if isinstance(image_path, str):
+        image_path = Path(image_path)
+
     if num_of_channels == 3:
         img = cv2.imread(image_path.as_posix())
     elif num_of_channels == 1:  # read grayscale
@@ -31,7 +34,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
     else:
         raise Exception("Unexpected number of channels")
     if img is None:
-        logging.warning("Warning: image is None:", image_path)
+        logging.warning(f"Warning: image is None: {image_path}")
         return None
 
     percent = float(target_height) / img.shape[0]

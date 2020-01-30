@@ -549,6 +549,7 @@ def write_out(folder, fname, text):
 def validate_and_prep_loss(config):
     # Each should be the same length
     assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
+    config.vocab_size = len(config.gt_format) # vocab size is the length of the GT format
 
     # Process loss functions
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
