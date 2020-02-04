@@ -188,17 +188,17 @@ def relativefy_batch(batch, reverse=False):
         batch[i] = relativefy(b[:,0], reverse=reverse)
     return batch
 
-def relativefy_batch_torch(batch, reverse=False):
+def relativefy_batch_torch(batch, reverse=False, indices=(0,)):
     """ A tensor: Batch, Width, Vocab
     """
     if reverse:
         # Only update the x-coords
-        batch[:, :, 0] = torch.cumsum(batch[:, :, 0], dim=1)
+        batch[:, :, indices] = torch.cumsum(batch[:, :, indices], dim=1)
         return batch
     else:
         # The first item in batch is not changed
         # Subtract the current item from next item to get delta
-        batch[:,1:,0] = batch[:, 1:, 0]-batch[:, :-1, 0] # all items in batch, entire sequence, only X coords
+        batch[:,1:,indices] = batch[:, 1:, indices]-batch[:, :-1, indices] # all items in batch, entire sequence, only X coords
         return batch
 
 def relativefy(x, reverse=False):
@@ -387,6 +387,8 @@ def calc_stroke_distances(x,y,start_strokes):
     return lengths
 
 def get_stroke_length_gt(x, y, start_points, use_distance=True):
+    input_shape = start_points.shape
+
     start_indices = np.where(start_points)[0]
     start_point_ct = len(start_indices)
     last_idx = len(start_points)-1
@@ -409,6 +411,8 @@ def get_stroke_length_gt(x, y, start_points, use_distance=True):
         ys[1::2] += 1
     interp_xs = np.array(range(0, last_idx+1))
     out = np.interp(interp_xs, xs, ys)
+
+    assert out.shape == input_shape
     return out
 
 def test_gt_stroke_length_generator():

@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: true  # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -44,6 +44,7 @@ scheduler_gamma: .95          # LR decay rate
 test_size: null
 train_size: null
 batch_size: 16
+vocab_size: 4
 
 ## GTs
 # All options include:
@@ -58,7 +59,7 @@ batch_size: 16
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - stroke_number
+  - sos
   - eos
 
 # NOT IMPLEMENTED
@@ -73,7 +74,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - cumsum
+  - null
   - null
 
 ## Loss function
@@ -82,32 +83,32 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
   - name: l1_with_stroke_numbers
-    coef: .2
+    coef: .5
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.1
+    subcoef: 1,1
   - name: cross_entropy
     coef: 1
     gts:
+      - sos
       - eos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
-    coef: .2
+    coef: .5
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.05
+    subcoef: 1,1
     dtw_mapping_basis:
       - x
       - y
   - name: cross_entropy
     coef: 1
     gts:
+      - sos
       - eos
     activation: sigmoid
 

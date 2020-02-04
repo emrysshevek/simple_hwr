@@ -194,7 +194,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         params = [torch.nn.Parameter(line_imgs)]
         config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0)
 
-        labels = x['labels'].requires_grad_(False)  # numeric indices version of ground truth
+        labels = x['labels'].requires_grad_(False)  # numeric loss_indices version of ground truth
         label_lengths = x['label_lengths'].requires_grad_(False)
         gt = x['gt']  # actual string ground truth
 
@@ -233,7 +233,7 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     for i, x in enumerate(dataloader):
         LOGGER.debug(f"Training Iteration: {i}")
         line_imgs = Variable(x['line_imgs'].type(dtype), requires_grad=False)
-        labels = Variable(x['labels'], requires_grad=False)  # numeric indices version of ground truth
+        labels = Variable(x['labels'], requires_grad=False)  # numeric loss_indices version of ground truth
         label_lengths = Variable(x['label_lengths'], requires_grad=False)
         gt = x['gt']  # actual string ground truth
         config["global_step"] += 1

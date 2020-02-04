@@ -207,8 +207,9 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "training_nn_loss": False,
                    "test_nn_loss": False,
                    "visdom_port": 9001,
-                   "sos_distance": True,
-                   "gpu_if_available": True
+                   "gpu_if_available": True,
+                    "start_of_stroke_method":"normal",
+                    "interpolated_sos": "normal"
                     }
 
 
@@ -247,11 +248,6 @@ def load_config(config_path, hwr=True):
     for k in defaults.keys():
         if k not in config.keys():
             config[k] = defaults[k]
-
-    if config.sos_distance:
-        config.sigmoid_slice = slice(3, None)
-    else:
-        config.sigmoid_slice = slice(2, None)
 
     # Main output folder
     if config["load_path"]:
@@ -367,11 +363,18 @@ def make_config_consistent_stroke(config):
 
     ## Process loss functions
     config.all_losses = set()
-    for key in [k for k in config.keys() if "loss_fns" in k]:
-        for i, loss in enumerate(config[key]):
-            loss, coef = loss.lower().split(",")
-            config[key][i] = (loss, float(coef))
-            config.all_losses.add(loss)
+    # for key in [k for k in config.keys() if "loss_fns" in k]:
+    #     for i, loss in enumerate(config[key]):
+    #         loss, coef = loss.lower().split(",")
+    #
+    #         # Don't use inconsistent losses
+    #         if "interpolated" in config.interpolated_sos and loss=="ssl":
+    #             warnings.warn("Ignoring SSL, since 'interpolated' start point method doesn't use it")
+    #             del config[key][i]
+    #         else:
+    #             config[key][i] = (loss, float(coef))
+    #             config.all_losses.add(loss)
+    validate_and_prep_loss(config)
     return config
 
 def make_config_consistent_hwr(config):
@@ -479,16 +482,20 @@ def choose_optimal_gpu(priority="memory"):
     except:
         return None
 
-def wait_for_gpu():
-    if get_computer() != "Galois":
-        return
-
-    ## Wait until GPU is available -- only on Galois
+def get_gpu_utilization():
     import GPUtil
     GPUtil.showUtilization()
     GPUs = GPUtil.getGPUs()
     utilization = GPUs[0].load * 100  # memoryUtil
     memory_utilization = GPUs[0].memoryUtil * 100  #
+    return utilization, memory_utilization
+
+def wait_for_gpu():
+    if get_computer() != "Galois":
+        return
+
+    ## Wait until GPU is available -- only on Galois
+    utilization, memory_utilization = get_gpu_utilization()
     log_print(utilization)
     if memory_utilization > 40:
         warnings.warn("Memory utilization is high; close other GPU processes")
@@ -538,6 +545,41 @@ def get_last_index(my_list, value):
 def write_out(folder, fname, text):
     with open(os.path.join(folder, fname), "a") as f:
         f.writelines(text+"\n\n")
+
+def validate_and_prep_loss(config):
+    # Each should be the same length
+    assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
+    config.vocab_size = len(config.gt_format) # vocab size is the length of the GT format
+
+    # Process loss functions
+    for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
+        for i, loss in enumerate(config[loss_fn_group]):  # [{name: , coef: } ...]
+            indices = [config.gt_format.index(k) for k in loss["gts"]] # This will throw an error if the loss expected something not in the GT
+
+            # Add to list used for AUTOSTATS
+            if loss["name"] not in config.all_losses:
+                config.all_losses.add(loss["name"])
+            else:
+                warnings.warn(f"{loss['name']} loss already added to stats")
+
+            # Convert to a slice?? no
+            config[loss_fn_group][i]["loss_indices"] = indices
+
+            if "dtw_mapping_basis" in loss.keys():
+                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
+                                                                 loss["dtw_mapping_basis"]]
+
+            if "subcoef" in loss.keys():
+                subcoef = loss["subcoef"]
+                if isinstance(loss["subcoef"], str):
+                    subcoef = [float(s) for s in loss["subcoef"].split(",")]
+                config[loss_fn_group][i]["subcoef"] = subcoef
+                assert len(subcoef) == len(loss["gts"])
+    if not "loss_fns2" in config.keys():
+        config.loss_fns2 = None
+
+    config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
+    return config
 
 class CharAcc:
     def __init__(self, char_to_idx):
@@ -1126,6 +1168,13 @@ def plot_tensor(tensor):
 def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_galois():
+        utilization, memory_utilization = get_gpu_utilization()
+        if memory_utilization > .5:
+            kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
+            if kill_all.lower()!="y":
+                return
+        else:
+            return
         hwr_logger.logger.info("Killing GPU hogs")
         ## KILL ALL OTHER PYTHON SCRIPTS
         pid = os.getpid()
@@ -1137,15 +1186,19 @@ def kill_gpu_hogs():
             command = find_processes_command + f" | awk '!/{pid}/{{print $1}}' | xargs kill"
             result = Popen(command, shell=True)
         else:
-            exclusion_words = "visdom", "jupyter"
+            exclusion_words = "visdom", "jupyter", "grep"
             find_processes_command = f"ps all | grep python"  + f" | awk '!/{pid}/'"
             x = check_output([find_processes_command], shell=True)
             all_python_processes = x.decode().split("\n")[:-1]
             for process in all_python_processes:
                 if not any([ew in process for ew in exclusion_words]):
                     hwr_logger.logger.info(f"killing {process}")
-                    os.kill(int(process.split()[2]), signal.SIGTERM)
-        return result
+                    try:
+                        os.kill(int(process.split()[2]), signal.SIGTERM)
+                    except:
+                        hwr_logger.logger.info("Didn't work")
+                        pass
+        return
 
 def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
     # Error is "OSError: [Errno 98] Address already in use"
@@ -1154,6 +1207,12 @@ def start_visdom(port=9001, suppress_output=True, suppress_errors=False):
     stderr = DEVNULL if suppress_errors else STDOUT
     stdout = DEVNULL if suppress_output else STDOUT
     Popen("python -m visdom.server -p {}".format(port), shell=True, env=my_env, stdout=stdout, stderr=stderr)
+
+def get_index(l, item):
+    if item in l:
+        return l.index(item)
+    else:
+        return -1
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot

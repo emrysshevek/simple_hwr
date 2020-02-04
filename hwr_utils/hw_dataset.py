@@ -297,7 +297,7 @@ class HwDataset(Dataset):
 
         gt = item['gt'] # actual text
 
-        gt_label = string_utils.str2label(gt, self.char_to_idx) # character indices of text
+        gt_label = string_utils.str2label(gt, self.char_to_idx) # character loss_indices of text
 
         #online = item.get('online', False)
         # THIS IS A HACK, FIX THIS (below)
