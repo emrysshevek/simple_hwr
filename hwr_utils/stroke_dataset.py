@@ -34,10 +34,10 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
         logging.warning("Warning: image is None:", image_path)
         return None
 
-    percent = float(target_height) / img.shape[0]
-
-    if percent != 1 and resize:
-        img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+    percent_y = float(target_height) / img.shape[0]
+    percent_x = 1
+    if resize:
+        img = cv2.resize(img, (0, 0), fx=percent_x, fy=percent_y, interpolation=cv2.INTER_CUBIC)
 
     # Add channel dimension, since resize and warp only keep non-trivial channel axis
     if num_of_channels == 1:

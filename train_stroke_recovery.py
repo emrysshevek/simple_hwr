@@ -38,6 +38,7 @@ class StrokeRecoveryModel(nn.Module):
             first_conv_op = CoordConv
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
         self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
+        print(self.cnn)
 
     def forward(self, input):
         if self.training:
