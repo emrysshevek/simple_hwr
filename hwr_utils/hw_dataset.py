@@ -8,7 +8,7 @@ import os
 import cv2
 import numpy as np
 
-from hwr_utils import grid_distortion, string_utils
+from hwr_utils import distortions, string_utils
 from hwr_utils.utils import unpickle_it
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
@@ -94,9 +94,9 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         for r_i in range(n_warp_iterations):
             new_img = img.copy()
             if warp:
-                new_img = grid_distortion.warp_image(new_img)
+                new_img = distortions.warp_image(new_img)
             if occlude:
-                new_img = grid_distortion.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size, occlusion_level=occlusion_level)
+                new_img = distortions.occlude(new_img, occlusion_freq=occlusion_freq, occlusion_size=occlusion_size, occlusion_level=occlusion_level)
 
 
             # Add channel dimension, since resize and warp only keep non-trivial channel axis
@@ -185,7 +185,7 @@ class HwDataset(Dataset):
     #                                           warp=config["testing_warp"],
     #                                           occlusion_freq=config["occlusion_freq"],
     #                                           occlusion_size=config["occlusion_size"],
-    #                                           occlusion_level=config["occlusion_level"])
+    #                                           max_intensity=config["max_intensity"])
 
 
     def load_data(self, root, images_to_load, data_paths):
@@ -268,23 +268,23 @@ class HwDataset(Dataset):
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
         if self.warp:
-            img = grid_distortion.warp_image(img)
+            img = distortions.warp_image(img)
 
         if self.occlusion:
-            img = grid_distortion.occlude(img, occlusion_freq=self.occlusion_freq,
+            img = distortions.occlude(img, occlusion_freq=self.occlusion_freq,
                                           occlusion_size=self.occlusion_size,
                                           occlusion_level=self.occlusion_level)
 
         if self.blur:
-            img = grid_distortion.blur(img, intensity = self.blur_level)
+            img = distortions.blur(img, max_intensity= self.blur_level)
 
         if self.random_distortions:
-            img = grid_distortion.random_distortions(img, sigma=self.distortion_sigma)
+            img = distortions.random_distortions(img, sigma=self.distortion_sigma)
 
         if self.elastic_distortion:
-            img = grid_distortion.elastic_transform(img, alpha=self.elastic_alpha, sigma=self.elastic_sigma)
+            img = distortions.elastic_transform(img, alpha=self.elastic_alpha, sigma=self.elastic_sigma)
 
-        img = grid_distortion.crop(img) # trim leading/trailing whitespace
+        img = distortions.crop(img) # trim leading/trailing whitespace
 
 
         # Add channel dimension, since resize and warp only keep non-trivial channel axis

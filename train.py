@@ -316,7 +316,7 @@ def make_dataloaders(config, device="cpu"):
                               max_images_to_load=config["images_to_load"],
                               occlusion_size=config["occlusion_size"],
                               occlusion_freq=config["occlusion_freq"],
-                              occlusion_level=config["occlusion_level"],
+                              occlusion_level=config["max_intensity"],
                               logger=config["logger"])
 
     train_dataloader = DataLoader(train_dataset,

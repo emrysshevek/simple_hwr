@@ -104,8 +104,17 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 
     save_folder.mkdir(parents=True, exist_ok=True)
 
-    def subgraph(coords, img_path, name, is_gt=True):
+    def subgraph(coords, gt_img, name, is_gt=True):
         if not is_gt:
+
+            ## PLOT THE RED LINE VERSION
+            img = Image.fromarray(np.uint8(gt_img), 'RGBA') # actual image given to model
+            img = img.convert("RGB")
+            red_img = draw_from_gt(coords, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
+            img.paste(red_img, (0, 0), red_img)
+            img.save(save_folder / f"overlay_{i}_{name}.png")
+
+            # Prep for other plot
             if coords is None:
                 return
             coords = utils.to_numpy(coords[i])
@@ -114,7 +123,6 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             #print("after round", coords[2])
 
             suffix=""
-
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
@@ -126,15 +134,17 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             idx = config.gt_format.index("stroke_number")
             coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
-        render_points_on_image(gts=coords, img_path=img_path, save_path=save_folder / f"{i}_{name}{suffix}.png")
+        #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
+        render_points_on_image(gts=coords, img_path=gt_img, save_path=save_folder / f"{i}_{name}{suffix}.png")
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
         img_path = el
+        gt_img = torch.flip(batch["line_imgs"][i][0], (0,)) # BATCH, CHANNEL, H, W, FLIP IT
         name=Path(batch["paths"][i]).stem
         if _type != "eval":
-            subgraph(batch["gt_list"][i], img_path, name, is_gt=True)
-        subgraph(preds, img_path, name, is_gt=False)
+            subgraph(batch["gt_list"][i], gt_img, name, is_gt=True)
+        subgraph(preds, gt_img, name, is_gt=False)
         if i > 8:
             break
     return save_folder

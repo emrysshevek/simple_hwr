@@ -35,7 +35,7 @@ variation_dict = {"training_jsons": [["munit/online_munit_v75_7400.json", "munit
                                     ],
                   "training_warp":[True,False]}
 
-baseline_dict = {"occlusion_level": 0}
+baseline_dict = {"max_intensity": 0}
 baseline_dict = False
 
 def cartesian_product(inp):

@@ -15,6 +15,8 @@ import pickle
 from pathlib import Path
 import logging
 from hwr_utils.utils import EnhancedJSONEncoder
+from hwr_utils import distortions
+from hwr_utils.stroke_plotting import draw_from_gt
 
 logger = logging.getLogger("root."+__name__)
 
@@ -47,7 +49,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
         img = img[:, :, np.newaxis]
 
     img = img.astype(np.float32)
-    img = img / 128.0 - 1.0
+    img = img / 127.5 - 1.0
 
     return img
 
@@ -103,7 +105,7 @@ class BasicDataset(Dataset):
 class StrokeRecoveryDataset(Dataset):
     def __init__(self,
                  data_paths,
-                 img_height=32,
+                 img_height=61,
                  num_of_channels=3,
                  root= project_root / "data",
                  max_images_to_load=None,
@@ -122,12 +124,11 @@ class StrokeRecoveryDataset(Dataset):
         self.collate = collate_stroke
         self.root = Path(root)
         self.num_of_channels = num_of_channels
-        self.img_height = img_height
         self.interval = .05
         self.noise = None
         self.cnn = cnn
         self.config = config
-
+        self.img_height = img_height
 
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
@@ -193,6 +194,28 @@ class StrokeRecoveryDataset(Dataset):
         logger.debug(("Done resampling", len(data)))
         return data
 
+    def prep_image(self, gt):
+        img = draw_from_gt(gt, show=False, save_path=None, height=self.img_height, right_padding="random", linewidth=None, max_width=2)
+
+        # # ADD NOISE
+        img = distortions.gaussian_noise(
+            distortions.blur(
+                distortions.random_distortions(img.astype(np.float32)),
+                max_intensity=1.3),
+            max_intensity=.1)
+
+        # from PIL import Image, ImageDraw
+        # f = Image.fromarray(np.uint8(img), 'L')
+        # f.show()
+        # Stop
+
+        # Normalize
+        img = img / 127.5 - 1.0
+
+        # Add trivial channel dimension
+        img = img[:, :, np.newaxis]
+        return img
+
     def __len__(self):
         return len(self.data)
 
@@ -200,24 +223,27 @@ class StrokeRecoveryDataset(Dataset):
         item = self.data[idx]
         image_path = self.root / item['image_path']
 
-        # GRID_DISTORTION.WARP_POINTS()
-        # ADD NOISE
-        # RE-RENDER
-        # def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
-        # stroke_plotting.draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=new_img_path, line_width=.8)
-
-        # Check if the image is already loaded
-        if "line_img" in item:
-            img = item["line_img"]
-        else:
-            # Maybe delete this option
-            # The GTs will be the wrong size if the image isn't resized the same way as earlier
-            # Assuming e.g. we pass everything through the CNN every time etc.
-            img = read_img(image_path)
-
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
-        gt = np.asarray(item["gt"]) # LENGTH, VOCAB #.transpose([1,0])
+        gt = item["gt"].copy() # LENGTH, VOCAB
+        gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
+        gt = np.c_[gt,item["gt"][:,2:]]
+
+
+        # Render image
+        img = self.prep_image(gt)
+
+        # Check if the image is already loaded
+        if True: # deprecate this, regenerate every time
+            if "line_img" in item:
+                img2 = item["line_img"]
+            else:
+                # Maybe delete this option
+                # The GTs will be the wrong size if the image isn't resized the same way as earlier
+                # Assuming e.g. we pass everything through the CNN every time etc.
+                img2 = read_img(image_path)
+
+
         #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke; but it could be for e.g. a dotted i
         # print(gt.shape)
         # print(gt)

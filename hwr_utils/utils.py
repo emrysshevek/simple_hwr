@@ -189,7 +189,7 @@ hwr_defaults = {"load_path":False,
             "testing_occlude": False,
             "testing_warp": False,
             "optimizer_type": "adam",
-            "occlusion_level": .4,
+            "max_intensity": .4,
             "exclude_offline": False,
             "validation_jsons": [],
             "elastic_transform": False,
@@ -947,7 +947,7 @@ def create_resume_training(config):
         export_config["test_only"] = True
         if export_config["training_warp"]:
             export_config["testing_warp"] = True
-        if export_config["occlusion_level"]:
+        if export_config["max_intensity"]:
             export_config["testing_occlude"] = True
         if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
             export_config["n_warp_iterations"] = 21
@@ -1169,7 +1169,7 @@ def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_galois():
         utilization, memory_utilization = get_gpu_utilization()
-        if memory_utilization > .5:
+        if memory_utilization > 50:
             kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
             if kill_all.lower()!="y":
                 return

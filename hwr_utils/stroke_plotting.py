@@ -1,11 +1,15 @@
 from pathlib import Path
 import matplotlib.pyplot as plt
-from hwr_utils.stroke_plotting import *
 import numpy as np
 import os
 import cv2
 import random
 from math import ceil
+from PIL import Image, ImageDraw
+import os
+import cv2
+from hwr_utils.stroke_recovery import *
+from hwr_utils import utils, stroke_recovery
 
 def plot_stroke_points(x,y, start_points, square=False):
     x_middle_strokes = x[np.where(start_points == 0)]
@@ -29,59 +33,13 @@ def plot_stroke_points(x,y, start_points, square=False):
 
     plt.scatter(x_start_strokes, y_start_strokes, s=3)
 
-def render_points_on_image(gts, img_path, strokes=None, save_path=None, x_to_y=None):
-    if isinstance(img_path, str):
-        img_path = Path(img_path)
-
-    gts = np.array(gts)
-    pixel_height = 60
-
-    if x_to_y != 1:
-        gts[0] *= x_to_y
-
-    pixel_width = x_to_y*pixel_height
-
-    x = gts[0]
-    y = gts[1]
-    start_points = gts[2]
-
-    # prep_figure()
-    if strokes:
-        draw_strokes(normalize_stroke_list(strokes), x_to_y=x_to_y)
-    elif img_path:
-        img_path = Path(img_path)
-        img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
-        img = img[::-1, :]
-        img = cv2.resize(img, (60, pixel_width))
-        plt.imshow(img, cmap="gray", origin='lower')
-        #plt.gca().invert_yaxis()
-        # move all points positive, fit to square, apply padding, scale up
-        x -= min(x)
-        y -= min(y)
-        x /= max(x)
-        y /= max(y)
-        x += pad_dpi["padding"]
-        y += pad_dpi["padding"]
-        x *= 54.7/60*pixel_width * x_to_y # HACK fiddled with these constants
-        y *= 55/60*pixel_height
-
-        # (old) Rescale points
-        #factor = 2 * pad_dpi["padding"] + 1
-        #x = (x + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
-        #y = (y + 1) / 2 * 60 / factor + pad_dpi["padding"] * 60 / 2
-
-    plot_stroke_points(x,y,start_points)
-
-    if save_path:
-        plt.savefig(save_path)
-        plt.close()
-    else:
-        plt.show()
-
 pad_dpi = {"padding":.05, "dpi":71}
 
-def render_points_on_image(gts, img_path, save_path=None, img_shape=None):
-    """
+def render_points_on_image(gts, img, save_path=None, img_shape=None):
+    return render_points_on_image_pil(gts, img, save_path, img_shape)
+
+def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None):
+    """ This is for when loading the images created by matplotlib
     Args:
         gts: SHOULD BE (VOCAB SIZE X WIDTH)
         img_path:
@@ -97,27 +55,22 @@ def render_points_on_image(gts, img_path, save_path=None, img_shape=None):
     y = gts[1]
     start_points = gts[2]
 
-    img_path = Path(img_path)
-    img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
-    img = img[::-1, :]
+    if isinstance(img_path, str) or isinstance(img_path, Path):
+        img_path = Path(img_path)
+        img = cv2.imread(img_path.as_posix(), cv2.IMREAD_GRAYSCALE)
+        img = img[::-1, :]
 
-    if img_shape:
-        scale_factor = img.shape[0]/60
-        img = cv2.resize(img, None, fx=scale_factor, fy=scale_factor)
+        if img_shape:
+            scale_factor = img.shape[0]/60
+            img = cv2.resize(img, None, fx=scale_factor, fy=scale_factor)
+    else:
+        img = img_path
 
     plt.imshow(img, cmap="gray", origin='lower')
-    #plt.scatter(200, 40)
+
     if True:
         ## PREDS: should already be scaled appropriately
         ## GTs: y's are scaled from 0-1, x's are "square"
-        # print(x, np.max(x), np.min(x))
-        # print(y, np.max(y), np.min(y))
-
-        # move all points positive, fit to square, apply padding, scale up
-        # x -= min(x) # scaled from 0 to 1
-        # y -= min(y)
-        # x /= max(x)
-        # y /= max(y)
         height = img.shape[0]
         # original images are 61 px tall and have ~7 px of padding, 6.5 seems to work better
         # this is because they are 1x1 inches, and have .05 padding, so ~.05*2*61
@@ -135,6 +88,35 @@ def render_points_on_image(gts, img_path, save_path=None, img_shape=None):
         plt.close()
     else:
         plt.show()
+
+def render_points_on_image_pil(gts, img, save_path=None, img_shape=None):
+    """ This is for when drawing on the images created by PIL, which doesn't have padding
+    Args:
+        gts: SHOULD BE (VOCAB SIZE X WIDTH)
+        img: Numpy representation, y-axis should already be reversed
+        save_path:
+        img_shape:
+
+    Returns:
+    """
+
+    gts = np.array(gts)
+    x = gts[0]
+    y = gts[1]
+    start_points = gts[2]
+    plt.imshow(img, cmap="gray", origin='lower')
+
+    height = img.shape[0]
+    x *= height
+    y *= height
+    plot_stroke_points(x,y,start_points)
+
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+    else:
+        plt.show()
+
 
 def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
     gts = np.array(gts)
@@ -173,7 +155,6 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         size = (ceil(x_to_y),1)
     else:
         size = (ceil((x_max-x_min)/(y_max-y_min)), 1)
-        print("HERE", size)
 
     if save_path:
         prep_figure(pad_dpi["dpi"], size=size)
@@ -188,7 +169,7 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
         plt.close()
 
-def draw_strokes_from_gt_list(stroke_list, x_to_y=1, line_width=None, save_path=""):
+def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_path=""):
     # plt.NullFormatter()
     if line_width is None:
         line_width = max(random.gauss(1, .5), .4)
@@ -209,7 +190,7 @@ def draw_strokes_from_gt_list(stroke_list, x_to_y=1, line_width=None, save_path=
 
     plt.ylim([y_min, y_max])
     plt.xlim([x_min, x_max])
-    # print(y_min, y_max, x_min, x_max)
+
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
         plt.close()
@@ -239,8 +220,241 @@ def normalize_stroke_list(stroke_list, maintain_ratio=False):
 
     new_stroke_list = []
     for item in stroke_list:
-        #print(item["x"])
         new_stroke_list.append({"x":normalize(item["x"].copy(), x_max, x_min), "y":normalize(item["y"].copy(), y_max, y_min)})
 
     return new_stroke_list
 
+def normalize_gt(gt, left_pad=0, bottom_pad=0, top_pad=0):
+    """ Rescales GT to 0,1 and 0,? maintaining aspect ratio
+        MODIFIES VALUE
+        There's no way to encode right padding in the GT
+    """
+    x_min, x_max, y_min, y_max = get_x_y_min_max_from_gt(gt)
+
+    # Shift to zero, add in padding
+    gt[:, 0] += -x_min + left_pad
+    gt[:, 1] += -y_min + bottom_pad
+
+    # Change y-axis to be on bigger scale
+    y_max += top_pad + bottom_pad
+
+    gt[:,0:2] = gt[:,0:2] / (y_max-y_min)
+    return gt
+
+def gt_to_raw(instance):
+    start_points = np.array(stroke_recovery.relativefy(instance[:, 2]))
+    start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
+    l = np.split(instance[:, 0:2], start_indices)
+    output = []
+
+    for item in l:
+        if item.shape[0]:
+            output.append({"x": item[:, 0].tolist(), "y": item[:, 1].tolist()})
+    return output
+
+
+def gt_to_pil_format(instance):
+    """
+
+    Args:
+        instance:
+
+    Returns:
+        Pil format; list of strokes Length X (x,y)
+    """
+    start_points = stroke_recovery.relativefy(instance[:, 2])
+    start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
+    l = np.split(instance[:, 0:2], start_indices)
+    return l
+
+def get_x_y_min_max_from_gt(instance):
+    x_max = np.max(instance[:, 0])
+    x_min = np.min(instance[:, 0])
+    y_min = np.min(instance[:, 1])
+    y_max = np.max(instance[:, 1])
+    print(x_min, x_max, y_min, y_max)
+    return x_min, x_max, y_min, y_max
+
+def get_x_to_y_from_gt(instance, right_pad=0, top_pad=0):
+    """
+    Args:
+        instance:
+        right_pad (int): Include some padding at right of image
+        top_pad (int): Include some padding at top of image
+
+    Returns:
+
+    """
+    x_min, x_max, y_min, y_max = get_x_y_min_max_from_gt(instance)
+    return (right_pad + x_max - x_min) / (top_pad + y_max - y_min)
+
+
+def get_x_to_y_from_raw(instance):
+    y_min = min([min(x["y"]) for x in instance])
+    y_max = max([max(x["y"]) for x in instance])
+    x_min = min([min(x["x"]) for x in instance])
+    x_max = max([max(x["x"]) for x in instance])
+    #print(y_min, y_max, x_min, x_max)
+    return (x_max - x_min) / (y_max - y_min)
+
+
+def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="random"):
+    """ Raw is a list of strokes: {"x":(x1,x2,...), "y":(y1,y2,...)}
+        Assumes regular normalization, 0,X and 0,1
+
+    Args:
+        raw:
+        save_path:
+        height:
+    Returns:
+
+    """
+    if isinstance(right_padding, str):
+        right_padding = np.random.randint(10)
+
+    #x_to_y = get_x_to_y_from_raw(raw)
+    #width = ceil(x_to_y * height)
+    x_max = max([max(x["x"]) for x in instance])
+    width = ceil(x_max) * height + right_padding
+
+    img = Image.new("L", (width, height), 255)
+    draw = ImageDraw.Draw(img)
+
+    for line in raw:
+        coords = zip((np.array(line["x"]) * height), (np.array(line["y"]) * height))
+        coords = list(coords)
+        draw.line(coords, fill=0, width=1)
+
+    data = np.array(img)[::-1]  # invert the y-axis
+
+    img = Image.fromarray(data, 'L')
+    if save_path:
+        img.save(save_path)
+    if show:
+        img.show()
+    return data
+
+def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random", linewidth=None, max_width=5, color=0, alpha=False):
+    """ GT is a WIDTH x VOCAB size numpy array
+        Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
+        [:,0:2] are the x,y coordinates
+
+    Args:
+        raw:
+        save_path:
+        height:
+
+    Returns:
+
+    """
+    if isinstance(color, int):
+        color = color,
+    else:
+        color = tuple(color)
+    channels = len(color)
+    image_type = "L" if channels == 1 else "RGB"
+    background = tuple([255]*channels)
+    if alpha:
+        image_type += "A"
+        color = tuple((*color, 255))
+        background = tuple((*background, 0))
+
+    if linewidth is None:
+        linewidth = min(max(int(abs(np.random.randn()) * (max_width - 1) * .5 + 1), 1),max_width)
+
+    if isinstance(right_padding, str):
+        right_padding = np.random.randint(10)
+
+    width = ceil(np.max(gt[:,0]) * height)+right_padding
+
+    gt_rescaled = np.c_[gt[:, 0:2] * height, gt[:, 2]]
+    pil_format = gt_to_pil_format(gt_rescaled)
+
+    img = Image.new(image_type, (width, height), background)
+    draw = ImageDraw.Draw(img)
+
+    for line in pil_format:
+        if line.size:
+            line = line.flatten().tolist()
+            draw.line(line, fill=color, width=linewidth)
+
+    data = np.array(img)[::-1]  # invert the y-axis
+
+    img = Image.fromarray(data, image_type)
+
+    if save_path:
+        img.save(save_path)
+    if show:
+        img.show()
+
+    return data
+
+def random_paired_pad(gt, img, vpad=10, hpad=10, height=61):
+    """ DEPRECATED Not really needed for anything, mostly verifies we're padding GT's/images the same
+
+    Note: GTs assume normal origin
+              Imgs use top left origin, should reverse first
+    Args:
+        gt: A GT (WIDTH X VOCAB) with x,y in :,0:2
+        img: 1 channel numpy pixel array
+        vpad (int): Random amount to pad on each side
+        hpad (int): Random amount to pad on each side
+        height: Assumed height in pixels!! With the image, we add this many pixels, with the GT,
+                    everything should be multiplied by height to get into pixel space
+    Returns:
+        gt, img
+    """
+    from skimage.transform import resize
+
+    lpad = np.random.randint(hpad)
+    rpad = np.random.randint(hpad)
+    tpad = np.random.randint(vpad)
+    bpad = np.random.randint(vpad)
+    print("Top", tpad)
+    print("Bottom", bpad)
+    print("Right", rpad)
+    print("Left", lpad)
+
+    # y-dimension is reversed for images
+    new_img = np.pad(img, ((tpad, bpad), (lpad, rpad)), constant_values=255)
+
+    # Downsize
+    new_img = resize(new_img, (height, 61*10))
+
+
+    # Rescale new_gt
+    new_gt = normalize_gt(gt.copy(), left_pad=lpad/height, right_pad=rpad/height, bottom_pad=bpad/height, top_pad=tpad/height)
+    x_min, x_max, y_min, y_max = get_x_y_min_max_from_gt(new_gt)
+    print(x_min, x_max, y_min, y_max)
+
+    return new_gt, new_img
+
+
+def random_pad(gt, vpad=10, hpad=10, height=61):
+    """
+    Note: GTs assume normal origin
+              Imgs use top left origin, should reverse first
+
+          There is no such thing as a right pad for these pictures!
+
+    Args:
+        gt: A GT (WIDTH X VOCAB) with x,y in :,0:2
+        vpad (int): Random amount to pad on each side
+        hpad (int): Random amount to pad on each side
+        height: Assumed height in pixels!! With the image, we add this many pixels, with the GT,
+                    everything should be multiplied by height to get into pixel space
+    Returns:
+        gt, img
+    """
+    lpad = np.random.randint(hpad)
+    tpad = np.random.randint(vpad)
+    bpad = np.random.randint(vpad)
+
+    # print("Top", tpad)
+    # print("Bottom", bpad)
+    # print("Left", lpad)
+
+    # Rescale new_gt
+    new_gt = normalize_gt(gt.copy(), left_pad=lpad/height, bottom_pad=bpad/height, top_pad=tpad/height)
+
+    return new_gt

@@ -449,4 +449,4 @@ if __name__=="__main__":
         output_dict = json.load(f)
 
     instance = output_dict[11]
-    render_points_on_image(instance['gt'], img_path=instance['image_path'], x_to_y=instance["x_to_y"])
+    render_points_on_image(instance['gt'], img=instance['image_path'], x_to_y=instance["x_to_y"])
