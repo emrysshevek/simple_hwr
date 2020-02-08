@@ -147,7 +147,7 @@ class CrossEntropy(nn.Module):
 
     def cross_entropy(self, preds, targs, label_lengths, **kwargs):
         loss = 0
-        for i, pred in enumerate(preds): # loop through batches, since they are not the same size
+        for i, pred in enumerate(preds): # loop through batches, since they are not the same figsize
             targ = targs[i]
             loss += self._loss(pred[:, self.loss_indices],targ[:, self.loss_indices])
         return loss  # , to_value(loss)

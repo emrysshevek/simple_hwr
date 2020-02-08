@@ -13,6 +13,7 @@ from timeit import default_timer as timer
 import argparse
 from hwr_utils.hwr_logger import logger
 from loss_module import losses
+from hwr_utils.stroke_plotting import draw_from_gt
 
 ## Change CWD to the folder containing this script
 ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -21,7 +22,7 @@ ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 # Relative position
 # CoordConv - 0 center, X-as-rectanlge
 # L1 loss, DTW
-# Dataset size
+# Dataset figsize
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -106,19 +107,13 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 
     def subgraph(coords, gt_img, name, is_gt=True):
         if not is_gt:
-
-            ## PLOT THE RED LINE VERSION
-            img = Image.fromarray(np.uint8(gt_img), 'RGBA') # actual image given to model
-            img = img.convert("RGB")
-            red_img = draw_from_gt(coords, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
-            img.paste(red_img, (0, 0), red_img)
-            img.save(save_folder / f"overlay_{i}_{name}.png")
-
             # Prep for other plot
             if coords is None:
                 return
             coords = utils.to_numpy(coords[i])
             #print("before round", coords[2])
+
+            # Round the SOS, EOS etc. items
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH
             #print("after round", coords[2])
 
@@ -126,6 +121,13 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
+
+        # Flip everything for PIL
+        gt_img = torch.flip(gt_img, (0,))
+
+        # Red images
+        bg = overlay_images(background_img=gt_img.numpy(), foreground_gt=coords.transpose())
+        bg.save(save_folder / f"overlay{suffix}_{i}_{name}.png")
 
         ## Undo relative positions for X for graphing
         ## In normal mode, the cumulative sum has already been taken
@@ -135,12 +137,13 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
-        render_points_on_image(gts=coords, img_path=gt_img, save_path=save_folder / f"{i}_{name}{suffix}.png")
+        render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_folder / f"{i}_{name}{suffix}.png", origin='lower', invert_y_image=True)
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
         img_path = el
-        gt_img = torch.flip(batch["line_imgs"][i][0], (0,)) # BATCH, CHANNEL, H, W, FLIP IT
+        # Flip back to upper origin format for PIL
+        gt_img = batch["line_imgs"][i][0] # BATCH, CHANNEL, H, W, FLIP IT
         name=Path(batch["paths"][i]).stem
         if _type != "eval":
             subgraph(batch["gt_list"][i], gt_img, name, is_gt=True)
@@ -182,12 +185,12 @@ def main(config_path):
                                 cnn_type=config.cnn_type,
                                 first_conv_op=config.coordconv,
                                 first_conv_opts=config.coordconv_opts).to(device)
-    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
+    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
     logger.info(("Current dataset: ", folder))
 
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
-                            img_height = 60,
+                            img_height = 61,
                             num_of_channels = 1,
                             root=config.data_root,
                             max_images_to_load = train_size,
@@ -205,7 +208,7 @@ def main(config_path):
     config.n_train_instances = len(train_dataloader.dataset)
 
     test_dataset=StrokeRecoveryDataset([folder / "test_online_coords.json"],
-                            img_height = 60,
+                            img_height = 61,
                             num_of_channels = 1.,
                             root=config.data_root,
                             max_images_to_load=test_size,
@@ -240,7 +243,6 @@ def main(config_path):
 
     # Create loss object
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
-    config.loss_obj.build_losses(config.loss_fns)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
@@ -249,8 +251,14 @@ def main(config_path):
     config.optimizer=optimizer
     config.trainer=trainer
     config.model = model
+    if config.load_path:
+        utils.load_model_strokes(config)  # should be load_model_strokes??????
+        print(config.counter.epochs)
+        Stpo
 
-    for i in range(0,200):
+    check_epoch_build_loss(config, loss_exists=False)
+    current_epoch = config.counter.epochs
+    for i in range(current_epoch,200):
         epoch = i+1
         #config.counter.epochs = epoch
         config.counter.update(epochs=1)
@@ -258,15 +266,26 @@ def main(config_path):
         logger.info(f"Epoch: {epoch}, Training Loss: {loss}")
         test_loss = test(test_dataloader)
         logger.info(f"Epoch: {epoch}, Test Loss: {test_loss}")
-        if config.first_loss_epochs and epoch == config.first_loss_epochs:
-            config.loss_obj.build_losses(config.loss_fns2)
-
+        check_epoch_build_loss(config)
         if epoch % config.save_freq == 0: # how often to save
             utils.save_model_stroke(config, bsf=False)
 
     ## Bezier curve
     # Have network predict whether it has reached the end of a stroke or not
     # If it has not reached the end of a stroke, the starting point = previous end point
+
+def check_epoch_build_loss(config, loss_exists=True):
+    epoch = config.counter.epochs
+    if config.first_loss_epochs and epoch == config.first_loss_epochs:
+        config.loss_obj.build_losses(config.loss_fns2)
+
+    # If no loss exists yet
+    elif not loss_exists:
+        if config.first_loss_epochs and epoch > config.first_loss_epochs:
+            config.loss_obj.build_losses(config.loss_fns2)
+        else:
+            config.loss_obj.build_losses(config.loss_fns)
+
 
 if __name__=="__main__":
     opts = parse_args()

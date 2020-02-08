@@ -32,7 +32,7 @@ class CNN(nn.Module):
 
     def default_CNN(self, nc=3, leakyRelu=False):
 
-        ks = [3, 3, 3, 3, 3, 3, 2]  # kernel size 3x3
+        ks = [3, 3, 3, 3, 3, 3, 2]  # kernel figsize 3x3
         ps = [1, 1, 1, 1, 1, 1, 0]  # padding
         ss = [1, 1, 1, 1, 1, 1, 1]  # stride
         nm = [64, 128, 256, 256, 512, 512, 512]  # number of channels/maps
@@ -96,7 +96,7 @@ class CNN(nn.Module):
 
     def post_process(self, conv):
         b, c, h, w = conv.size()  # something like 16, 512, 2, 406
-        # print(conv.size())
+        # print(conv.figsize())
         conv = conv.view(b, -1, w)  # batch, Height * Channels, Width
 
         # Width effectively becomes the "time" seq2seq variable
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         for x in range(1000,1100):
             y = torch.rand(2, 1, 60, x)
             # a = cnn(y)
-            # print(a.size())
+            # print(a.figsize())
             # STop
             a,b = cnn(y, intermediate_level=13)
 

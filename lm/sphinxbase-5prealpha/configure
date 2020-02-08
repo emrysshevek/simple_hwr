@@ -1874,7 +1874,7 @@ ac_fn_c_compute_int ()
 {
   as_lineno=${as_lineno-"$1"} as_lineno_stack=as_lineno_stack=$as_lineno_stack
   if test "$cross_compiling" = yes; then
-    # Depending upon the size, compute the lo and hi bounds.
+    # Depending upon the figsize, compute the lo and hi bounds.
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 $4

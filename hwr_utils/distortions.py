@@ -113,7 +113,7 @@ def warp_image(img, random_state=None, **kwargs):
     h, w = img.shape[:2]
 
     if kwargs.get("fit_interval_to_image", True):
-        # Change interval so it fits the image size
+        # Change interval so it fits the image figsize
         w_ratio = w / float(w_mesh_interval)
         h_ratio = h / float(h_mesh_interval)
 
@@ -173,7 +173,7 @@ def warp_points(points, random_state=None, **kwargs):
     points[:, 1] += padding_w
 
     if kwargs.get("fit_interval_to_image", True):
-        # Change interval so it fits the image size
+        # Change interval so it fits the image figsize
         w_ratio = w / float(w_mesh_interval)
         h_ratio = h / float(h_mesh_interval)
 
@@ -278,13 +278,13 @@ def gaussian_noise(img, max_intensity=.1, logger=None):
     #     amount = 0.004
     #     out = image
     #     # Salt mode
-    #     num_salt = np.ceil(amount * image.size * s_vs_p)
+    #     num_salt = np.ceil(amount * image.figsize * s_vs_p)
     #     coords = [np.random.randint(0, i - 1, int(num_salt))
     #               for i in image.shape]
     #     out[coords] = 1
     #
     #     # Pepper mode
-    #     num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    #     num_pepper = np.ceil(amount * image.figsize * (1. - s_vs_p))
     #     coords = [np.random.randint(0, i - 1, int(num_pepper))
     #               for i in image.shape]
     #     out[coords] = 0

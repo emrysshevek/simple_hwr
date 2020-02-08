@@ -35,10 +35,10 @@ def plot_stroke_points(x,y, start_points, square=False):
 
 pad_dpi = {"padding":.05, "dpi":71}
 
-def render_points_on_image(gts, img, save_path=None, img_shape=None):
-    return render_points_on_image_pil(gts, img, save_path, img_shape)
+def render_points_on_image(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
+    return render_points_on_image_pil(gts, img, save_path, img_shape, origin, invert_y_image)
 
-def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None):
+def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
     """ This is for when loading the images created by matplotlib
     Args:
         gts: SHOULD BE (VOCAB SIZE X WIDTH)
@@ -66,7 +66,7 @@ def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=N
     else:
         img = img_path
 
-    plt.imshow(img, cmap="gray", origin='lower')
+    plt.imshow(img, cmap="gray", origin=origin)
 
     if True:
         ## PREDS: should already be scaled appropriately
@@ -81,7 +81,7 @@ def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=N
         x += 6.5/61 * (pad_dpi["padding"]/.05) / 2 * height # pad_dpi["dpi"]
         y += 6.5/61 * (pad_dpi["padding"]/.05) / 2 * height
 
-        plot_stroke_points(x,y,start_points)
+        plot_stroke_points(x,y,start_points, origin)
 
     if save_path:
         plt.savefig(save_path)
@@ -89,26 +89,31 @@ def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=N
     else:
         plt.show()
 
-def render_points_on_image_pil(gts, img, save_path=None, img_shape=None):
+def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
     """ This is for when drawing on the images created by PIL, which doesn't have padding
+        Origin needs to be lower for the GT points to plot right
+
     Args:
         gts: SHOULD BE (VOCAB SIZE X WIDTH)
-        img: Numpy representation, y-axis should already be reversed
+        img: Numpy representation, y-axis should already be reversed (origin='lower')
         save_path:
         img_shape:
 
     Returns:
     """
-
+    img = np.asarray(img)
+    if invert_y_image:
+        img = img[::-1]
     gts = np.array(gts)
-    x = gts[0]
-    y = gts[1]
-    start_points = gts[2]
-    plt.imshow(img, cmap="gray", origin='lower')
-
     height = img.shape[0]
-    x *= height
-    y *= height
+    x = gts[0] * height
+    y = gts[1] * height
+    start_points = gts[2]
+
+    img_width_inches = int(img.shape[1] / height)
+
+    plt.figure(figsize=(img_width_inches,2), dpi=200)
+    plt.imshow(img, cmap="gray", origin=origin, interpolation="bicubic")
     plot_stroke_points(x,y,start_points)
 
     if save_path:
@@ -133,8 +138,8 @@ def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
     else:
         plt.show()
 
-def prep_figure(dpi=71, size=(5,1)):
-    plt.figure(figsize=size, dpi=dpi)
+def prep_figure(figsize=(5, 1), dpi=71):
+    plt.figure(figsize=figsize, dpi=dpi)
     plt.axis('off')
     plt.axis('square')
 
@@ -157,7 +162,7 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         size = (ceil((x_max-x_min)/(y_max-y_min)), 1)
 
     if save_path:
-        prep_figure(pad_dpi["dpi"], size=size)
+        prep_figure(figsize=size, dpi=pad_dpi["dpi"])
 
     plt.ylim([y_min, y_max])
     plt.xlim([x_min, x_max])
@@ -178,7 +183,7 @@ def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_p
             stroke["x"] = [item * x_to_y for item in stroke["x"]]
 
     if save_path:
-        prep_figure(pad_dpi["dpi"], size=(ceil(x_to_y),1))
+        prep_figure(figsize=(ceil(x_to_y), 1), dpi=pad_dpi["dpi"])
 
     for stroke in stroke_list:
         plt.plot(stroke["x"], stroke["y"], linewidth=line_width, color="black")
@@ -314,7 +319,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
 
     #x_to_y = get_x_to_y_from_raw(raw)
     #width = ceil(x_to_y * height)
-    x_max = max([max(x["x"]) for x in instance])
+    x_max = max([max(x["x"]) for x in raw])
     width = ceil(x_max) * height + right_padding
 
     img = Image.new("L", (width, height), 255)
@@ -335,7 +340,8 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
     return data
 
 def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random", linewidth=None, max_width=5, color=0, alpha=False):
-    """ GT is a WIDTH x VOCAB size numpy array
+    """ RETURNS DATA IN "LOWER" origin format!!!
+        GT is a WIDTH x VOCAB figsize numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
         [:,0:2] are the x,y coordinates
 
@@ -366,6 +372,7 @@ def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random
         right_padding = np.random.randint(10)
 
     width = ceil(np.max(gt[:,0]) * height)+right_padding
+    width = max(width, height) # needs to be positive
 
     gt_rescaled = np.c_[gt[:, 0:2] * height, gt[:, 2]]
     pil_format = gt_to_pil_format(gt_rescaled)
@@ -458,3 +465,30 @@ def random_pad(gt, vpad=10, hpad=10, height=61):
     new_gt = normalize_gt(gt.copy(), left_pad=lpad/height, bottom_pad=bpad/height, top_pad=tpad/height)
 
     return new_gt
+
+
+def overlay_images(background_img, foreground_gt, normalized=True):
+    """
+
+    Args:
+        background_img: Should be normalized 0-1, numpy!
+        foreground_gt:
+
+    Returns:
+
+    """
+    rescale = 255 if normalized else 1
+    ## PLOT THE RED LINE VERSION
+    img = Image.fromarray(np.uint8(background_img * rescale), 'L')  # actual image given to model
+    img = img.convert("RGB")
+    red_img = draw_from_gt(foreground_gt, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
+    red_img = Image.fromarray(np.uint8(red_img), 'RGBA')
+
+    height = max(img.size[1], red_img.size[1])
+    width = max(img.size[0], red_img.size[0])
+
+    # Make new white image
+    bg = Image.new('RGB', (width, height), (255, 255, 255))
+    bg.paste(img, (0, 0))
+    bg.paste(red_img, (0, 0), red_img)
+    return bg

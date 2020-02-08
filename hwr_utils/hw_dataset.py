@@ -22,7 +22,7 @@ def collate(batch, device="cpu", n_warp_iterations=None, warp=True, occlusion_fr
 
 def collate_basic(batch, device="cpu"):
     batch = [b for b in batch if b is not None]
-    #These all should be the same size or error
+    #These all should be the same figsize or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
         print("Problem with collating!!! See hw_dataset.py")
         print(batch)
@@ -70,7 +70,7 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
     batch_size = len(batch)
     occlude = occlusion_size and occlusion_freq
 
-    # These all should be the same size or error
+    # These all should be the same figsize or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1:
         print("Problem with collating!!! See collate_repetition in hw_dataset.py")
         print(batch)
@@ -200,7 +200,7 @@ class HwDataset(Dataset):
 
         if images_to_load:
             data = data[:images_to_load]
-        print("Dataloader size", len(data))
+        print("Dataloader figsize", len(data))
         return data
 
     def join_writer_ids(self, root, writer_id_paths):

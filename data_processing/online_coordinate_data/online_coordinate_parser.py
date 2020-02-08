@@ -1,3 +1,4 @@
+HEIGHT = 61
 
 
 def test_cnn():
@@ -8,7 +9,7 @@ def test_cnn():
     cnn = CNN(nc=1)
     pool = nn.MaxPool2d(3, (4, 1), padding=1)
     batch = 7
-    y = torch.rand(batch, 1, 60, 1024)
+    y = torch.rand(batch, 1, HEIGHT, 1024)
     a, b = cnn(y, intermediate_level=13)
     new = cnn.post_process(pool(b))
 
@@ -17,7 +18,7 @@ def test_cnn():
     print(final.size())
 
     for x in range(1000,1100):
-        y = torch.rand(2, 1, 60, x)
+        y = torch.rand(2, 1, HEIGHT, x)
         a,b = cnn(y, intermediate_level=13)
 
         print(a.size(), b.size())
@@ -28,7 +29,7 @@ def test_cnn():
 def test_loss():
     import torch
     batch = 3
-    y = torch.rand(batch, 1, 60, 1024)
+    y = torch.rand(batch, 1, HEIGHT, 1024)
     x = y
     z = l1_loss(y,x)
     print(z)

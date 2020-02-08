@@ -209,7 +209,7 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "visdom_port": 9001,
                    "gpu_if_available": True,
                     "start_of_stroke_method":"normal",
-                    "interpolated_sos": "normal"
+                    "interpolated_sos": "normal",
                     }
 
 
@@ -243,7 +243,7 @@ def load_config(config_path, hwr=True):
     config = edict(read_config(config_path))
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
     config["project_path"] = project_path
-
+    config.counter = Counter()
     defaults = hwr_defaults if hwr else stroke_defaults
     for k in defaults.keys():
         if k not in config.keys():
@@ -549,7 +549,7 @@ def write_out(folder, fname, text):
 def validate_and_prep_loss(config):
     # Each should be the same length
     assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
-    config.vocab_size = len(config.gt_format) # vocab size is the length of the GT format
+    config.vocab_size = len(config.gt_format) # vocab figsize is the length of the GT format
 
     # Process loss functions
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
@@ -566,8 +566,11 @@ def validate_and_prep_loss(config):
             config[loss_fn_group][i]["loss_indices"] = indices
 
             if "dtw_mapping_basis" in loss.keys():
-                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
-                                                                 loss["dtw_mapping_basis"]]
+                # Convert the strings to indexes in the GT list, only if config has them as strings
+                # e.g. gts=[x,y], dtw_mapping_basis=[x,y], =>
+                if isinstance(loss["dtw_mapping_basis"][0], str):
+                    config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
+                                                                     loss["dtw_mapping_basis"]]
 
             if "subcoef" in loss.keys():
                 subcoef = loss["subcoef"]
@@ -680,7 +683,12 @@ def load_model(config):
     try:
         with open(stat_path, 'r') as fh:
             stats = json.load(fh)
+        # Update the counter
+        counter = stats["counter"]
+        config.counter.__dict__.update(counter)
 
+        # Load stats
+        stats = stats["stats"]
         for name, stat in config["stats"].items():
             if isinstance(stat, Stat):
                 config["stats"][name].y = stats[name]["y"]
@@ -808,7 +816,7 @@ def save_stats_stroke(config, bsf):
         path = config["results_dir"]
 
     # Save all stats
-    results = config.stats
+    results = {"stats":config.stats, "counter": config.counter.__dict__}
     with open(os.path.join(path, "all_stats.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -878,7 +886,7 @@ def save_model_stroke(config, bsf=False):
         'epoch': config.counter.epochs,
         'model': config["model"].state_dict(),
         'optimizer': config["optimizer"].state_dict(),
-        'global_step': config.counter.updates,
+        'global_step': config.counter.updates
     }
 
     config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))

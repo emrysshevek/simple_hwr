@@ -1,5 +1,5 @@
 ### TESTING
-TESTING: false        # Use batch size of 1, only do one batch per epoch; will still save etc.
+TESTING: false        # Use batch figsize of 1, only do one batch per epoch; will still save etc.
 SMALL_TRAINING: false  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
 TEST_FREQ: 1         # epoch frequency for running test set
@@ -9,7 +9,7 @@ images_to_load: null  # use an integer to load e.g. first 16 images
 ## Things that shouldn't matter much:
 # Random shuffling
 # Number of channels (3 vs 1)
-# Batch size 8 vs 16
+# Batch figsize 8 vs 16
 
 # Load model
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
@@ -51,7 +51,7 @@ output_predictions: false                    # Output incorrect test predictions
 
 #Network
 style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
-batch_size: 16                               # Batch size
+batch_size: 16                               # Batch figsize
 input_height: 60                             # Input dimension of image (will be cropped by default?)
 cnn_out_size: 1024                           # Output dimension of CNN
 num_of_channels: 1                           # Number of channels in input image
@@ -69,7 +69,7 @@ writer_dropout: 0.4                          # Probability of being "dropped out
 writer_rnn_dimension: 128                    # Dimension of LSTM state vector
 writer_rnn_output_size: 256                  # LSTM output dimension for writer classifier
 mlp_layers: [64,embedding,64]             # Layer dimensions for MLP writer classifier
-embedding_size: 32                           # The size of the embedding layer in the MLP
+embedding_size: 32                           # The figsize of the embedding layer in the MLP
 
 # LR schedule
 learning_rate: 2e-4          # LR
