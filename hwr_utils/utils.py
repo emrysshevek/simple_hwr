@@ -683,7 +683,7 @@ def load_model(config):
     try:
         with open(stat_path, 'r') as fh:
             stats = json.load(fh)
-        # Update the counter
+        # Update the counter - not implemented yet??
         counter = stats["counter"]
         config.counter.__dict__.update(counter)
 
@@ -700,6 +700,44 @@ def load_model(config):
         warnings.warn("Could not load from all_stats.json")
 
 
+def save_model_stroke(config, bsf=False):
+    # Save the best model
+    if bsf:
+        path = os.path.join(config["results_dir"], "BSF")
+        mkdir(path)
+    else:
+        path = config["results_dir"]
+
+    #    'model_definition': config["model"],
+    state_dict = {
+        'epoch': config.counter.epochs,
+        'model': config["model"].state_dict(),
+        'optimizer': config["optimizer"].state_dict(),
+        'global_step': config.counter.updates
+    }
+
+    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
+    torch.save(state_dict, config["main_model_path"])
+    save_stats_stroke(config, bsf)
+
+    # Save visdom
+    if config["use_visdom"]:
+        try:
+            path = os.path.join(path, "visdom.json")
+            config["visdom_manager"].save_env(file_path=path)
+        except:
+            warnings.warn(f"Unable to save visdom to {path}; is it started?")
+            config["use_visdom"] = False
+
+    # Copy BSF stuff to main directory
+    if bsf:
+        for filename in glob.glob(path + r"/*"):
+            shutil.copy(filename, config["results_dir"])
+
+    if config["save_count"]==0:
+        create_resume_training_stroke(config)
+    config["save_count"] += 1
+
 def load_model_strokes(config):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
@@ -712,12 +750,6 @@ def load_model_strokes(config):
     # Load the definition of the loaded model if it was saved
     # if "model_definition" in old_state.keys():
     #     config["model"] = old_state['model_definition']
-
-    for key in ["idx_to_char", "char_to_idx"]:
-        if key in old_state.keys():
-            if key == "idx_to_char":
-                old_state[key] = dict_to_list(old_state[key])
-            config[key] = old_state[key]
 
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
@@ -759,7 +791,11 @@ def load_model_strokes(config):
     try:
         with open(stat_path, 'r') as fh:
             stats = json.load(fh)
+        # Update the counter
+        counter = stats["counter"]
+        config.counter.__dict__.update(counter)
 
+        stats = stats["stats"]
         for name, stat in config["stats"].items():
             if isinstance(stat, Stat):
                 config["stats"][name].y = stats[name]["y"]
@@ -794,7 +830,7 @@ def save_stats(config, bsf):
         path = config["results_dir"]
 
     # Save all stats
-    results = config["stats"]
+    results = {"stats":config.stats, "counter": config.counter.__dict__}
     with open(os.path.join(path, "all_stats.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -871,44 +907,6 @@ def save_model(config, bsf=False):
 
     if config["save_count"]==0:
         create_resume_training(config)
-    config["save_count"] += 1
-
-def save_model_stroke(config, bsf=False):
-    # Save the best model
-    if bsf:
-        path = os.path.join(config["results_dir"], "BSF")
-        mkdir(path)
-    else:
-        path = config["results_dir"]
-
-    #    'model_definition': config["model"],
-    state_dict = {
-        'epoch': config.counter.epochs,
-        'model': config["model"].state_dict(),
-        'optimizer': config["optimizer"].state_dict(),
-        'global_step': config.counter.updates
-    }
-
-    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
-    torch.save(state_dict, config["main_model_path"])
-    save_stats_stroke(config, bsf)
-
-    # Save visdom
-    if config["use_visdom"]:
-        try:
-            path = os.path.join(path, "visdom.json")
-            config["visdom_manager"].save_env(file_path=path)
-        except:
-            warnings.warn(f"Unable to save visdom to {path}; is it started?")
-            config["use_visdom"] = False
-
-    # Copy BSF stuff to main directory
-    if bsf:
-        for filename in glob.glob(path + r"/*"):
-            shutil.copy(filename, config["results_dir"])
-
-    if config["save_count"]==0:
-        create_resume_training_stroke(config)
     config["save_count"] += 1
 
 def create_resume_training_stroke(config):
