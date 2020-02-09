@@ -199,11 +199,17 @@ class StrokeRecoveryDataset(Dataset):
         img = draw_from_gt(gt, show=False, save_path=None, height=self.img_height, right_padding="random", linewidth=None, max_width=2)
         img = img[::-1] # convert to lower origin format
         # # ADD NOISE
-        if False:
+        if True:
             img = distortions.gaussian_noise(
                 distortions.blur(
                     distortions.random_distortions(img.astype(np.float32), noise_max=2), # this one can really mess it up
                     max_intensity=1.2),
+                max_intensity=.1)
+        else:
+            img = distortions.gaussian_noise(
+                distortions.blur(
+                    img.astype(np.float32),
+                    max_intensity=1.3),
                 max_intensity=.1)
 
         # Normalize
@@ -223,10 +229,9 @@ class StrokeRecoveryDataset(Dataset):
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
         gt = item["gt"].copy() # LENGTH, VOCAB
-        
-        #gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
-        #gt = np.c_[gt,item["gt"][:,2:]]
-        ## ADD RANDOM PADDING?
+        gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
+        gt = np.c_[gt,item["gt"][:,2:]]
+
 
         # Render image
         img = self.prep_image(gt)
