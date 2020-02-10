@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: true # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -110,6 +110,18 @@ loss_fns2:
     gts:
       - eos
     activation: sigmoid
+
+# Always report these, but don't include in backpropagation
+loss_fns_to_report:
+  - name: l2_coords
+    gts:
+      - x
+      - y
+  - name: l1_coords
+    gts:
+      - x
+      - y
+
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.

@@ -563,23 +563,40 @@ def validate_and_prep_loss(config):
                 warnings.warn(f"{loss['name']} loss already added to stats")
 
             # Convert to a slice?? no
-            config[loss_fn_group][i]["loss_indices"] = indices
+            loss["loss_indices"] = indices
 
             if "dtw_mapping_basis" in loss.keys():
                 # Convert the strings to indexes in the GT list, only if config has them as strings
                 # e.g. gts=[x,y], dtw_mapping_basis=[x,y], =>
                 if isinstance(loss["dtw_mapping_basis"][0], str):
-                    config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
+                    loss["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
                                                                      loss["dtw_mapping_basis"]]
 
             if "subcoef" in loss.keys():
                 subcoef = loss["subcoef"]
                 if isinstance(loss["subcoef"], str):
                     subcoef = [float(s) for s in loss["subcoef"].split(",")]
-                config[loss_fn_group][i]["subcoef"] = subcoef
+                loss["subcoef"] = subcoef
                 assert len(subcoef) == len(loss["gts"])
+
+            if not "coef" in loss.keys():
+                loss["coef"] = 1
+
+            # Whether to include metric in backprop
+            if loss_fn_group=="loss_fns_to_report":
+                config[loss_fn_group][i]["monitor_only"] = True
+                config[loss_fn_group][i]["coef"] = 0
+            else:
+                config[loss_fn_group][i]["monitor_only"] = False
+
     if not "loss_fns2" in config.keys():
         config.loss_fns2 = None
+
+    # Add loss functions to report only
+    if "loss_fns_to_report" in config:
+        config.loss_fns += config.loss_fns_to_report
+        if "loss_fns2" in config:
+            config.loss_fns2 += config.loss_fns_to_report
 
     config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
     return config
@@ -1126,9 +1143,9 @@ def stat_prep_strokes(config):
         #x_weight = "instances" if is_training else config.n_test_instances
         x_weight = "training_pred_count" if is_training else "test_pred_length_static" # should be a key in the counter object
 
-        # Always include L1 loss
-        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
+        # # Always include L1 loss
+        # config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        #                              x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
 
         # TOTAL ACTUAL LOSS
         config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",

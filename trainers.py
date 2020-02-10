@@ -250,10 +250,10 @@ class TrainerStrokeRecovery:
         suffix = "_train" if train else "_test"
 
         ## If not using L1 loss, report the stat anyway
-        if "l1" not in self.loss_criterion.loss_names:
-            # Just a generic L1 loss for x,y coords
-            l1_loss = to_value(self.config.L1.lossfun(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch figsize
-            self.config.stats["l1"+suffix].accumulate(l1_loss)
+        # if "l1" not in self.loss_criterion.loss_names:
+        #     # Just a generic L1 loss for x,y coords
+        #     l1_loss = to_value(self.config.L1.lossfun(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch figsize
+        #     self.config.stats["l1"+suffix].accumulate(l1_loss)
 
         # Don't do the nearest neighbor search by default
         if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) :

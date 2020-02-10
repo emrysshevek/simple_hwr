@@ -154,7 +154,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 
 
 ### UGH FINISH THIS, FIGURE OUT LOADING THE COUNTER ETC.
-def build_data_loaders():
+def build_data_loaders(folder, cnn, train_size, test_size):
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 61,
@@ -195,7 +195,7 @@ def build_data_loaders():
         n_test_points += sum(i["label_lengths"])
     config.n_test_instances = len(test_dataloader.dataset)
     config.n_test_points = int(n_test_points)
-    return
+    return train_dataloader, test_dataloader
 
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
@@ -233,7 +233,7 @@ def main(config_path):
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
     logger.info(("Current dataset: ", folder))
 
-    train_dataloader, test_dataloader =  build_data_loaders()
+    train_dataloader, test_dataloader =  build_data_loaders(folder, cnn, train_size, test_size)
 
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
