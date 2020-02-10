@@ -152,42 +152,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
             break
     return save_folder
 
-def main(config_path):
-    global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
-    torch.cuda.empty_cache()
-    os.chdir(ROOT_DIR)
 
-    config = utils.load_config(config_path, hwr=False)
-    test_size = config.test_size
-    train_size = config.train_size
-    batch_size = config.batch_size
-    vocab_size = config.vocab_size
-
-    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
-    device = config.device
-
-    # Free GPU memory if necessary
-    if config.device == "cuda":
-        utils.kill_gpu_hogs()
-
-    #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
-    output = Path(config.results_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    # folder = Path("online_coordinate_data/3_stroke_32_v2")
-    # folder = Path("online_coordinate_data/3_stroke_vSmall")
-    # folder = Path("online_coordinate_data/3_stroke_vFull")
-    # folder = Path("online_coordinate_data/8_stroke_vFull")
-    # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
-    folder = Path(config.dataset_folder)
-
-    model = StrokeRecoveryModel(vocab_size=vocab_size,
-                                device=device,
-                                cnn_type=config.cnn_type,
-                                first_conv_op=config.coordconv,
-                                first_conv_opts=config.coordconv_opts).to(device)
-    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
-    logger.info(("Current dataset: ", folder))
-
+### UGH FINISH THIS, FIGURE OUT LOADING THE COUNTER ETC.
+def build_data_loaders():
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
                             img_height = 61,
@@ -228,6 +195,45 @@ def main(config_path):
         n_test_points += sum(i["label_lengths"])
     config.n_test_instances = len(test_dataloader.dataset)
     config.n_test_points = int(n_test_points)
+    return
+
+def main(config_path):
+    global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
+    torch.cuda.empty_cache()
+    os.chdir(ROOT_DIR)
+
+    config = utils.load_config(config_path, hwr=False)
+    test_size = config.test_size
+    train_size = config.train_size
+    batch_size = config.batch_size
+    vocab_size = config.vocab_size
+
+    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
+    device = config.device
+
+    # Free GPU memory if necessary
+    if config.device == "cuda":
+        utils.kill_gpu_hogs()
+
+    #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
+    output = Path(config.results_dir)
+    output.mkdir(parents=True, exist_ok=True)
+    # folder = Path("online_coordinate_data/3_stroke_32_v2")
+    # folder = Path("online_coordinate_data/3_stroke_vSmall")
+    # folder = Path("online_coordinate_data/3_stroke_vFull")
+    # folder = Path("online_coordinate_data/8_stroke_vFull")
+    # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
+    folder = Path(config.dataset_folder)
+
+    model = StrokeRecoveryModel(vocab_size=vocab_size,
+                                device=device,
+                                cnn_type=config.cnn_type,
+                                first_conv_op=config.coordconv,
+                                first_conv_opts=config.coordconv_opts).to(device)
+    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
+    logger.info(("Current dataset: ", folder))
+
+    train_dataloader, test_dataloader =  build_data_loaders()
 
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]
