@@ -15,15 +15,20 @@ import pickle
 from pathlib import Path
 import logging
 from hwr_utils.utils import EnhancedJSONEncoder
+from hwr_utils import distortions
+from hwr_utils.stroke_plotting import draw_from_gt
 
 logger = logging.getLogger("root."+__name__)
 
-PADDING_CONSTANT = 0
+PADDING_CONSTANT = 1 # 1=WHITE, 0=BLACK
 
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
 def read_img(image_path, num_of_channels=1, target_height=61, percent_x=None, resize=True):
+    if isinstance(image_path, str):
+        image_path = Path(image_path)
+
     if num_of_channels == 3:
         img = cv2.imread(image_path.as_posix())
     elif num_of_channels == 1:  # read grayscale
@@ -31,7 +36,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, percent_x=None, re
     else:
         raise Exception("Unexpected number of channels")
     if img is None:
-        logging.warning("Warning: image is None:", image_path)
+        logging.warning(f"Warning: image is None: {image_path}")
         return None
 
     percent_y = float(target_height) / img.shape[0]
@@ -45,12 +50,12 @@ def read_img(image_path, num_of_channels=1, target_height=61, percent_x=None, re
         img = img[:, :, np.newaxis]
 
     img = img.astype(np.float32)
-    img = img / 128.0 - 1.0
+    img = img / 127.5 - 1.0
 
     return img
 
 class BasicDataset(Dataset):
-    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
+    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output figsize etc.
 
     """
     def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
@@ -101,7 +106,7 @@ class BasicDataset(Dataset):
 class StrokeRecoveryDataset(Dataset):
     def __init__(self,
                  data_paths,
-                 img_height=32,
+                 img_height=61,
                  num_of_channels=3,
                  root= project_root / "data",
                  max_images_to_load=None,
@@ -120,12 +125,11 @@ class StrokeRecoveryDataset(Dataset):
         self.collate = collate_stroke
         self.root = Path(root)
         self.num_of_channels = num_of_channels
-        self.img_height = img_height
         self.interval = .05
         self.noise = None
         self.cnn = cnn
         self.config = config
-
+        self.img_height = img_height
 
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
@@ -182,14 +186,39 @@ class StrokeRecoveryDataset(Dataset):
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
-            logger.info(("Original dataloader size", len(data)))
+            logger.info(("Original dataloader figsize", len(data)))
             data = data[:images_to_load]
-        logger.info(("Dataloader size", len(data)))
+        logger.info(("Dataloader figsize", len(data)))
 
         if "gt" not in data[0].keys():
             data = self.resample_data(data, parallel=True)
         logger.debug(("Done resampling", len(data)))
         return data
+
+    def prep_image(self, gt):
+        # Returns image in upper origin format
+        img = draw_from_gt(gt, show=False, save_path=None, height=self.img_height, right_padding="random", linewidth=None, max_width=2)
+        img = img[::-1] # convert to lower origin format
+        # # ADD NOISE
+        if True:
+            img = distortions.gaussian_noise(
+                distortions.blur(
+                    distortions.random_distortions(img.astype(np.float32), noise_max=2), # this one can really mess it up
+                    max_intensity=1.2),
+                max_intensity=.1)
+        else:
+            img = distortions.gaussian_noise(
+                distortions.blur(
+                    img.astype(np.float32),
+                    max_intensity=1.3),
+                max_intensity=.1)
+
+        # Normalize
+        img = img / 127.5 - 1.0
+
+        # Add trivial channel dimension
+        img = img[:, :, np.newaxis]
+        return img
 
     def __len__(self):
         return len(self.data)
@@ -221,6 +250,27 @@ class StrokeRecoveryDataset(Dataset):
         # print(gt.shape)
         # print(gt)
         # (32, 5)
+
+        if False:
+            ## DEFAULT GT ARRAY
+            # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
+            gt = item["gt"].copy() # LENGTH, VOCAB
+            gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
+            gt = np.c_[gt,item["gt"][:,2:]]
+
+
+            # Render image
+            img = self.prep_image(gt)
+
+            # Check if the image is already loaded
+            if False: # deprecate this, regenerate every time
+                if "line_img" in item:
+                    img2 = item["line_img"]
+                else:
+                    # Maybe delete this option
+                    # The GTs will be the wrong figsize if the image isn't resized the same way as earlier
+                    # Assuming e.g. we pass everything through the CNN every time etc.
+                    img2 = read_img(image_path)
 
         return {
             "line_img": img,
@@ -447,7 +497,7 @@ def collate_stroke(batch, device="cpu"):
     """
 
     batch = [b for b in batch if b is not None]
-    #These all should be the same size or error
+    #These all should be the same figsize or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.info(batch)
@@ -474,7 +524,7 @@ def collate_stroke(batch, device="cpu"):
         l = batch[i]['gt']
         #all_labels.append(l)
         label_lengths.append(len(l))
-        ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
+        ## ALL LABELS - list of length batch figsize; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
 
@@ -512,7 +562,7 @@ def collate_stroke_eval(batch, device="cpu"):
     """
 
     batch = [b for b in batch if b is not None]
-    #These all should be the same size or error
+    #These all should be the same figsize or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.warning(batch)
@@ -560,7 +610,7 @@ if __name__=="__main__":
 
     for i in range(0,iterations): # iterations
         sub_list = []
-        for m in range(0,batch): # batch size
+        for m in range(0,batch): # batch figsize
             length = np.random.randint(min_length, max_length)
             sub_list.append(np.random.rand(vocab, length))
         the_list.append(sub_list)

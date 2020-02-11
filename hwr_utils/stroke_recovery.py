@@ -181,7 +181,7 @@ def relativefy_batch(batch, reverse=False):
     import warnings
     warnings.warn("relativefy_batch: Untested")
     for i,b in enumerate(batch):
-        #print(batch.size(), batch)
+        #print(batch.figsize(), batch)
         #print(batch[i,:,0])
         #print(i, b)
         relativefy(b[:, 0], reverse=reverse)
@@ -449,4 +449,4 @@ if __name__=="__main__":
         output_dict = json.load(f)
 
     instance = output_dict[11]
-    render_points_on_image(instance['gt'], img_path=instance['image_path'], x_to_y=instance["x_to_y"])
+    render_points_on_image(instance['gt'], img=instance['image_path'], x_to_y=instance["x_to_y"])

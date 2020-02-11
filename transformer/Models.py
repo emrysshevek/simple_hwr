@@ -194,7 +194,7 @@ class Transformer(nn.Module):
         if emb_src_tgt_weight_sharing:
             # Share the weight matrix between source & target word embeddings
             assert n_src_vocab == n_tgt_vocab, \
-            "To share word embedding table, the vocabulary size of src/tgt shall be the same."
+            "To share word embedding table, the vocabulary figsize of src/tgt shall be the same."
             self.encoder.src_word_emb.weight = self.decoder.tgt_word_emb.weight
 
     def forward(self, src_seq, src_pos, tgt_seq, tgt_pos):

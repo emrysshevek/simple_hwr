@@ -58,11 +58,11 @@ class MLP(nn.Module):
         input = input.view(input.shape[0], -1)
 
         if layer == "output":
-            output = self.classifier(input) # batch size, everything else
+            output = self.classifier(input) # batch figsize, everything else
             return output
         elif layer == "output+embedding":
             embedding = self.classifier[0:self.embedding_idx](input)
-            output = self.classifier[self.embedding_idx:](embedding)  # batch size, everything else
+            output = self.classifier[self.embedding_idx:](embedding)  # batch figsize, everything else
             return output, embedding
         elif layer == "embedding":
             embedding = self.classifier[0:self.embedding_idx](input)
@@ -78,12 +78,12 @@ class BidirectionalRNN(nn.Module):
         self.embedding = nn.Linear(nHidden * 2, nOut) # add dropout?
 
     def forward(self, _input):
-        # input [time size, batch size, output dimension], e.g. 404, 8, 1024
+        # input [time figsize, batch figsize, output dimension], e.g. 404, 8, 1024
         recurrent, _ = self.rnn(_input)
         T, b, h = recurrent.size()
         t_rec = recurrent.view(T * b, h)
 
-        output = self.embedding(t_rec)  # [T * b, nOut], T*b is the batch size for a FC
+        output = self.embedding(t_rec)  # [T * b, nOut], T*b is the batch figsize for a FC
         output = output.view(T, b, -1)
 
         return output
@@ -101,7 +101,7 @@ class GeneralizedBRNN(nn.Module):
         self.permute = permute
 
     def forward(self, _input: torch.tensor):
-        # input [time size, batch size, output dimension], e.g. 404, 8, 1024
+        # input [time figsize, batch figsize, output dimension], e.g. 404, 8, 1024
 
         if self.permute:
             b, *ch, T = _input.size()
@@ -177,7 +177,7 @@ class CNN(nn.Module):
 
     def default_CNN(self, nc=3, leakyRelu=False):
 
-        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel figsize 3x3
         ps = [1, 1, 1, 1, 1, 1, 0] # padding
         ss = [1, 1, 1, 1, 1, 1, 1] # stride
         nm = [64, 128, 256, 256, 512, 512, 512] # number of channels/maps
@@ -231,7 +231,7 @@ class CNN(nn.Module):
 
     def default_CNN64(self, nc=3, leakyRelu=False):
 
-        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel figsize 3x3
         ps = [1, 1, 1, 1, 1, 1, 0] # padding
         ss = [1, 1, 1, 1, 1, 1, 1] # stride
         nm = [64, 128, 256, 256, 512, 512, 512] # number of channels/maps
@@ -309,7 +309,7 @@ class CNN(nn.Module):
 
     def post_process(self, conv):
         b, c, h, w = conv.size() # something like 16, 512, 2, 406
-        #print(conv.size())
+        #print(conv.figsize())
         conv = conv.view(b, -1, w)  # batch, Height * Channels, Width
 
         # Width effectively becomes the "time" seq2seq variable

@@ -189,7 +189,7 @@ hwr_defaults = {"load_path":False,
             "testing_occlude": False,
             "testing_warp": False,
             "optimizer_type": "adam",
-            "occlusion_level": .4,
+            "max_intensity": .4,
             "exclude_offline": False,
             "validation_jsons": [],
             "elastic_transform": False,
@@ -209,7 +209,7 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "visdom_port": 9001,
                    "gpu_if_available": True,
                     "start_of_stroke_method":"normal",
-                    "interpolated_sos": "normal"
+                    "interpolated_sos": "normal",
                     }
 
 
@@ -243,7 +243,7 @@ def load_config(config_path, hwr=True):
     config = edict(read_config(config_path))
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
     config["project_path"] = project_path
-
+    config.counter = Counter()
     defaults = hwr_defaults if hwr else stroke_defaults
     for k in defaults.keys():
         if k not in config.keys():
@@ -549,6 +549,7 @@ def write_out(folder, fname, text):
 def validate_and_prep_loss(config):
     # Each should be the same length
     assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
+    config.vocab_size = len(config.gt_format) # vocab figsize is the length of the GT format
 
     # Process loss functions
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
@@ -562,20 +563,40 @@ def validate_and_prep_loss(config):
                 warnings.warn(f"{loss['name']} loss already added to stats")
 
             # Convert to a slice?? no
-            config[loss_fn_group][i]["loss_indices"] = indices
+            loss["loss_indices"] = indices
 
             if "dtw_mapping_basis" in loss.keys():
-                config[loss_fn_group][i]["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
-                                                                 loss["dtw_mapping_basis"]]
+                # Convert the strings to indexes in the GT list, only if config has them as strings
+                # e.g. gts=[x,y], dtw_mapping_basis=[x,y], =>
+                if isinstance(loss["dtw_mapping_basis"][0], str):
+                    loss["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
+                                                                     loss["dtw_mapping_basis"]]
 
             if "subcoef" in loss.keys():
                 subcoef = loss["subcoef"]
                 if isinstance(loss["subcoef"], str):
                     subcoef = [float(s) for s in loss["subcoef"].split(",")]
-                config[loss_fn_group][i]["subcoef"] = subcoef
+                loss["subcoef"] = subcoef
                 assert len(subcoef) == len(loss["gts"])
+
+            if not "coef" in loss.keys():
+                loss["coef"] = 1
+
+            # Whether to include metric in backprop
+            if loss_fn_group=="loss_fns_to_report":
+                config[loss_fn_group][i]["monitor_only"] = True
+                config[loss_fn_group][i]["coef"] = 0
+            else:
+                config[loss_fn_group][i]["monitor_only"] = False
+
     if not "loss_fns2" in config.keys():
         config.loss_fns2 = None
+
+    # Add loss functions to report only
+    if "loss_fns_to_report" in config:
+        config.loss_fns += config.loss_fns_to_report
+        if "loss_fns2" in config:
+            config.loss_fns2 += config.loss_fns_to_report
 
     config.pred_relativefy = [i for i, x in enumerate(config.pred_opts) if x == "cumsum"]
     return config
@@ -679,7 +700,12 @@ def load_model(config):
     try:
         with open(stat_path, 'r') as fh:
             stats = json.load(fh)
+        # Update the counter - not implemented yet??
+        counter = stats["counter"]
+        config.counter.__dict__.update(counter)
 
+        # Load stats
+        stats = stats["stats"]
         for name, stat in config["stats"].items():
             if isinstance(stat, Stat):
                 config["stats"][name].y = stats[name]["y"]
@@ -690,6 +716,44 @@ def load_model(config):
     except:
         warnings.warn("Could not load from all_stats.json")
 
+
+def save_model_stroke(config, bsf=False):
+    # Save the best model
+    if bsf:
+        path = os.path.join(config["results_dir"], "BSF")
+        mkdir(path)
+    else:
+        path = config["results_dir"]
+
+    #    'model_definition': config["model"],
+    state_dict = {
+        'epoch': config.counter.epochs,
+        'model': config["model"].state_dict(),
+        'optimizer': config["optimizer"].state_dict(),
+        'global_step': config.counter.updates
+    }
+
+    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
+    torch.save(state_dict, config["main_model_path"])
+    save_stats_stroke(config, bsf)
+
+    # Save visdom
+    if config["use_visdom"]:
+        try:
+            path = os.path.join(path, "visdom.json")
+            config["visdom_manager"].save_env(file_path=path)
+        except:
+            warnings.warn(f"Unable to save visdom to {path}; is it started?")
+            config["use_visdom"] = False
+
+    # Copy BSF stuff to main directory
+    if bsf:
+        for filename in glob.glob(path + r"/*"):
+            shutil.copy(filename, config["results_dir"])
+
+    if config["save_count"]==0:
+        create_resume_training_stroke(config)
+    config["save_count"] += 1
 
 def load_model_strokes(config):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
@@ -703,12 +767,6 @@ def load_model_strokes(config):
     # Load the definition of the loaded model if it was saved
     # if "model_definition" in old_state.keys():
     #     config["model"] = old_state['model_definition']
-
-    for key in ["idx_to_char", "char_to_idx"]:
-        if key in old_state.keys():
-            if key == "idx_to_char":
-                old_state[key] = dict_to_list(old_state[key])
-            config[key] = old_state[key]
 
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
@@ -750,7 +808,11 @@ def load_model_strokes(config):
     try:
         with open(stat_path, 'r') as fh:
             stats = json.load(fh)
+        # Update the counter
+        counter = stats["counter"]
+        config.counter.__dict__.update(counter)
 
+        stats = stats["stats"]
         for name, stat in config["stats"].items():
             if isinstance(stat, Stat):
                 config["stats"][name].y = stats[name]["y"]
@@ -785,7 +847,7 @@ def save_stats(config, bsf):
         path = config["results_dir"]
 
     # Save all stats
-    results = config["stats"]
+    results = {"stats":config.stats, "counter": config.counter.__dict__}
     with open(os.path.join(path, "all_stats.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -807,7 +869,7 @@ def save_stats_stroke(config, bsf):
         path = config["results_dir"]
 
     # Save all stats
-    results = config.stats
+    results = {"stats":config.stats, "counter": config.counter.__dict__}
     with open(os.path.join(path, "all_stats.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
@@ -864,44 +926,6 @@ def save_model(config, bsf=False):
         create_resume_training(config)
     config["save_count"] += 1
 
-def save_model_stroke(config, bsf=False):
-    # Save the best model
-    if bsf:
-        path = os.path.join(config["results_dir"], "BSF")
-        mkdir(path)
-    else:
-        path = config["results_dir"]
-
-    #    'model_definition': config["model"],
-    state_dict = {
-        'epoch': config.counter.epochs,
-        'model': config["model"].state_dict(),
-        'optimizer': config["optimizer"].state_dict(),
-        'global_step': config.counter.updates,
-    }
-
-    config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
-    torch.save(state_dict, config["main_model_path"])
-    save_stats_stroke(config, bsf)
-
-    # Save visdom
-    if config["use_visdom"]:
-        try:
-            path = os.path.join(path, "visdom.json")
-            config["visdom_manager"].save_env(file_path=path)
-        except:
-            warnings.warn(f"Unable to save visdom to {path}; is it started?")
-            config["use_visdom"] = False
-
-    # Copy BSF stuff to main directory
-    if bsf:
-        for filename in glob.glob(path + r"/*"):
-            shutil.copy(filename, config["results_dir"])
-
-    if config["save_count"]==0:
-        create_resume_training_stroke(config)
-    config["save_count"] += 1
-
 def create_resume_training_stroke(config):
     export_config = config.copy()
     export_config["load_path"] = config["main_model_path"]
@@ -946,7 +970,7 @@ def create_resume_training(config):
         export_config["test_only"] = True
         if export_config["training_warp"]:
             export_config["testing_warp"] = True
-        if export_config["occlusion_level"]:
+        if export_config["max_intensity"]:
             export_config["testing_occlude"] = True
         if (export_config["testing_occlude"] or export_config["testing_warp"]) and not export_config["n_warp_iterations"]:
             export_config["n_warp_iterations"] = 21
@@ -1119,9 +1143,9 @@ def stat_prep_strokes(config):
         #x_weight = "instances" if is_training else config.n_test_instances
         x_weight = "training_pred_count" if is_training else "test_pred_length_static" # should be a key in the counter object
 
-        # Always include L1 loss
-        config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
-                                     x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
+        # # Always include L1 loss
+        # config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
+        #                              x_title="Epochs", y_title="Loss", name=f"l1_{variant}", train=is_training))
 
         # TOTAL ACTUAL LOSS
         config_stats.append(AutoStat(counter_obj=config.counter, x_weight=x_weight, x_plot="epoch_decimal",
@@ -1168,7 +1192,7 @@ def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_galois():
         utilization, memory_utilization = get_gpu_utilization()
-        if memory_utilization > .5:
+        if memory_utilization > 50:
             kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
             if kill_all.lower()!="y":
                 return

@@ -125,6 +125,40 @@ class L1(CustomLoss):
             loss += torch.sum(abs(pred[:, self.loss_indices]-targs[i][:, self.loss_indices])*self.subcoef)
         return loss #, to_value(loss)
 
+class L2(CustomLoss):
+    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
+    """
+    def __init__(self, loss_indices, **kwargs):
+        """
+        """
+        # parse the opts - this will include opts regarding the DTW basis
+        # loss_indices - the loss_indices to calculate the actual loss
+        super().__init__(loss_indices, **kwargs)
+        self.lossfun = self.l2
+
+    @staticmethod
+    def variable_l2(preds, targs, label_lengths, **kwargs):
+        """ Resample the targets to match whatever was predicted, i.e. so they have the same number (targs/preds)
+
+        Args:
+            preds:
+            targs:
+            label_lengths:
+
+        Returns:
+
+        """
+        targs, label_lengths = resample_gt(preds, targs)
+        loss = L2.loss(preds, targs, label_lengths) # already takes average loss
+        return loss #, to_value(loss)
+
+    def l2(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i, pred in enumerate(preds): # loop through batch
+            loss += torch.sum((pred[:, self.loss_indices]-targs[i][:, self.loss_indices])**2*self.subcoef)**(1/2)
+        return loss #, to_value(loss)
+
+
 class CrossEntropy(nn.Module):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds
     """
@@ -147,7 +181,7 @@ class CrossEntropy(nn.Module):
 
     def cross_entropy(self, preds, targs, label_lengths, **kwargs):
         loss = 0
-        for i, pred in enumerate(preds): # loop through batches, since they are not the same size
+        for i, pred in enumerate(preds): # loop through batches, since they are not the same figsize
             targ = targs[i]
             loss += self._loss(pred[:, self.loss_indices],targ[:, self.loss_indices])
         return loss  # , to_value(loss)

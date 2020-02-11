@@ -54,8 +54,8 @@ def _occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger
     if occlusion_level==1:
         occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
     else: # 1 = .3
-        sd = occlusion_level / 2 # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
-        random_mask = random_state.randn(*img.shape, ) * sd # * 2 - occlusion_level # min -occlusion, max occlusion
+        sd = occlusion_level / 2 # ~95% of observations will be less extreme; if max_intensity=1, we set so 95% of multipliers are <1
+        random_mask = random_state.randn(*img.shape, ) * sd # * 2 - max_intensity # min -occlusion, max occlusion
         random_mask = np.clip(random_mask, -1, 1)
         if False: # randomly whiten to different levels
             occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
@@ -64,7 +64,7 @@ def _occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger
             occlusion = np.where(binary_mask == 0, random_mask, img)
     return occlusion
 
-# def noise(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None):
+# def noise(img, occlusion_size=1, occlusion_freq=.5, max_intensity=1, logger=None):
 #     """
 #         NOT IMPLEMENTED:
 #         OTHER OPTIONS:
@@ -75,7 +75,7 @@ def _occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger
 #         img:
 #         occlusion_size:
 #         occlusion_freq:
-#         occlusion_level: just "dim" these pixels a random amount; 1 - white, 0 - original image
+#         max_intensity: just "dim" these pixels a random amount; 1 - white, 0 - original image
 #         occlusion
 #         logger:
 #
@@ -90,10 +90,10 @@ def _occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger
 #     occlusion_freq = random_state.uniform(0, occlusion_freq)
 #     binary_mask = random_state.choice(2, img.shape, p=[occlusion_freq, 1-occlusion_freq])
 #     #logger.debug(binary_mask)
-#     if occlusion_level==1:
+#     if max_intensity==1:
 #         occlusion = np.where(binary_mask==0, 255, img) # replace 0's with white
 #     else:
-#         random_mask = random_state.rand(*img.shape) * occlusion_level # occlude between not-at-all and occlusion-level
+#         random_mask = random_state.rand(*img.shape) * max_intensity # occlude between not-at-all and occlusion-level
 #         occlusion = np.where(binary_mask == 0, (1-random_mask)*img+255*random_mask, img)  # replace 0's with white
 #
 #     return occlusion
@@ -113,7 +113,7 @@ def warp_image(img, random_state=None, **kwargs):
     h, w = img.shape[:2]
 
     if kwargs.get("fit_interval_to_image", True):
-        # Change interval so it fits the image size
+        # Change interval so it fits the image figsize
         w_ratio = w / float(w_mesh_interval)
         h_ratio = h / float(h_mesh_interval)
 
@@ -122,7 +122,7 @@ def warp_image(img, random_state=None, **kwargs):
 
         w_mesh_interval = w / w_ratio
         h_mesh_interval = h / h_ratio
-        ############################################
+        #############################
 
     # Get control points
     source = np.mgrid[0:h+h_mesh_interval:h_mesh_interval, 0:w+w_mesh_interval:w_mesh_interval]
@@ -173,7 +173,7 @@ def warp_points(points, random_state=None, **kwargs):
     points[:, 1] += padding_w
 
     if kwargs.get("fit_interval_to_image", True):
-        # Change interval so it fits the image size
+        # Change interval so it fits the image figsize
         w_ratio = w / float(w_mesh_interval)
         h_ratio = h / float(h_mesh_interval)
 
@@ -212,7 +212,7 @@ def warp_points(points, random_state=None, **kwargs):
 
 def noise(img, occlusion_level=1, logger=None, noise_type="gaussian"):
     if noise_type == "gaussian":
-        return gaussian_noise(img, occlusion_level=occlusion_level, logger=logger)
+        return gaussian_noise(img, max_intensity=occlusion_level, logger=logger)
     else:
         raise Exception("Not implemented")
 
@@ -252,20 +252,22 @@ def random_distortions(img, sigma=20.0, noise_max=10.0):
     distorted = ndimage.map_coordinates(img, noise, order=1, mode="reflect")
     return distorted
 
-def blur(img, intensity=1.5):
-    intensity = np.random.uniform(0,intensity)
-    return ndimage.gaussian_filter(img, intensity)
+def blur(img, max_intensity=1.5):
+    max_intensity = np.random.uniform(0, max_intensity)
+    return ndimage.gaussian_filter(img, max_intensity)
 
-def gaussian_noise(img, occlusion_level=1, logger=None):
+def gaussian_noise(img, max_intensity=.1, logger=None):
     """
-        occlusion_level: .1 - light haze, 1 heavy
+        Expects images on 0-255 scale
+        max_intensity: .1 - light haze, 1 heavy
 
+        Adds random noise to image
     """
 
     random_state = np.random.RandomState()
-    sd = min(abs(np.random.normal()) * occlusion_level/2, occlusion_level/2)
-    #sd = occlusion_level / 2  # ~95% of observations will be less extreme; if occlusion_level=1, we set so 95% of multipliers are <1
-    noise_mask = random_state.randn(*img.shape, ) * sd  # * 2 - occlusion_level # min -occlusion, max occlusion
+    sd = min(abs(np.random.normal()) * max_intensity / 2, max_intensity / 2)
+    #sd = max_intensity / 2  # ~95% of observations will be less extreme; if max_intensity=1, we set so 95% of multipliers are <1
+    noise_mask = random_state.randn(*img.shape, ) * sd  # * 2 - max_intensity # min -occlusion, max occlusion
     noise_mask = np.clip(noise_mask, -1, 1) * 255/2
     noisy_img = np.clip(img + noise_mask, 0, 255)
     return noisy_img
@@ -276,13 +278,13 @@ def gaussian_noise(img, occlusion_level=1, logger=None):
     #     amount = 0.004
     #     out = image
     #     # Salt mode
-    #     num_salt = np.ceil(amount * image.size * s_vs_p)
+    #     num_salt = np.ceil(amount * image.figsize * s_vs_p)
     #     coords = [np.random.randint(0, i - 1, int(num_salt))
     #               for i in image.shape]
     #     out[coords] = 1
     #
     #     # Pepper mode
-    #     num_pepper = np.ceil(amount * image.size * (1. - s_vs_p))
+    #     num_pepper = np.ceil(amount * image.figsize * (1. - s_vs_p))
     #     coords = [np.random.randint(0, i - 1, int(num_pepper))
     #               for i in image.shape]
     #     out[coords] = 0
@@ -373,7 +375,7 @@ def test_blur(img):
 
 def test_gaussian(img):
     for i in range(0,5):
-        gauss = gaussian_noise(img, occlusion_level=.2, logger=None)
+        gauss = gaussian_noise(img, max_intensity=.2, logger=None)
         plot(gauss, "gauss")
 
 if __name__ == "__main__":

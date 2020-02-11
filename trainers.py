@@ -35,7 +35,7 @@ class TrainerBaseline(json.JSONEncoder):
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the size?
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the figsize?
 
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         pred_strs = list(self.decoder.decode_training(output_batch))
@@ -53,7 +53,7 @@ class TrainerBaseline(json.JSONEncoder):
         loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
 
         # Error Rate
-        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
+        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch figsize?
         logger.debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
 
@@ -250,10 +250,10 @@ class TrainerStrokeRecovery:
         suffix = "_train" if train else "_test"
 
         ## If not using L1 loss, report the stat anyway
-        if "l1" not in self.loss_criterion.loss_names:
-            # Just a generic L1 loss for x,y coords
-            l1_loss = to_value(self.config.L1.lossfun(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch size
-            self.config.stats["l1"+suffix].accumulate(l1_loss)
+        # if "l1" not in self.loss_criterion.loss_names:
+        #     # Just a generic L1 loss for x,y coords
+        #     l1_loss = to_value(self.config.L1.lossfun(preds, item["gt_list"], item["label_lengths"])) # don't divide by batch figsize
+        #     self.config.stats["l1"+suffix].accumulate(l1_loss)
 
         # Don't do the nearest neighbor search by default
         if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) :

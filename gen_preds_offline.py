@@ -83,7 +83,7 @@ def main(config_path):
     config.load_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
 
     ## LOAD THE WEIGHTS
-    utils.load_model(config)
+    utils.load_model(config) # should be load_model_strokes??????
     model = model.to(device)
 
     eval_only(eval_loader, model)

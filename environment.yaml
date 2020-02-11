@@ -16,6 +16,7 @@ dependencies:
   - nose
   - jupyter
   #- scikit-learn
+  #- scikit-image
   - pip:
     - easydict
     - jsonpatch

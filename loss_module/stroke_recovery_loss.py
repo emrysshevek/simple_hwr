@@ -38,45 +38,62 @@ class StrokeLoss:
         self.truncate_preds = True
         self.dtw = None
         self.stats = loss_stats
-        self.loss_names = []
+        self.master_loss_defintion = {} # everything in the master_loss_defition will be evaluated
         self.coefs = []
-        self.loss_fns = []
-        self.loss_names_and_coef = None
 
+    def get_loss_fn(self, loss):
+        """ Return the right loss function given a loss definition dictionary
+            Matching based one loss["name"]
+
+        Args:
+            loss:
+
+        Returns:
+
+        """
+        # IF THE EXACT SAME LOSS ALREADY EXISTS, DON'T BUILD A NEW ONE
+        if loss["name"] in self.master_loss_defintion:
+            loss_fn = self.master_loss_defintion[loss["name"]]["fn"]
+        elif loss["name"].lower().startswith("l1"):
+            loss_fn = L1(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("l2"):
+            loss_fn = L2(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("dtw"):
+            loss_fn = DTWLoss(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("barron"):
+            loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
+        elif loss["name"].lower().startswith("ssl"):
+            loss_fn = SSL(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("cross_entropy"):
+            loss_fn = CrossEntropy(**loss, device=self.device).lossfun
+        else:
+            raise Exception(f"Unknown loss: {loss['name']}")
+        return loss_fn
 
     def build_losses(self, loss_fn_definition):
+        """
+
+        Args:
+            loss_fn_definition (dict): {name: "",
+                                        coef: "",     # multiplied in this module to modify effect on loss used
+                                        subcoef: "",  # passed on to loss object
+                                        monitor_only: ""}
+
+        Returns:
+
+        """
         if loss_fn_definition is None:
             return
-        loss_fns = []
-        coefs = []
-        loss_names = []
-        self.loss_fn_definition = loss_fn_definition
-        print(loss_fn_definition)
-        for loss in loss_fn_definition:
-            # IF THE EXACT SAME LOSS ALREADY EXISTS, DON'T BUILD A NEW ONE
-            if loss["name"] in self.loss_names:
-                idx = self.loss_names.index(loss["name"])
-                loss_fn = self.loss_fns[idx]
-            elif loss["name"].lower().startswith("l1"):
-                loss_fn = L1(**loss, device=self.device).lossfun
-            elif loss["name"].lower().startswith("dtw"):
-                loss_fn = DTWLoss(**loss, device=self.device).lossfun
-            elif loss["name"].lower().startswith("barron"):
-                loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
-            elif loss["name"].lower().startswith("ssl"):
-                loss_fn = SSL(**loss, device=self.device).lossfun
-            elif loss["name"].lower().startswith("cross_entropy"):
-                loss_fn = CrossEntropy(**loss,device=self.device).lossfun
-            else:
-                raise Exception(f"Unknown loss: {loss['name']}")
 
-            loss_fns.append(loss_fn)
-            loss_names.append(loss["name"])
-            coefs.append(loss["coef"])
+        coefs = []
+        master_loss_defintion = {}
+        for loss_def in loss_fn_definition:
+            loss_fn = self.get_loss_fn(loss_def)
+            master_loss_defintion[loss_def["name"]] = {"fn": loss_fn, **loss_def}
+            coefs.append(loss_def["coef"])
 
         self.coefs = Tensor(coefs)
-        self.loss_fns = loss_fns
-        self.loss_names = loss_names
+        self.master_loss_defintion = master_loss_defintion
 
     def main_loss(self, preds, targs, label_lengths, suffix):
         """ Preds: BATCH, TIME, VOCAB SIZE
@@ -91,24 +108,22 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
-        # elif isinstance(targs, dict):
-        #     label_lengths = targs["label_lengths"]
-        #     targs = targs["gt_list"]
-        # elif label_lengths is None:
-        #     label_lengths = [t.shape[0] for t in targs]
-        losses = torch.zeros(len(self.loss_fns))
+        losses = torch.zeros(len(self.master_loss_defintion))
         batch_size = len(preds)
         total_points = tensor_sum(label_lengths)
 
         ## Loop through loss functions
-        for i, loss_fn in enumerate(self.loss_fns):
+        for i, loss_name in enumerate(self.master_loss_defintion):
+            loss_fn = self.master_loss_defintion[loss_name]["fn"]
             loss_tensor = loss_fn(preds, targs, label_lengths)
             loss = to_value(loss_tensor)
-            #print(loss, loss_fn.__name__)
             assert loss > 0
-            losses[i] = loss_tensor
+
+            if not self.master_loss_defintion[loss_name]["monitor_only"]:
+                losses[i] = loss_tensor
+
             # Update loss stat
-            self.stats[self.loss_names[i] + suffix].accumulate(loss)
+            self.stats[loss_name + suffix].accumulate(loss)
 
         if suffix == "_train":
             self.counter.update(training_pred_count=total_points)
@@ -118,7 +133,7 @@ class StrokeLoss:
 
         combined_loss = torch.sum(losses * self.coefs) # only for the actual gradient loss so that the loss doesn't change with bigger batch sizes;, not the reported one since it will be divided by instances later
         combined_loss_value = to_value(combined_loss)
-        return combined_loss, combined_loss_value/batch_size # does the total loss makes most sense at the EXAMPLE level?
+        return combined_loss, combined_loss_value/batch_size # does the total loss makes most sense at the EXAMPLE level? Don't think 'combined_loss_value' is used anymore
 
     def barron_loss(self, preds, targs, label_lengths, **kwargs):
         # BATCH, TIME, VOCAB
