@@ -36,6 +36,7 @@ for sig_id, group in grouped:
     eos = np.zeros_like(x)
     eos[-1] = 1
     info['gt'] = np.stack([x, y, stroke_number, eos]).transpose([1, 0]).astype('float').tolist()
+    info['number_of_samples'] = len(x)
 
     if np.random.randn() < 0.9:
         info['dataset'] = 'train'

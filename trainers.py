@@ -235,7 +235,7 @@ class TrainerStrokeRecovery:
         """
         line_imgs = line_imgs.to(device)
         pred_logits = model(line_imgs).cpu()
-        preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = pred_logits.permute(1, 0, 2)  # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make absolute preds from relative preds - must be done before truncation
         if relative:

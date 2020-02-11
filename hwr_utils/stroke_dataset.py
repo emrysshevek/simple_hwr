@@ -23,7 +23,7 @@ PADDING_CONSTANT = 0
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
-def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
+def read_img(image_path, num_of_channels=1, target_height=61, percent_x=1, resize=True):
     if num_of_channels == 3:
         img = cv2.imread(image_path.as_posix())
     elif num_of_channels == 1:  # read grayscale
@@ -35,7 +35,6 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
         return None
 
     percent_y = float(target_height) / img.shape[0]
-    percent_x = 1
     if resize:
         img = cv2.resize(img, (0, 0), fx=percent_x, fy=percent_y, interpolation=cv2.INTER_CUBIC)
 
@@ -176,7 +175,7 @@ class StrokeRecoveryDataset(Dataset):
                     new_data = [item for key, item in new_data.items()]
                 data.extend(new_data)
         # Calculate how many points are needed
-        if self.cnn:
+        if 'number_of_samples' not in data[0].keys() and self.cnn:
             add_output_size_to_data(data, self.cnn, root=self.root)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
@@ -210,11 +209,12 @@ class StrokeRecoveryDataset(Dataset):
             # Maybe delete this option
             # The GTs will be the wrong size if the image isn't resized the same way as earlier
             # Assuming e.g. we pass everything through the CNN every time etc.
-            img = read_img(image_path)
+            percent_x = item['number_of_samples']/item['shape'][1]
+            img = read_img(image_path, percent_x=percent_x)
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
-        gt = np.asarray(item["gt"]) # LENGTH, VOCAB #.transpose([1,0])
+        gt = np.asarray(item["gt"])  # LENGTH, VOCAB #.transpose([1,0])
         #assert gt[-1,2] != 1 # last stroke point shouldn't usually be a start stroke; but it could be for e.g. a dotted i
         # print(gt.shape)
         # print(gt)
@@ -224,8 +224,8 @@ class StrokeRecoveryDataset(Dataset):
             "line_img": img,
             "gt": gt,
             "path": image_path,
-            "x_func": item["x_func"],
-            "y_func": item["y_func"],
+            "x_func": item.get("x_func"),
+            "y_func": item.get("y_func"),
             "start_times": item["start_times"],
             "gt_format": self.gt_format
         }
@@ -462,7 +462,7 @@ def collate_stroke(batch, device="cpu"):
 
     # Make input square (variable vidwth
     input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
-    max_label = max([b['gt'].shape[0] for b in batch]) # width
+    max_label = max([b['gt'].shape[0] for b in batch])  # width
     labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(np.float32)
 
     for i in range(len(batch)):
