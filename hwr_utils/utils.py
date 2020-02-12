@@ -210,6 +210,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "gpu_if_available": True,
                     "start_of_stroke_method":"normal",
                     "interpolated_sos": "normal",
+                    "cumsum_window_size": 30,
+                    "convolve_func": "conv_weight" # or conv_window
                     }
 
 

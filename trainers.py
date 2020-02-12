@@ -2,7 +2,7 @@
 from models.deprecated_crnn import *
 from torch.autograd import Variable
 from hwr_utils import utils
-from hwr_utils.stroke_recovery import relativefy_batch_torch, conv_weight
+from hwr_utils.stroke_recovery import relativefy_batch_torch, conv_weight, conv_window, PredConvolver
 import logging
 
 logger = logging.getLogger("root."+__name__)
@@ -166,6 +166,7 @@ class TrainerStrokeRecovery:
         self.opts = None
         self.relative = None
         self.update_relative(config.pred_opts)
+        self.convolve = PredConvolver(config.convolve_func, kernel_length=config.cumsum_window_size).convolve
 
     def default(self, o):
         return None
@@ -212,7 +213,8 @@ class TrainerStrokeRecovery:
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.relative, device=self.config.device, gt=item["gt"])  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.relative,
+                          device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
@@ -230,7 +232,7 @@ class TrainerStrokeRecovery:
         return self.train(item, train=False, **kwargs)
 
     @staticmethod
-    def eval(line_imgs, model, label_lengths=None, relative=None, device="cuda", gt=None):
+    def eval(line_imgs, model, label_lengths=None, relative=None, device="cuda", gt=None, train=False, convolve=None):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
@@ -239,8 +241,10 @@ class TrainerStrokeRecovery:
 
         ## Make absolute preds from relative preds - must be done before truncation
         if relative:
-            preds = conv_weight(gt, pred_rel=preds, gt_rel=None, indices=relative)
-            #preds = relativefy_batch_torch(preds, reverse=True, indices=relative)  # assume they were in relative positions, convert to absolute
+            if not train or convolve is None:
+                preds = relativefy_batch_torch(preds, reverse=True, indices=relative)  # assume they were in relative positions, convert to absolute
+            else:
+                preds = convolve(pred_rel=preds, indices=relative, gt=gt)
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
