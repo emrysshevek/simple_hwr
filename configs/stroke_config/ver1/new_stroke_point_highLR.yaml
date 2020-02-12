@@ -1,5 +1,6 @@
 ## TO DO IMMEDIATELY:
-# WHY DIDN'T THIS WORK AT ALL??
+# DEBUG TEST/TRAIN LOSS
+# RELATIVE COORDS CONFIG
 
 # Load model
 TESTING: false # this is for debugging, do it on a small dataset
@@ -29,7 +30,7 @@ dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 warp: true
 
 # LR schedule
-learning_rate: 5e-4          # LR
+learning_rate: 1e-3          # LR
 scheduler_step: 10         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
@@ -58,7 +59,7 @@ vocab_size: 4
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - sos
+  - stroke_number
   - eos
 
 # NOT IMPLEMENTED
@@ -72,8 +73,8 @@ gt_opts:
 # E.g. cumsum will predict RELATIVE positions; if "null" is specified for gt, it will compare to absolute values
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
-  - null
-  - null
+  - cumsum
+  - cumsum
   - null
 
 ## Loss function
@@ -81,16 +82,16 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: l1
+  - name: l1_with_stroke_numbers
     coef: .5
     gts:
       - x
       - y
-    subcoef: 1,1
+      - stroke_number
+    subcoef: 1,1,.1
   - name: cross_entropy
-    coef: .1
+    coef: 1
     gts:
-      - sos
       - eos
     activation: sigmoid
 
@@ -100,14 +101,14 @@ loss_fns2:
     gts:
       - x
       - y
-    subcoef: 1,1
+      - stroke_number
+    subcoef: 1,1,.05
     dtw_mapping_basis:
       - x
       - y
   - name: cross_entropy
-    coef: .1
+    coef: 1
     gts:
-      - sos
       - eos
     activation: sigmoid
 
