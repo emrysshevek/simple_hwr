@@ -202,8 +202,9 @@ def relativefy_batch(batch, reverse=False):
         batch[i] = relativefy(b[:,0], reverse=reverse)
     return batch
 
-def relativefy_batch_torch(batch, reverse=False, indices=(0,)):
+def relativefy_batch_torch(batch, reverse=False, indices=slice(0,None)):
     """ A tensor: Batch, Width, Vocab
+        Modifies branch
     """
     if reverse:
         # Only update the x-coords
@@ -216,52 +217,72 @@ def relativefy_batch_torch(batch, reverse=False, indices=(0,)):
         return batch
 
 
+# m = nn.Conv1d(in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1, groups=1, bias=True, padding_mode='zeros')
 KERNEL_LENGTH = 9
-KERNEL = Tensor(np.cumsum([.1]*KERNEL_LENGTH))
-INVERSE_KERNEL = torch.flip(KERNEL, dims=(0,))
-CHANNELS = 1
+KERNEL = Tensor(np.cumsum([.1] * KERNEL_LENGTH)[np.newaxis].transpose(1, 0)).repeat(1, 1, 1, 1)
+INVERSE_KERNEL = torch.flip(KERNEL, dims=(2,))
 
-def conv_weight(gt, pred):
-    """ BATCH, CHANNEL, HEIGHT (VOCAB SIZE), WIDTH (GT LENGTH)
-        gt.shape[-1]
+def conv_weight(gt_abs, pred_rel, gt_rel=None, indices=slice(0,None)):
+    """ BATCH, WIDTH (GT LENGTH), HEIGHT (VOCAB SIZE)
+        INDICES MUST BE SLICE/LIST
     """
-    # nn.module way
-    #         conv = nn.Conv2d(1, 1, kernel_length, stride=1, padding=[0,kernel_length-1], dilation=1, groups=1, bias=False, padding_mode='zeros')
-    #         conv.weight = nn.Parameter(Tensor(kernel_legnth).repeat(1, channels, 1, 1))
-    #         print(conv.weight)
-    #         out = conv(Tensor(gt[np.newaxis]))
+    width = gt_abs.shape[1]
+    pred_rel = pred_rel[:,:width] # truncate any extra preds due to white space
 
-    # Numpy convolution - sum window
-    # print(np.convolve(gt[0,0,0],np.ones(kernel_length,dtype=int),'valid'))
-    width = gt.shape[-1]
+    cumsum = torch.zeros(*gt_abs.shape)
+    cumsum[:, KERNEL_LENGTH:, indices] = gt_abs[:, :width - KERNEL_LENGTH, indices]  # BATCH, WIDTH, VOCAB
+
+    if gt_rel is None:
+        gt_rel = relativefy_batch_torch(gt_abs.detach().clone(), indices=indices)
+
+    # Add channel dimension
+    gt_rel_exp = gt_rel.unsqueeze(1)[:,:,:,indices]  # BATCH, CHANNEL, WIDTH, VOCAB
+    pred_rel_exp = pred_rel.unsqueeze(1)[:,:,:,indices]
+
     # Functionary way
-    conv_gt = functional.conv2d(Tensor(gt), Tensor(INVERSE_KERNEL).repeat(1, CHANNELS, 1, 1), padding=[0, KERNEL_LENGTH - 1])
-    conv = functional.conv2d(Tensor(pred), Tensor(KERNEL).repeat(1, CHANNELS, 1, 1), padding=[0, KERNEL_LENGTH - 1])
-    cumsum = np.zeros(60).reshape(1, 1, 3, width)
-    cumsum[:, :, :, KERNEL_LENGTH:] = np.cumsum(gt, axis=3)[:, :, :, :width - KERNEL_LENGTH]
-    return conv[:, :, :, :width] + conv_gt[:, :, :, :width] + Tensor(cumsum)
+    gt_rel[:,:,indices] = functional.conv2d(gt_rel_exp, INVERSE_KERNEL, padding=[KERNEL_LENGTH - 1, 0]).squeeze(1)[:,:width]
+    # print(gt_rel[:,:,indices].shape)
+    # print(cumsum[:,:,indices].shape)
+    # print(pred_rel[:,:,indices].shape)
+    pred_rel[:,:,indices] = functional.conv2d(pred_rel_exp, KERNEL, padding=[KERNEL_LENGTH - 1, 0]).squeeze(1)[:,:width] + gt_rel[:,:,indices] + cumsum[:,:,indices]
+    return pred_rel
 
 def test_conv_weight():
     gt_length = 20
-    # rel_x = np.random.randint(0,10,20)
-    rel_x = np.array(range(0, gt_length))
-    # rel_y = np.random.randint(0,10,20)
-    rel_y = np.array(range(0, gt_length))
+    rel_x = np.array(range(0,gt_length))
+    rel_y = np.random.randint(0, 10, 20)
     start = np.random.randint(0, 2, gt_length)
 
-    gt = np.c_[rel_x, rel_y, start][np.newaxis, np.newaxis]  # BATCH, CHANNEL, WIDTH, HEIGHT
-    gt = gt.transpose(0, 1, 3, 2)  # CHANNEL, HEIGHT 3, WIDTH 20
+    gt = np.c_[rel_x, rel_y, start][np.newaxis]  # BATCH, WIDTH, HEIGHT/VOCAB
     pred = gt.copy()
-    pred[:, :, 0, 7] = 8
+    pred[:, 7, 0] = 12
+
+    pred = Tensor(pred)  # relative
+    gt = Tensor(gt)
+    gt_rel = Tensor(gt)
+    gt = torch.cumsum(gt, dim=1)  # abs
 
     # Anything with itself should be equivalent to a cumulative sum
-    x = conv_weight(gt,gt)
-    np.testing.assert_almost_equal(x, np.cumsum(gt,axis=3), decimal=5)
+    x = conv_weight(gt,gt_rel.clone())
+    np.testing.assert_almost_equal(x.numpy(), gt, decimal=5)
 
     # Should get back on track
-    x = conv_weight(gt,pred)
-    np.testing.assert_almost_equal(x[:,:,:,-4:], np.cumsum(gt,axis=3)[:,:,:,-4:], decimal=5)
-    np.testing.assert_almost_equal(x[:,:,:,0:6], np.cumsum(gt,axis=3)[:,:,:,0:6], decimal=5)
+    x = conv_weight(gt,pred.clone())
+    np.testing.assert_almost_equal(x[:,-4:].numpy(), gt[:,-4:], decimal=5)
+    np.testing.assert_almost_equal(x[:,0:6].numpy(), gt[:,0:6], decimal=5)
+
+    # With batching
+    gt2 = Tensor(np.r_[gt,gt])
+    gt2_rel = Tensor(np.r_[gt_rel.clone(),gt_rel.clone()]) # pred is relative
+    x = conv_weight(gt2,gt2_rel)
+    np.testing.assert_almost_equal(x.numpy(), gt2, decimal=5)
+
+    # With batching + index
+    gt2 = Tensor(np.r_[gt,gt])
+    gt2_rel = Tensor(np.r_[gt_rel.clone(),gt_rel.clone()]) # pred is relative
+    x = conv_weight(gt2,gt2_rel, indices=[1,])
+    np.testing.assert_almost_equal(x.numpy()[:,:,1], gt2[:,:,1], decimal=5)
+    np.testing.assert_almost_equal(x.numpy()[:,:,0], gt2_rel[:,:,0], decimal=5)
 
 
 def relativefy(x, reverse=False):
