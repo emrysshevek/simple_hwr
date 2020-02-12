@@ -203,7 +203,7 @@ def relativefy_batch(batch, reverse=False):
     return batch
 
 class PredConvolver:
-    def __init__(self, convolve_type, kernel_length=20):
+    def __init__(self, convolve_type, kernel_length=21):
         convolve_functions = {"cumsum":relativefy_batch_torch, "conv_weight":conv_weight, "conv_window": conv_window}
         self.convolve_func = convolve_functions[convolve_type]
         if convolve_type:
@@ -212,12 +212,11 @@ class PredConvolver:
         elif convolve_type=="conv_window":
             kernel_window = torch.ones(kernel_length).unsqueeze(1).repeat(1, 1, 1, 1)
             self.kwargs = {"kernel": kernel_window, "kernel_length": kernel_length}
-        elif convolve_type=="cumsum":
+        elif convolve_type=="cumsum": # NOT BEING USED PRESENTLY
             self.kwargs = {"reverse":True}
 
     def convolve(self, pred_rel, indices, gt):
-        print(self.kwargs)
-        return self.convolve_func(pred_rel, gt_abs=gt, indices=indices, **self.kwargs)
+        return self.convolve_func(pred_rel=pred_rel, gt_abs=gt, indices=indices, **self.kwargs)
 
 
 def relativefy_batch_torch(batch, reverse=False, indices=slice(0,None), **kwargs):

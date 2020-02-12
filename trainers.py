@@ -166,7 +166,10 @@ class TrainerStrokeRecovery:
         self.opts = None
         self.relative = None
         self.update_relative(config.pred_opts)
-        self.convolve = PredConvolver(config.convolve_func, kernel_length=config.cumsum_window_size).convolve
+        if config.convolve_func == "cumsum":
+            self.convolve = None # use relativefy
+        else:
+            self.convolve = PredConvolver(config.convolve_func, kernel_length=config.cumsum_window_size).convolve
 
     def default(self, o):
         return None
