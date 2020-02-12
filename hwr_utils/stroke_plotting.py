@@ -10,6 +10,7 @@ import os
 import cv2
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils, stroke_recovery
+from torch import Tensor
 
 def plot_stroke_points(x,y, start_points, square=False):
     x_middle_strokes = x[np.where(start_points == 0)]
@@ -277,7 +278,7 @@ def get_x_y_min_max_from_gt(instance):
     x_min = np.min(instance[:, 0])
     y_min = np.min(instance[:, 1])
     y_max = np.max(instance[:, 1])
-    print(x_min, x_max, y_min, y_max)
+    #print(x_min, x_max, y_min, y_max)
     return x_min, x_max, y_min, y_max
 
 def get_x_to_y_from_gt(instance, right_pad=0, top_pad=0):
@@ -339,7 +340,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
         img.show()
     return data
 
-def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random", linewidth=None, max_width=5, color=0, alpha=False):
+def draw_from_gt(gt, show=True, save_path=None, width=None, height=61, right_padding="random", linewidth=None, max_width=5, color=0, alpha=False):
     """ RETURNS DATA IN "LOWER" origin format!!!
         GT is a WIDTH x VOCAB figsize numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
@@ -353,6 +354,9 @@ def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random
     Returns:
 
     """
+    if isinstance(gt, Tensor):
+        gt = gt.numpy()
+
     if isinstance(color, int):
         color = color,
     else:
@@ -371,10 +375,16 @@ def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random
     if isinstance(right_padding, str):
         right_padding = np.random.randint(10)
 
-    width = ceil(np.max(gt[:,0]) * height)+right_padding
-    width = max(width, height) # needs to be positive
+    if width is None: # If no width, rescale based on height
+        width = ceil(np.max(gt[:,0]) * height)+right_padding
+        width = max(width, height) # needs to be positive
+        rescale = height
 
-    gt_rescaled = np.c_[gt[:, 0:2] * height, gt[:, 2]]
+    else: # If a width is specified, we can't rescale to height
+        max_rescale = width/np.max(gt[:, 0])
+        rescale = min(height, max_rescale)
+
+    gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2]]
     pil_format = gt_to_pil_format(gt_rescaled)
 
     img = Image.new(image_type, (width, height), background)
@@ -385,7 +395,7 @@ def draw_from_gt(gt, show=True, save_path=None, height=61, right_padding="random
             line = line.flatten().tolist()
             draw.line(line, fill=color, width=linewidth)
 
-    data = np.array(img)[::-1]  # invert the y-axis
+    data = np.array(img)[::-1]  # invert the y-axis, to upper origin
 
     img = Image.fromarray(data, image_type)
 
@@ -462,7 +472,7 @@ def random_pad(gt, vpad=10, hpad=10, height=61):
     # print("Left", lpad)
 
     # Rescale new_gt
-    new_gt = normalize_gt(gt.copy(), left_pad=lpad/height, bottom_pad=bpad/height, top_pad=tpad/height)
+    new_gt = normalize_gt(gt, left_pad=lpad/height, bottom_pad=bpad/height, top_pad=tpad/height)
 
     return new_gt
 
@@ -477,9 +487,9 @@ def overlay_images(background_img, foreground_gt, normalized=True):
     Returns:
 
     """
-    rescale = 255 if normalized else 1
+    rescale = lambda x: (x+1)*127.5 if normalized else lambda x: x
     ## PLOT THE RED LINE VERSION
-    img = Image.fromarray(np.uint8(background_img * rescale), 'L')  # actual image given to model
+    img = Image.fromarray(np.uint8(rescale(background_img)), 'L')  # actual image given to model
     img = img.convert("RGB")
     red_img = draw_from_gt(foreground_gt, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
     red_img = Image.fromarray(np.uint8(red_img), 'RGBA')

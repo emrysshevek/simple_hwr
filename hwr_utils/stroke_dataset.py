@@ -16,7 +16,7 @@ from pathlib import Path
 import logging
 from hwr_utils.utils import EnhancedJSONEncoder
 from hwr_utils import distortions
-from hwr_utils.stroke_plotting import draw_from_gt
+from hwr_utils.stroke_plotting import draw_from_gt, random_pad
 
 logger = logging.getLogger("root."+__name__)
 
@@ -133,9 +133,16 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-
-    def resample_one(self, item):
-        """
+    def resample_one(self, item, parameter="t"):
+        """ Resample will be based on time, unless the number of samples has been calculated;
+                this is only calculated if you supply a pickle file or a CNN! In this case the number
+                of stroke points corresponds to the image width in pixels. Otherwise:
+                    * The number of stroke points corresponds to how long it took to write
+                    OR
+                    * If "scale_time_distance" was selected. the number of stroke points corresponds to how long
+                    the strokes are
+                Importantly, there's no method right now to resample based on distance traveled; PARTIALLY IMPLEMENTED -- need to fix interpolation at end of stroke points!!
+                ALSO CHANGE INTERVAL!
         Args:
             item: Dictionary with a "raw" dictionary item
         Returns:
@@ -143,10 +150,12 @@ class StrokeRecoveryDataset(Dataset):
 
         """
         output = stroke_recovery.prep_stroke_dict(item["raw"])  # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
-        x_func, y_func = stroke_recovery.create_functions_from_strokes(output)
-        number_of_samples = item["number_of_samples"] if "number_of_samples" in item.keys() else int(output.trange / self.interval)
+        x_func, y_func = stroke_recovery.create_functions_from_strokes(output, parameter=parameter) # can be d if the function should be a function of distance
+        if "number_of_samples" not in item:
+            item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
+            print("UNK NUMBER OF SAMPLES!!!")
         gt = create_gts(x_func, y_func, start_times=output.start_times,
-                        number_of_samples=number_of_samples,
+                        number_of_samples=item["number_of_samples"],
                         noise=self.noise,
                         gt_format=self.gt_format)
 
@@ -180,9 +189,12 @@ class StrokeRecoveryDataset(Dataset):
                     new_data = [item for key, item in new_data.items()]
                 data.extend(new_data)
         # Calculate how many points are needed
+
         if self.cnn:
             add_output_size_to_data(data, self.cnn, root=self.root)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
+
+        #print(data[0].keys())
 
         if images_to_load:
             logger.info(("Original dataloader figsize", len(data)))
@@ -194,22 +206,41 @@ class StrokeRecoveryDataset(Dataset):
         logger.debug(("Done resampling", len(data)))
         return data
 
-    def prep_image(self, gt):
+    @staticmethod
+    def shrink_gt(gt, height=61, width=None):
+        if width:
+            max_x = np.ceil(np.max(gt[:, 0]) * height)
+            if max_x > width:
+                gt[:, 0:2] = gt[:, 0:2] * width/max_x # multiply by ratio to shrink gts
+        return gt
+
+    @staticmethod
+    def prep_image(gt, img_height=61):
+        """ Important that this modifies the actual GT so that plotting afterward still works
+
+        Args:
+            gt:
+            img_height:
+
+        Returns:
+
+        """
+        image_width = gts_to_image_size(len(gt))
+        #print("Image width", image_width)
         # Returns image in upper origin format
-        img = draw_from_gt(gt, show=False, save_path=None, height=self.img_height, right_padding="random", linewidth=None, max_width=2)
+        #padded_gt = gt
+        padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
+        padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
+
+        img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=2)
         img = img[::-1] # convert to lower origin format
+
         # # ADD NOISE
         if True:
             img = distortions.gaussian_noise(
                 distortions.blur(
-                    distortions.random_distortions(img.astype(np.float32), noise_max=2), # this one can really mess it up
-                    max_intensity=1.2),
-                max_intensity=.1)
-        else:
-            img = distortions.gaussian_noise(
-                distortions.blur(
-                    img.astype(np.float32),
-                    max_intensity=1.3),
+                    distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
+                    max_intensity=1.0),
                 max_intensity=.1)
 
         # Normalize
@@ -234,7 +265,8 @@ class StrokeRecoveryDataset(Dataset):
 
 
         # Render image
-        img = self.prep_image(gt)
+        #print(item.keys())
+        img = self.prep_image(gt, img_height=self.img_height)
 
         # Check if the image is already loaded
         if False: # deprecate this, regenerate every time
@@ -245,6 +277,9 @@ class StrokeRecoveryDataset(Dataset):
                 # The GTs will be the wrong figsize if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
                 img2 = read_img(image_path)
+
+        #img = read_img(image_path)
+
 
         return {
             "line_img": img,
@@ -373,10 +408,14 @@ def calculate_output_size(data, cnn):
         width_to_output_mapping[i] = shape[-1]
     return width_to_output_mapping
 
-def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
+def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_height=61):
     """ Calculate how wide the GTs should be based on the output width of the CNN
     Args:
-        data:
+        data (list of dicts): 'full_img_path', 'xml_path', 'image_path',
+                                'dataset', 'x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes',
+                                'raw', 'tmin', 'tmax', 'trange', 'shape'
+
+        img_height: only if calculating width from GTs (not image)
 
     Returns:
 
@@ -385,6 +424,9 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
     width_to_output_mapping = {}
     device = "cuda"
     for i, instance in enumerate(data):
+        # USE A DIFFERENT WIDTH
+        # width = ceil(np.max(gt[:,0]) * img_height)+10
+        # Read in the width of the original image
         if "shape" in instance:
             width = instance["shape"][1] # H,W,Channels
         elif root:
@@ -410,6 +452,24 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None):
             width_to_output_mapping[width] = shape[0]
         instance[key]=width_to_output_mapping[width]
     #cnn.to("cuda")
+
+def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_height=61):
+    """ IMAGE SIZE TO NUMBER OF GTs
+    """
+    # If using default
+    # width_to_output_mapping = lambda width: int(width / 4) + 1
+
+    # If using default64 - go from image size
+    width_to_output_mapping = lambda width: -(width % 2) + width + 4
+    for i, instance in enumerate(data):
+        width = instance["shape"][1]
+        instance[key] = width_to_output_mapping(width)
+    #return width_to_output_mapping
+
+def gts_to_image_size(gt_length):
+    """ GTs to image size
+    """
+    return gt_length - 3 # should be -3
 
 ## Hard coded -- ~20% faster
 # def pad3(batch, variable_width_dim=1):

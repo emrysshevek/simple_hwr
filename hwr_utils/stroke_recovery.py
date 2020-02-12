@@ -20,7 +20,8 @@ import json
 from easydict import EasyDict as edict
 
 from hwr_utils.stroke_plotting import *
-
+from torch.nn import functional
+from torch import Tensor, tensor
 
 ## Other loss functions and variations
 # Distance from actual point
@@ -37,9 +38,20 @@ from hwr_utils.stroke_plotting import *
 
 # Add more instances -- otherwise make it so the first instance is at the start of the letter
 
+def distance_metric(x,y):
+    """ Euclidean distance metric between x and x-1; first item in stroke has distance of epsilon
+    Args:
+        x: array-like
+        y: array-like
 
-# euclidean distance metric
-distance_metric = lambda x, y: ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
+    Returns:
+
+    """
+
+    output = np.zeros(x.size)
+    output[1:] = ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
+    #output[0] = 1e-8
+    return output
 
 def read_stroke_xml(path, start_stroke=None, end_stroke=None):
     """
@@ -81,11 +93,11 @@ def read_stroke_xml(path, start_stroke=None, end_stroke=None):
 
     return stroke_list, start_times
 
-def create_functions_from_strokes(stroke_dict):
+def create_functions_from_strokes(stroke_dict, parameter="t"):
     if not isinstance(stroke_dict, edict):
         stroke_dict = edict(stroke_dict)
-    x_func = interpolate.interp1d(stroke_dict.t, stroke_dict.x)
-    y_func = interpolate.interp1d(stroke_dict.t, stroke_dict.y)
+    x_func = interpolate.interp1d(stroke_dict[parameter], stroke_dict.x)
+    y_func = interpolate.interp1d(stroke_dict[parameter], stroke_dict.y)
     return x_func, y_func
 
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
@@ -115,7 +127,7 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     for i, stroke_dict in enumerate(strokes):
         xs = np.asarray(stroke_dict["x"])
         ys = np.asarray(stroke_dict["y"])
-        distance += np.sum(distance_metric(xs, ys))
+        distance += np.sum(distance_metric(xs, ys)) # total stroke distance
 
         x_list += stroke_dict["x"]
         y_list += stroke_dict["y"]
@@ -149,7 +161,7 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     y_list, scale_param = normalize(y_list)
     x_list, scale_param = normalize(x_list, scale_param)
 
-    distance = distance / scale_param
+    distance = distance / scale_param # normalize the distance
 
     if scale_time_distance:
         time_factor = distance / t_list[-1]
@@ -163,8 +175,10 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     x_to_y = np.max(x_list) / np.max(y_list)
 
     # Start strokes (binary list) will now be 1 short!
-
-    output = edict({"x":x_list, "y":y_list, "t":t_list, "start_times":start_times, "x_to_y":x_to_y, "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1], "trange":start_times[-1]-start_times[0]})
+    d_list = reparameterize_as_func_of_distance(x_list, y_list, start_times)
+    output = edict({"x":x_list, "y":y_list, "t":t_list, "d":d_list, "start_times":start_times, "x_to_y":x_to_y,
+                    "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1],
+                    "trange":start_times[-1]-start_times[0], "drange":d_list[-1]-d_list[0]})
     return output
 
 ## DOES THIS WORK? SHOULD BE THE SAME AS BATCH_TORCH, NEED TO TEST
@@ -200,6 +214,55 @@ def relativefy_batch_torch(batch, reverse=False, indices=(0,)):
         # Subtract the current item from next item to get delta
         batch[:,1:,indices] = batch[:, 1:, indices]-batch[:, :-1, indices] # all items in batch, entire sequence, only X coords
         return batch
+
+
+KERNEL_LENGTH = 9
+KERNEL = Tensor(np.cumsum([.1]*KERNEL_LENGTH))
+INVERSE_KERNEL = torch.flip(KERNEL, dims=(0,))
+CHANNELS = 1
+
+def conv_weight(gt, pred):
+    """ BATCH, CHANNEL, HEIGHT (VOCAB SIZE), WIDTH (GT LENGTH)
+        gt.shape[-1]
+    """
+    # nn.module way
+    #         conv = nn.Conv2d(1, 1, kernel_length, stride=1, padding=[0,kernel_length-1], dilation=1, groups=1, bias=False, padding_mode='zeros')
+    #         conv.weight = nn.Parameter(Tensor(kernel_legnth).repeat(1, channels, 1, 1))
+    #         print(conv.weight)
+    #         out = conv(Tensor(gt[np.newaxis]))
+
+    # Numpy convolution - sum window
+    # print(np.convolve(gt[0,0,0],np.ones(kernel_length,dtype=int),'valid'))
+    width = gt.shape[-1]
+    # Functionary way
+    conv_gt = functional.conv2d(Tensor(gt), Tensor(INVERSE_KERNEL).repeat(1, CHANNELS, 1, 1), padding=[0, KERNEL_LENGTH - 1])
+    conv = functional.conv2d(Tensor(pred), Tensor(KERNEL).repeat(1, CHANNELS, 1, 1), padding=[0, KERNEL_LENGTH - 1])
+    cumsum = np.zeros(60).reshape(1, 1, 3, width)
+    cumsum[:, :, :, KERNEL_LENGTH:] = np.cumsum(gt, axis=3)[:, :, :, :width - KERNEL_LENGTH]
+    return conv[:, :, :, :width] + conv_gt[:, :, :, :width] + Tensor(cumsum)
+
+def test_conv_weight():
+    gt_length = 20
+    # rel_x = np.random.randint(0,10,20)
+    rel_x = np.array(range(0, gt_length))
+    # rel_y = np.random.randint(0,10,20)
+    rel_y = np.array(range(0, gt_length))
+    start = np.random.randint(0, 2, gt_length)
+
+    gt = np.c_[rel_x, rel_y, start][np.newaxis, np.newaxis]  # BATCH, CHANNEL, WIDTH, HEIGHT
+    gt = gt.transpose(0, 1, 3, 2)  # CHANNEL, HEIGHT 3, WIDTH 20
+    pred = gt.copy()
+    pred[:, :, 0, 7] = 8
+
+    # Anything with itself should be equivalent to a cumulative sum
+    x = conv_weight(gt,gt)
+    np.testing.assert_almost_equal(x, np.cumsum(gt,axis=3), decimal=5)
+
+    # Should get back on track
+    x = conv_weight(gt,pred)
+    np.testing.assert_almost_equal(x[:,:,:,-4:], np.cumsum(gt,axis=3)[:,:,:,-4:], decimal=5)
+    np.testing.assert_almost_equal(x[:,:,:,0:6], np.cumsum(gt,axis=3)[:,:,:,0:6], decimal=5)
+
 
 def relativefy(x, reverse=False):
     """
@@ -368,7 +431,7 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     return function_x(time), function_y(time), is_start_stroke
 
 def calc_stroke_distances(x,y,start_strokes):
-    """
+    """ Calculate total distance of strokes
 
     Args:
         x: List of x's
@@ -376,15 +439,39 @@ def calc_stroke_distances(x,y,start_strokes):
         start_strokes: List of start stroke identifiers [1,0,0,1...
 
     Returns:
-
+        distance travelled for each complete stroke
     """
+    if isinstance(x, list):
+        x=np.array(x)
+    if isinstance(y, list):
+        y=np.array(y)
+
     [start_indices] = np.where(start_strokes)
     end_idx = len(start_strokes)-1
     end_indices = np.append((start_indices-1)[1:], end_idx)
-    distances = distance_metric(x,y)
-    cum_sum = np.append(0, np.cumsum(distances)) # distance is 0 at first point; keeps length the same
+    cum_sum = reparameterize_as_func_of_distance(x,y,start_strokes)
     lengths = cum_sum[end_indices] - cum_sum[start_indices]
     return lengths
+
+def reparameterize_as_func_of_distance(x,y,start_strokes):
+    """ Instead of time, re-parameterize entire sequence as distance travelled
+
+    Args:
+        x: List of x's
+        y: List of y's
+        start_strokes: List of start stroke identifiers [1,0,0,1...
+
+    Returns:
+        distance travelled for each complete stroke
+    """
+    if isinstance(x, list):
+        x=np.array(x)
+    if isinstance(y, list):
+        y=np.array(y)
+
+    distances = distance_metric(x,y)
+    cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps length the same
+    return cum_sum
 
 def get_stroke_length_gt(x, y, start_points, use_distance=True):
     input_shape = start_points.shape

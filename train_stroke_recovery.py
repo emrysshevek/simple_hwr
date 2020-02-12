@@ -157,7 +157,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
 def build_data_loaders(folder, cnn, train_size, test_size):
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
-                            img_height = 61,
+                                img_height = 61,
                             num_of_channels = 1,
                             root=config.data_root,
                             max_images_to_load = train_size,
