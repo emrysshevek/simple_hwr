@@ -19,8 +19,8 @@ if socket.gethostname() == "Galois":
 
 # Paths relative to project directory
 src_dir = proj_dir                                # the dir containing the python script to be summoned in the .sh file
-config_root = proj_dir / "configs"                # the config root folder
-sh_root = proj_dir / "slurm_scripts/scripts"              # the .sh root folder
+config_root = proj_dir / "configs/stroke_config"                # the config root folder
+sh_root = proj_dir / "slurm_scripts/scripts/stroke_config"              # the .sh root folder
 
 
 # Environment
