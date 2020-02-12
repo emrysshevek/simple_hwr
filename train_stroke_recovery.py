@@ -53,6 +53,41 @@ class StrokeRecoveryModel(nn.Module):
         # sigmoids are done in the loss
         return rnn_output
 
+class StartPointModel(nn.Module):
+    def __init__(self, vocab_size=5, device="cuda", cnn_type="default", first_conv_op=CoordConv, first_conv_opts=None, **kwargs):
+        super().__init__()
+        self.__dict__.update(kwargs)
+        if first_conv_op:
+            first_conv_op = CoordConv
+        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
+        self.encoder = nn.LSTM(input_size=1024, hidden_size=1024, bidirectional=True)
+        # self.linear1 = nn.Linear
+        self.decoder = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=2)
+        self.linear = nn.Linear(1024, 3)
+
+    def forward(self, input):
+        if self.training:
+            return self._forward(input)
+        else:
+            with torch.no_grad():
+                return self._forward(input)
+
+    def _forward(self, input):
+        cnn_output = self.cnn(input)
+        _, hidden = self.encoder(cnn_output)  # width, batch, alphabet
+        _, b, _ = hidden[0].shape
+
+        outputs = []
+        output = torch.zeros((1, b, 1024))
+        for i in range(100):
+            output, hidden = self.decoder(output, hidden)
+            output = nn.functional.relu(output)
+            outputs.append(self.linear(output))
+
+        # sigmoids are done in the loss
+        outputs = torch.cat(outputs, dim=0)
+        return outputs
+
 def run_epoch(dataloader, report_freq=500):
     loss_list = []
 
@@ -225,7 +260,7 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
-    model = StrokeRecoveryModel(vocab_size=vocab_size,
+    model = StartPointModel(vocab_size=vocab_size,
                                 device=device,
                                 cnn_type=config.cnn_type,
                                 first_conv_op=config.coordconv,
@@ -260,7 +295,7 @@ def main(config_path):
     if config.load_path:
         utils.load_model_strokes(config)  # should be load_model_strokes??????
         print(config.counter.epochs)
-        Stpo
+        Stop
 
     check_epoch_build_loss(config, loss_exists=False)
     current_epoch = config.counter.epochs
