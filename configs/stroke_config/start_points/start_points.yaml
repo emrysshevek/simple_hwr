@@ -47,7 +47,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 16
+batch_size: 32
 
 ## GTs
 # All options include:
