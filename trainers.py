@@ -348,7 +348,7 @@ class TrainerStartPoints(Trainer):
             self.optimizer.zero_grad()
             loss_tensor.backward()
             self.optimizer.step()
-        return loss, preds, None
+        return loss, pred_list, None
 
     @staticmethod
     def eval(line_imgs, model, label_lengths=None, device="cuda", train=False, convolve=None):

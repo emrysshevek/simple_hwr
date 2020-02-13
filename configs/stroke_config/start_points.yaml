@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -15,7 +15,7 @@ model_name: start_point_lstm2
 
 # General
 output_folder: ./results
-epochs_to_run: 200
+epochs_to_run: 1000
 update_freq: 50 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
@@ -47,7 +47,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 16
+batch_size: 32
 
 ## GTs
 # All options include:
@@ -95,7 +95,7 @@ loss_fns:
       - eos
     activation: sigmoid
 
-first_loss_epochs: 2
+first_loss_epochs: 1000
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance
 

@@ -47,7 +47,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 16
+batch_size: 32
 
 ## GTs
 # All options include:
@@ -95,7 +95,7 @@ loss_fns:
       - eos
     activation: sigmoid
 
-first_loss_epochs: 2
+first_loss_epochs: 1000
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance
 

@@ -208,6 +208,12 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
+    if config.model_name != "normal":
+        # SOS will still be the 2 index, just ignore it!
+        # config.vocab_size = 3
+        # vocab_size = 3
+        pass
+
     model_kwargs = {"vocab_size":vocab_size,
                     "device":device,
                     "cnn_type":config.cnn_type,
@@ -218,6 +224,7 @@ def main(config_path):
               "start_point_lstm2":start_points.StartPointModel2,
               "start_point_attn": start_points.StartPointAttnModel,
               "normal":stroke_model.StrokeRecoveryModel}
+
     model_class = model_dict[config.model_name]
     model = model_class(**model_kwargs).to(device)
 
