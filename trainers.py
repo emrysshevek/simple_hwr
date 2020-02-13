@@ -154,7 +154,7 @@ class TrainerBaseline(json.JSONEncoder):
 
 
 class Trainer:
-    def __init__(self, model, optimizer, config, loss_criterion=None):
+    def __init__(self, model, optimizer, config, loss_criterion=None, **kwargs):
         self.model = model
         self.optimizer = optimizer
         self.config = config
@@ -188,11 +188,15 @@ class Trainer:
 
     def train(self, **kwargs):
         raise NotImplemented
+    
+    @staticmethod
+    def update_relative(pred_opts):
+        return [i for i,x in enumerate(pred_opts) if x=="cumsum"]
 
 
-class TrainerStrokeRecovery:
+class TrainerStrokeRecovery(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
-        #super().__init__(model, optimizer, config, loss_criterion)
+        super().__init__(model, optimizer, config, loss_criterion)
         self.model = model
         self.optimizer = optimizer
         self.config = config
@@ -202,8 +206,7 @@ class TrainerStrokeRecovery:
         else:
             self.logger = config.logger
         self.opts = None
-        self.relative = None
-        self.update_relative(config.pred_opts)
+        self.relative = self.update_relative(config.pred_opts)
         if config.convolve_func == "cumsum":
             self.convolve = None # use relativefy
         else:
@@ -310,7 +313,7 @@ class TrainerStartPoints(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
         super().__init__(model, optimizer, config, loss_criterion)
         self.opts = None
-        self.relative = None
+        self.relative = self.update_relative(config.pred_opts)
 
     def train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader
@@ -337,7 +340,10 @@ class TrainerStartPoints(Trainer):
         preds = self.eval(line_imgs, self.model, label_lengths=label_lengths,
                           device=self.config.device, train=train)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-        # Shorten pred to be the length of the ground truth
+        if self.relative:
+            preds = relativefy_batch_torch(preds, reverse=True, indices=self.relative)  # assume they were in relative positions, convert to absolute
+        
+	# Shorten pred to be the length of the ground truth
         pred_list = []
         for i, pred in enumerate(preds):
             pred_list.append(pred[:len(gt[i])])
