@@ -13,7 +13,7 @@ proj_dir = Path(group_path / "taylor_simple_hwr") # the "project" directory
 sh_proj_dir = Path(group_path / "taylor_simple_hwr") # the "project" directory
 
 # If running locally, setup path for files to be written to
-if socket.gethostname() == "Galois":
+if socket.gethostname() in "Galois":
     proj_dir = Path("/media/data/GitHub/simple_hwr")
     assert proj_dir.exists()
 

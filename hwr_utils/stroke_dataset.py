@@ -283,7 +283,10 @@ class StrokeRecoveryDataset(Dataset):
 
         # Assumes dimension 2 is start points, 3 is EOS
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
-        start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
+        if gt.shape[-1] > 3:
+            start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
+        else:
+            start_points = np.array([])
 
         return {
             "line_img": img,
@@ -524,7 +527,7 @@ def collate_stroke(batch, device="cpu"):
     Returns:
 
     """
-
+    vocab_size = batch[0]['gt'].shape[-1]
     batch = [b for b in batch if b is not None]
     #These all should be the same figsize or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
@@ -545,7 +548,7 @@ def collate_stroke(batch, device="cpu"):
     # Make input square (variable vidwth
     input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(TYPE)
     max_label = max([b['gt'].shape[0] for b in batch]) # width
-    labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(TYPE)
+    labels = np.full((batch_size, max_label, vocab_size), PADDING_CONSTANT).astype(TYPE)
 
     # Loop through instances in batch
     for i in range(len(batch)):

@@ -109,12 +109,12 @@ def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin=
     height = img.shape[0]
     x = gts[0] * height
     y = gts[1] * height
-    start_points = gts[2]
 
     img_width_inches = int(img.shape[1] / height)
-
     plt.figure(figsize=(img_width_inches,2), dpi=200)
     plt.imshow(img, cmap="gray", origin=origin, interpolation="bicubic")
+
+    start_points = gts[2] if gts.shape[0] > 2 else None
     plot_stroke_points(x,y,start_points)
 
     if save_path:
@@ -122,7 +122,6 @@ def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin=
         plt.close()
     else:
         plt.show()
-
 
 def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
     gts = np.array(gts)
@@ -259,7 +258,7 @@ def gt_to_raw(instance):
     return output
 
 
-def gt_to_pil_format(instance):
+def gt_to_pil_format(instance, stroke_number=True):
     """
 
     Args:
@@ -268,10 +267,14 @@ def gt_to_pil_format(instance):
     Returns:
         Pil format; list of strokes Length X (x,y)
     """
-    start_points = stroke_recovery.relativefy(instance[:, 2])
-    start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
-    l = np.split(instance[:, 0:2], start_indices)
-    return l
+    if instance.shape[-1] > 2:
+        start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
+        start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
+        l = np.split(instance[:, 0:2], start_indices)
+        return l
+    else:
+        return instance
+
 
 def get_x_y_min_max_from_gt(instance):
     x_max = np.max(instance[:, 0])
@@ -340,7 +343,8 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
         img.show()
     return data
 
-def draw_from_gt(gt, show=True, save_path=None, width=None, height=61, right_padding="random", linewidth=None, max_width=5, color=0, alpha=False):
+def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
+                 right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=True):
     """ RETURNS DATA IN "LOWER" origin format!!!
         GT is a WIDTH x VOCAB figsize numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
@@ -350,10 +354,14 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61, right_pad
         raw:
         save_path:
         height:
+        use_stroke_number: True - strokes labelled like 1,1,1,1,2,2,2,2; False - 00000100001
 
     Returns:
 
     """
+    ### HACK
+    use_stroke_number = True if np.any(gt[2] > 1) else False
+
     if isinstance(gt, Tensor):
         gt = gt.numpy()
 
@@ -384,8 +392,8 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61, right_pad
         max_rescale = width/np.max(gt[:, 0])
         rescale = min(height, max_rescale)
 
-    gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2]]
-    pil_format = gt_to_pil_format(gt_rescaled)
+    gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2:]]
+    pil_format = gt_to_pil_format(gt_rescaled, stroke_number=use_stroke_number)
 
     img = Image.new(image_type, (width, height), background)
     draw = ImageDraw.Draw(img)
