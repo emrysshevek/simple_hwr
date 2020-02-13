@@ -449,9 +449,9 @@ def make_lower(config):
             config[key]=value.lower()
 
 def computer_defaults(config):
-    if socket.gethostname() == "Galois":
+    if is_galois():
         os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-    else:
+    elif not is_taylor():
         config["use_visdom"]=False
     return config
 
@@ -468,6 +468,10 @@ def get_computer():
 
 def is_galois():
     return get_computer() == "Galois"
+
+def is_taylor():
+    return get_computer() in "Galois", "brodie"
+
 
 def choose_optimal_gpu(priority="memory"):
     import GPUtil
@@ -1193,7 +1197,7 @@ def plot_tensor(tensor):
 
 def kill_gpu_hogs():
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
-    if is_galois():
+    if is_taylor():
         utilization, memory_utilization = get_gpu_utilization()
         if memory_utilization > 50:
             kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
