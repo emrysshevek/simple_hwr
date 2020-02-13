@@ -282,7 +282,9 @@ class StrokeRecoveryDataset(Dataset):
         #img = read_img(image_path)
 
         # Assumes dimension 2 is start points, 3 is EOS
-        start_points = np.r_[gt[gt[:,2]>0],gt[gt[:,3]>0]][:MAX_LEN] # could end with the EOS point 2x if also a start stroke, NBD
+        # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
+        start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
+
         return {
             "line_img": img,
             "gt": gt,
@@ -341,6 +343,7 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
 
     # Put it together
     gt = []
+
     for el in gt_format:
         if el == "x":
             gt.append(x)
@@ -354,18 +357,23 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
             # Instead of using 1 to denote start of stroke, use 0, increment for each additional stroke based on distance of stroke
             is_start_stroke = stroke_recovery.get_stroke_length_gt(x, y, is_start_stroke, use_distance=(el=="sos_interp_dist"))
             gt.append(is_start_stroke)
-        elif el == "stroke_number":
+        elif el == "stroke_number": # i.e. 1,1,1,1,1,2,2,2,2,2...
             stroke_number = np.cumsum(is_start_stroke)
             gt.append(stroke_number)
 
     gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
 
-    # if gt_format[-1] == "sos_filtered":
-    #     #     stroke_number = np.cumsum(is_start_stroke)
-    #     #     gt.append(stroke_number)
-    #     start_points = np.r_[gt[gt[:,2]>0],gt[gt[:,3]>0]][:MAX_LEN] # could end with the EOS point 2x if also a start stroke, NBD
-
     return gt
+
+# def sos_filtered(x,y,is_start_stroke, end_of_sequence_flag):
+#     gt.append(x)
+#     gt.append(y)
+#     gt.append(is_start_stroke)
+#     gt.append(end_of_sequence_flag)
+#
+#         #     stroke_number = np.cumsum(is_start_stroke)
+#         #     gt.append(stroke_number)
+#         start_points = np.r_[gt[gt[:,2]>0],gt[gt[:,3]>0]][:MAX_LEN] # could end with the EOS point 2x if also a start stroke, NBD
 
 
 def put_at(start, stop, axis=1):
