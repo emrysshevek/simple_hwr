@@ -152,6 +152,44 @@ class TrainerBaseline(json.JSONEncoder):
             loss = -1 # not calculating test loss here
             return loss, err, pred_strs
 
+
+class Trainer:
+    def __init__(self, model, optimizer, config, loss_criterion=None):
+        self.model = model
+        self.optimizer = optimizer
+        self.config = config
+        self.loss_criterion = loss_criterion
+        if config is None:
+            self.logger = utils.setup_logging()
+        else:
+            self.logger = config.logger
+
+    @staticmethod
+    def truncate(preds, label_lengths):
+        """ Take in rectangular GT tensor, return as list where each element in batch has been truncated
+
+        Args:
+            preds:
+            label_lengths:
+
+        Returns:
+
+        """
+
+        preds = [preds[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
+        return preds
+
+    def test(self, item, **kwargs):
+        self.model.eval()
+        return self.train(item, train=False, **kwargs)
+
+    def eval(self, **kwargs):
+        raise NotImplemented
+
+    def train(self, **kwargs):
+        raise NotImplemented
+
+
 class TrainerStrokeRecovery:
     def __init__(self, model, optimizer, config, loss_criterion=None):
         #super().__init__(model, optimizer, config, loss_criterion)
@@ -266,3 +304,57 @@ class TrainerStrokeRecovery:
         # Don't do the nearest neighbor search by default
         if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) :
             self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))
+
+
+class TrainerStartPoints(Trainer):
+    def __init__(self, model, optimizer, config, loss_criterion=None):
+        super().__init__(model, optimizer, config, loss_criterion)
+        self.opts = None
+        self.relative = None
+
+    def train(self, item, train=True, **kwargs):
+        """ Item is the whole thing from the dataloader
+
+        Args:
+            loss_fn:
+            item:
+            train: train/update the model
+            **kwargs:
+
+        Returns:
+
+        """
+        line_imgs = item["line_imgs"].to(self.config.device)
+        label_lengths = item["label_lengths"]
+        gt = item["start_points"]
+        suffix = "_train" if train else "_test"
+
+        ## Filter GTs to just the start points and the EOS point; the EOS point will be the finish point of the last stroke
+        if train:
+            self.model.train()
+            self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
+
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths,
+                          device=self.config.device, train=train)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+
+        # Shorten pred to be the length of the ground truth
+        pred_list = []
+        for i, pred in enumerate(preds):
+            pred_list.append(pred[:len(gt[i])])
+
+        loss_tensor, loss = self.loss_criterion.main_loss(pred_list, gt, label_lengths, suffix)
+
+        if train:
+            self.optimizer.zero_grad()
+            loss_tensor.backward()
+            self.optimizer.step()
+        return loss, preds, None
+
+    @staticmethod
+    def eval(line_imgs, model, label_lengths=None, device="cuda", train=False, convolve=None):
+        """ For offline data, that doesn't have ground truths
+        """
+        line_imgs = line_imgs.to(device)
+        pred_logits = model(line_imgs).cpu()
+        preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+        return preds

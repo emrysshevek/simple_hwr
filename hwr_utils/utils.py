@@ -211,7 +211,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "start_of_stroke_method":"normal",
                     "interpolated_sos": "normal",
                     "cumsum_window_size": 30,
-                    "convolve_func": "conv_weight" # or conv_window
+                    "convolve_func": "conv_weight", # or conv_window
+                    "model_name": "normal",
                     }
 
 
@@ -355,8 +356,8 @@ def make_config_consistent_stroke(config):
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 
-    if config.x_relative_positions not in (True, False):
-        raise NotImplemented
+    # if config.x_relative_positions not in (True, False):
+    #     raise NotImplemented
     if config.TESTING:
         config.dataset_folder = "online_coordinate_data/8_stroke_vSmall_16"
         config.update_freq = 1
@@ -550,7 +551,7 @@ def write_out(folder, fname, text):
 
 def validate_and_prep_loss(config):
     # Each should be the same length
-    assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts)
+    assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts) or config.model_name != "normal"
     config.vocab_size = len(config.gt_format) # vocab figsize is the length of the GT format
 
     # Process loss functions

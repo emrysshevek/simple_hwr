@@ -21,6 +21,7 @@ from hwr_utils.stroke_plotting import draw_from_gt, random_pad
 logger = logging.getLogger("root."+__name__)
 
 PADDING_CONSTANT = 1 # 1=WHITE, 0=BLACK
+MAX_LEN = 64
 
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
@@ -280,7 +281,8 @@ class StrokeRecoveryDataset(Dataset):
 
         #img = read_img(image_path)
 
-
+        # Assumes dimension 2 is start points, 3 is EOS
+        start_points = np.r_[gt[gt[:,2]>0],gt[gt[:,3]>0]][:MAX_LEN] # could end with the EOS point 2x if also a start stroke, NBD
         return {
             "line_img": img,
             "gt": gt,
@@ -288,31 +290,9 @@ class StrokeRecoveryDataset(Dataset):
             "x_func": item["x_func"],
             "y_func": item["y_func"],
             "start_times": item["start_times"],
-            "gt_format": self.gt_format
+            "gt_format": self.gt_format,
+            "start_points": start_points
         }
-
-# def pad(list_of_numpy_arrays, lengths=None, variable_length_axis=1):
-#     # Get original dimensions
-#     batch_size = len(list_of_numpy_arrays)
-#     dims = list(list_of_numpy_arrays[0].shape)
-#
-#     # Get the variable lengths
-#     if lengths is None:
-#         lengths = [l.shape[variable_length_axis] for l in list_of_numpy_arrays]  # only iteration
-#     maxlen = max(lengths)
-#     dims[variable_length_axis] = maxlen
-#
-#     # Reshape
-#     list_of_numpy_arrays = [np.asarray(l).reshape(-1) for l in list_of_numpy_arrays]
-#
-#     # Create output array and mask
-#     output_dims = batch_size, np.product(dims)
-#     other_dims = int(np.product(dims)/maxlen)
-#     arr = np.zeros(output_dims) # BATCH, VOCAB, LENGTH
-#     mask = np.arange(maxlen) < np.array(lengths)[:, None]  # BATCH, MAX LENGTH
-#     mask = np.tile(mask, other_dims).reshape(output_dims)
-#     arr[mask] = np.concatenate(list_of_numpy_arrays)  # fast 1d assignment
-#     return arr.reshape(batch_size, *dims)
 
 def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
     """
@@ -378,7 +358,13 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
             stroke_number = np.cumsum(is_start_stroke)
             gt.append(stroke_number)
 
-    gt = np.array(gt).transpose([1,0]) # swap axes
+    gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
+
+    # if gt_format[-1] == "sos_filtered":
+    #     #     stroke_number = np.cumsum(is_start_stroke)
+    #     #     gt.append(stroke_number)
+    #     start_points = np.r_[gt[gt[:,2]>0],gt[gt[:,3]>0]][:MAX_LEN] # could end with the EOS point 2x if also a start stroke, NBD
+
     return gt
 
 
@@ -518,6 +504,7 @@ def test_padding(pad_list, func):
     logger.info(end - start)  # Time in seconds, e.g. 5.38091952400282
     return x #[0,0]
 
+TYPE = np.float32 #np.float16
 def collate_stroke(batch, device="cpu"):
     """ Pad ground truths with 0's
         Report lengths to get accurate average loss
@@ -545,12 +532,14 @@ def collate_stroke(batch, device="cpu"):
 
     all_labels = []
     label_lengths = []
+    start_points = []
 
     # Make input square (variable vidwth
-    input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
+    input_batch = np.full((batch_size, dim0, dim1, dim2), PADDING_CONSTANT).astype(TYPE)
     max_label = max([b['gt'].shape[0] for b in batch]) # width
-    labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(np.float32)
+    labels = np.full((batch_size, max_label, 4), PADDING_CONSTANT).astype(TYPE)
 
+    # Loop through instances in batch
     for i in range(len(batch)):
         b_img = batch[i]['line_img']
         input_batch[i,:,: b_img.shape[1],:] = b_img
@@ -560,20 +549,22 @@ def collate_stroke(batch, device="cpu"):
         label_lengths.append(len(l))
         ## ALL LABELS - list of length batch figsize; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
-        all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
+        all_labels.append(torch.from_numpy(l.astype(TYPE)).to(device))
+        start_points.append(torch.from_numpy(batch[i]['start_points'].astype(TYPE)).to(device))
 
     label_lengths = np.asarray(label_lengths)
 
     line_imgs = input_batch.transpose([0,3,1,2]) # batch, channel, h, w
     line_imgs = torch.from_numpy(line_imgs).to(device)
 
-    labels = torch.from_numpy(labels.astype(np.float32)).to(device)
+    labels = torch.from_numpy(labels.astype(TYPE)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
     return {
         "line_imgs": line_imgs,
         "gt": labels, # Numpy Array, with padding
         "gt_list": all_labels, # List of numpy arrays
+        "start_points": start_points,  # List of numpy arrays
         "gt_format": [batch[0]["gt_format"]]*batch_size,
         "label_lengths": label_lengths,
         "paths": [b["path"] for b in batch],

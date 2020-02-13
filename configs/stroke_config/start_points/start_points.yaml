@@ -3,16 +3,19 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
 logging: info
 gpu_if_available: true
+model_name: start_point_lstm # start_point_lstm, start_point_lstm2, start_point_attn, normal
+#model_name: start_point_attn
+#model_name: start_point_lstm2
 
 # General
 output_folder: ./results
-epochs_to_run: 200
+epochs_to_run: 1000
 update_freq: 50 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
@@ -21,10 +24,11 @@ debug: off
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
+#dataset_folder: online_coordinate_data/MAX_stroke_vFull
 data_root_fsl: ../hw_data/strokes
 data_root_local: data
-dataset_folder: online_coordinate_data/MAX_stroke_vFull
-dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
+dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
+#dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 
 # Distortions
 warp: true
@@ -58,12 +62,11 @@ batch_size: 16
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - stroke_number
+  - sos
   - eos
 
 # NOT IMPLEMENTED
 gt_opts:
-  - null
   - null
   - null
   - null
@@ -73,7 +76,6 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - cumsum
   - null
 
 ## Loss function
@@ -81,56 +83,24 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: l1_with_stroke_numbers
-    coef: .2
-    gts:
-      - x
-      - y
-      - stroke_number
-    subcoef: 1,1,.1
-  - name: cross_entropy
+  - name: l1_
     coef: 1
     gts:
-      - eos
-    activation: sigmoid
-
-loss_fns2:
-  - name: dtw
-    coef: .2
-    gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.05
-    dtw_mapping_basis:
-      - x
-      - y
+    subcoef: 1,1
   - name: cross_entropy
     coef: .1
     gts:
       - eos
     activation: sigmoid
 
-# Always report these, but don't include in backpropagation
-loss_fns_to_report:
-#  - name: l2_coords
-#    gts:
-#      - x
-#      - y
-  - name: l1_coords
-    gts:
-      - x
-      - y
-
-convolve_func: conv_weight # or conv_weight, conv_window, cumsum
-cumsum_window_size: 20 # only for the conv_window and conv_weight
-
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance
 
 ## CNN
-cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
+cnn_type: default # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
 
 # CoordConv
   # x-scaled from -1 to 1

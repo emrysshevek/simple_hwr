@@ -157,7 +157,7 @@ class CNN(nn.Module):
         self.verbose = verbose
         self.cnn_type = cnn_type
 
-        print("Intermediate pass {}".format(self.intermediate_pass))
+        #print("Intermediate pass {}".format(self.intermediate_pass))
 
         if cnn_type in ["default", "intermediates"]:
             self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)

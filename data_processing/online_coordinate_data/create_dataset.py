@@ -450,9 +450,9 @@ def new():
     square = False      # Don't require square images
     instances = None    # None=Use all available instances
     test_set_size = 500 # use leftover test images in Training
-    combine_images = True # combine images to make them longer
-
-    variant="TEST_AUGMENT"
+    combine_images = False # combine images to make them longer
+    RENDER = False
+    variant="largeTrnSet"
     if square:
         variant += "Square"
     if instances is None:
@@ -463,7 +463,7 @@ def new():
     data_set = CreateDataset(max_strokes=strokes,
                              square=square,
                              output_folder_name=f"./{number_of_strokes}_stroke_v{variant}",
-                             render_images=True,
+                             render_images=RENDER,
                              test_set_size=test_set_size,
                              combine_images=combine_images)
     data_set.parallel(max_iter=instances, parallel=True)

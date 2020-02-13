@@ -4,7 +4,7 @@ from models.basic import CNN, BidirectionalRNN
 from torch import nn
 from loss_module.stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
-from trainers import TrainerStrokeRecovery
+from trainers import TrainerStrokeRecovery, TrainerStartPoints
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
@@ -13,6 +13,8 @@ from timeit import default_timer as timer
 import argparse
 from hwr_utils.hwr_logger import logger
 from loss_module import losses
+from models import start_points, stroke_model
+
 from hwr_utils.stroke_plotting import draw_from_gt
 
 ## Change CWD to the folder containing this script
@@ -30,28 +32,6 @@ def parse_args():
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
     opts = parser.parse_args()
     return opts
-
-class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None, **kwargs):
-        super().__init__()
-        self.__dict__.update(kwargs)
-        if first_conv_op:
-            first_conv_op = CoordConv
-        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
-        self.rnn = BidirectionalRNN(nIn=1024, nHidden=128, nOut=vocab_size, dropout=.5, num_layers=2, rnn_constructor=nn.LSTM)
-
-    def forward(self, input):
-        if self.training:
-            return self._forward(input)
-        else:
-            with torch.no_grad():
-                return self._forward(input)
-
-    def _forward(self, input):
-        cnn_output = self.cnn(input)
-        rnn_output = self.rnn(cnn_output) # width, batch, alphabet
-        # sigmoids are done in the loss
-        return rnn_output
 
 def run_epoch(dataloader, report_freq=500):
     loss_list = []
@@ -80,7 +60,7 @@ def run_epoch(dataloader, report_freq=500):
 
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", x_relative_positions=config.x_relative_positions, epoch=epoch)
+    save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
     utils.write_out(save_folder, "example_data", f"{str(item['gt_list'][0])}\nPREDS\n{str(preds_to_graph[0])}")
 
     config.scheduler.step()
@@ -91,12 +71,12 @@ def test(dataloader):
         loss, preds, *_ = trainer.test(item)
         config.stats["Actual_Loss_Function_test"].accumulate(loss)
     preds_to_graph = [p.permute([1, 0]) for p in preds]
-    save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", x_relative_positions=config.x_relative_positions, epoch=epoch)
+    save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
     return config.stats["Actual_Loss_Function_test"].get_last()
 
-def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_relative_positions=False, epoch="current"):
+def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch="current"):
     if save_folder is None:
         _epoch = str(epoch)
         save_folder = (config.image_dir / _epoch / _type)
@@ -146,7 +126,10 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, x_rela
         gt_img = batch["line_imgs"][i][0] # BATCH, CHANNEL, H, W, FLIP IT
         name=Path(batch["paths"][i]).stem
         if _type != "eval":
-            subgraph(batch["gt_list"][i], gt_img, name, is_gt=True)
+            if config.model_name == "normal":
+                subgraph(batch["gt_list"][i], gt_img, name, is_gt=True)
+            else:
+                subgraph(batch["start_points"][i], gt_img, name, is_gt=True)
         subgraph(preds, gt_img, name, is_gt=False)
         if i > 8:
             break
@@ -225,11 +208,19 @@ def main(config_path):
     # folder = Path("online_coordinate_data/8_stroke_vSmall_16")
     folder = Path(config.dataset_folder)
 
-    model = StrokeRecoveryModel(vocab_size=vocab_size,
-                                device=device,
-                                cnn_type=config.cnn_type,
-                                first_conv_op=config.coordconv,
-                                first_conv_opts=config.coordconv_opts).to(device)
+    model_kwargs = {"vocab_size":vocab_size,
+                    "device":device,
+                    "cnn_type":config.cnn_type,
+                    "first_conv_op":config.coordconv,
+                    "first_conv_opts":config.coordconv_opts}
+
+    model_dict = {"start_point_lstm": start_points.StartPointModel,
+              "start_point_lstm2":start_points.StartPointModel2,
+              "start_point_attn": start_points.StartPointAttnModel,
+              "normal":stroke_model.StrokeRecoveryModel}
+    model_class = model_dict[config.model_name]
+    model = model_class(**model_kwargs).to(device)
+
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
     logger.info(("Current dataset: ", folder))
 
@@ -252,7 +243,11 @@ def main(config_path):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
+
+    if config.model_name != "normal":
+        trainer = TrainerStartPoints(model, optimizer, config=config, loss_criterion=config.loss_obj)
+    else:
+        trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
 
     config.optimizer=optimizer
     config.trainer=trainer
