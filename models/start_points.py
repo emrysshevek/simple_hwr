@@ -2,6 +2,7 @@ from torch import nn
 import torch
 from .basic import CNN, BidirectionalRNN
 from .CoordConv import CoordConv
+import numpy as np
 
 MAX_LENGTH = 64
 
@@ -106,6 +107,7 @@ class StartPointAttnModel(nn.Module):
         output = torch.zeros((1, b, 256)).to(self.device)
         for i in range(MAX_LENGTH):
             context, _ = self.attn(output, encoding, encoding)
+            print(context.shape)
             output, hidden = self.decoder(torch.cat([output, context], dim=-1), hidden)
             output = nn.functional.relu(output)
             outputs.append(self.linear(output))
