@@ -137,7 +137,10 @@ test_nn_loss: false # calculate nearest neighbor loss on every test instance
 cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
 
 # Image dataset
-image_prep: loaded # pil_with_distortion, pil, loaded
+dataset:
+  img_height: 61
+  image_prep: loaded # prefix: "pil" "loaded"  suffixes: "distortion" "no_warp"
+  num_of_channels: 1
 
 # CoordConv
   # x-scaled from -1 to 1
