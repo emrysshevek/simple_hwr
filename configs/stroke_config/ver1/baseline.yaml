@@ -82,7 +82,7 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: l1
+  - name: l1____
     coef: .5
     gts:
       - x
