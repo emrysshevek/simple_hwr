@@ -283,7 +283,7 @@ class StrokeRecoveryDataset(Dataset):
                 # Maybe delete this option
                 # The GTs will be the wrong size if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
-                img = read_img(image_path, add_distortion)
+                img = read_img(image_path, add_distortion=add_distortion)
 
         #img = read_img(image_path)
 
