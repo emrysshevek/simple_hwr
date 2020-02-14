@@ -100,6 +100,12 @@ def create_functions_from_strokes(stroke_dict, parameter="t"):
     y_func = interpolate.interp1d(stroke_dict[parameter], stroke_dict.y)
     return x_func, y_func
 
+def get_eos_from_sos(sos):
+    eos = np.ones(sos.shape[-1])
+    eos[:-1] = sos[1:]
+    return eos
+
+
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     """ Takes in a "raw" stroke list for one image
         Each element of stroke_list is a dict with keys x,y,time
