@@ -264,7 +264,7 @@ class StrokeRecoveryDataset(Dataset):
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
-        if not self.image_prep.endswith("no_warp") and self.image_prep.startswith("pil") :
+        if self.image_prep.startswith("pil") and not ("no_warp" in self.image_prep):
             gt = item["gt"].copy() # LENGTH, VOCAB
             gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
             gt = np.c_[gt,item["gt"][:,2:]]
