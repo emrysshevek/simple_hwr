@@ -55,7 +55,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
     return img
 
 class BasicDataset(Dataset):
-    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output figsize etc.
+    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
 
     """
     def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
@@ -113,7 +113,9 @@ class StrokeRecoveryDataset(Dataset):
                  gt_format=None,
                  cnn=None,
                  config=None,
-                 logger=None, **kwargs):
+                 logger=None,
+                 image_prep="pil_with_distortions",
+                 **kwargs):
 
         super().__init__()
         self.__dict__.update(kwargs)
@@ -130,7 +132,7 @@ class StrokeRecoveryDataset(Dataset):
         self.cnn = cnn
         self.config = config
         self.img_height = img_height
-
+        self.image_prep = image_prep
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
@@ -198,9 +200,9 @@ class StrokeRecoveryDataset(Dataset):
         #print(data[0].keys())
 
         if images_to_load:
-            logger.info(("Original dataloader figsize", len(data)))
+            logger.info(("Original dataloader size", len(data)))
             data = data[:images_to_load]
-        logger.info(("Dataloader figsize", len(data)))
+        logger.info(("Dataloader size", len(data)))
 
         if "gt" not in data[0].keys():
             data = self.resample_data(data, parallel=True)
@@ -216,7 +218,7 @@ class StrokeRecoveryDataset(Dataset):
         return gt
 
     @staticmethod
-    def prep_image(gt, img_height=61):
+    def prep_image(gt, img_height=61, add_distortion=True):
         """ Important that this modifies the actual GT so that plotting afterward still works
 
         Args:
@@ -234,10 +236,10 @@ class StrokeRecoveryDataset(Dataset):
         padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
 
         img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=2)
-        img = img[::-1] # convert to lower origin format
+        # img = img[::-1] # convert to lower origin format
 
         # # ADD NOISE
-        if True:
+        if add_distortion:
             img = distortions.gaussian_noise(
                 distortions.blur(
                     distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
@@ -260,24 +262,27 @@ class StrokeRecoveryDataset(Dataset):
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
-        gt = item["gt"].copy() # LENGTH, VOCAB
-        gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
-        gt = np.c_[gt,item["gt"][:,2:]]
-
+        if not "no_warp" in self.image_prep:
+            gt = item["gt"].copy() # LENGTH, VOCAB
+            gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
+            gt = np.c_[gt,item["gt"][:,2:]]
+        else:
+            gt = item["gt"]
 
         # Render image
         #print(item.keys())
-        img = self.prep_image(gt, img_height=self.img_height)
-
-        # Check if the image is already loaded
-        if False: # deprecate this, regenerate every time
+        if self.image_prep.lower().startswith("pil"):
+            add_distortion = "distortions" in self.image_prep.lower()
+            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion)
+        else:
+            # Check if the image is already loaded
             if "line_img" in item:
-                img2 = item["line_img"]
+                img = item["line_img"]
             else:
                 # Maybe delete this option
-                # The GTs will be the wrong figsize if the image isn't resized the same way as earlier
+                # The GTs will be the wrong size if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
-                img2 = read_img(image_path)
+                img = read_img(image_path)
 
         #img = read_img(image_path)
 
@@ -529,7 +534,7 @@ def collate_stroke(batch, device="cpu"):
     """
     vocab_size = batch[0]['gt'].shape[-1]
     batch = [b for b in batch if b is not None]
-    #These all should be the same figsize or error
+    #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.info(batch)
@@ -558,7 +563,7 @@ def collate_stroke(batch, device="cpu"):
         l = batch[i]['gt']
         #all_labels.append(l)
         label_lengths.append(len(l))
-        ## ALL LABELS - list of length batch figsize; arrays LENGTH, VOCAB SIZE
+        ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(TYPE)).to(device))
         start_points.append(torch.from_numpy(batch[i]['start_points'].astype(TYPE)).to(device))
@@ -598,7 +603,7 @@ def collate_stroke_eval(batch, device="cpu"):
     """
 
     batch = [b for b in batch if b is not None]
-    #These all should be the same figsize or error
+    #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.warning(batch)
@@ -646,7 +651,7 @@ if __name__=="__main__":
 
     for i in range(0,iterations): # iterations
         sub_list = []
-        for m in range(0,batch): # batch figsize
+        for m in range(0,batch): # batch size
             length = np.random.randint(min_length, max_length)
             sub_list.append(np.random.rand(vocab, length))
         the_list.append(sub_list)

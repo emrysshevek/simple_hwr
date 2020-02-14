@@ -27,8 +27,15 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 
-# Distortions
-warp: true
+# Image dataset
+dataset:
+  img_height: 61
+  image_prep: pil # pil_with_distortion, pil, loaded
+  num_of_channels: 1
+
+test_size: null
+train_size: null
+batch_size: 32
 
 # LR schedule
 learning_rate: 5e-4          # LR
@@ -42,9 +49,6 @@ scheduler_gamma: .95          # LR decay rate
   # (Old option: resample the GTs after the prediction is known)
   # (Future option: with attention, have the GTs to be just be sampled regularly)
 
-test_size: null
-train_size: null
-batch_size: 32
 
 ## GTs
 # All options include:
@@ -129,6 +133,8 @@ cumsum_window_size: 20 # only for the conv_window and conv_weight
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 test_nn_loss: false # calculate nearest neighbor loss on every test instance
+
+
 
 ## CNN
 cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width

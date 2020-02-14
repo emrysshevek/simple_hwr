@@ -183,8 +183,8 @@ class ResNet(nn.Module):
         print(x.size())
         # x = self.avgpool(x) # something like 16, 512, 1, 1
                             #                 b, feature_maps, channels?, ?
-        # print(x.figsize())
-        # x = x.view(x.figsize(0), -1)
+        # print(x.size())
+        # x = x.view(x.size(0), -1)
         # x = self.fc(x)
 
         return x

@@ -392,7 +392,7 @@ def load_data(config):
 
     train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = make_dataloaders(config=config)
 
-    config['alphabet_size'] = len(config["idx_to_char"])   # alphabet figsize to be recognized
+    config['alphabet_size'] = len(config["idx_to_char"])   # alphabet size to be recognized
     config['num_of_writers'] = train_dataset.classes_count + 1
 
     config['n_train_instances'] = len(train_dataloader.dataset)
@@ -429,7 +429,7 @@ def build_model(config_path):
     config["global_instances_counter"] = 0
     device, dtype = check_gpu(config)
 
-    # Use small batch figsize when using CPU/testing
+    # Use small batch size when using CPU/testing
     if config["TESTING"]:
         config["batch_size"] = 1
 

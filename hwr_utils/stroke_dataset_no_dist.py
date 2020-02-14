@@ -54,7 +54,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
     return img
 
 class BasicDataset(Dataset):
-    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output figsize etc.
+    """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
 
     """
     def __init__(self, root, extension=".png", cnn=None, pickle_file=None):
@@ -185,9 +185,9 @@ class StrokeRecoveryDataset(Dataset):
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         if images_to_load:
-            logger.info(("Original dataloader figsize", len(data)))
+            logger.info(("Original dataloader size", len(data)))
             data = data[:images_to_load]
-        logger.info(("Dataloader figsize", len(data)))
+        logger.info(("Dataloader size", len(data)))
 
         if "gt" not in data[0].keys():
             data = self.resample_data(data, parallel=True)
@@ -237,7 +237,7 @@ class StrokeRecoveryDataset(Dataset):
                 img2 = item["line_img"]
             else:
                 # Maybe delete this option
-                # The GTs will be the wrong figsize if the image isn't resized the same way as earlier
+                # The GTs will be the wrong size if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
                 img2 = read_img(image_path)
 
@@ -466,7 +466,7 @@ def collate_stroke(batch, device="cpu"):
     """
 
     batch = [b for b in batch if b is not None]
-    #These all should be the same figsize or error
+    #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.info(batch)
@@ -493,7 +493,7 @@ def collate_stroke(batch, device="cpu"):
         l = batch[i]['gt']
         #all_labels.append(l)
         label_lengths.append(len(l))
-        ## ALL LABELS - list of length batch figsize; arrays LENGTH, VOCAB SIZE
+        ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(np.float32)).to(device))
 
@@ -531,7 +531,7 @@ def collate_stroke_eval(batch, device="cpu"):
     """
 
     batch = [b for b in batch if b is not None]
-    #These all should be the same figsize or error
+    #These all should be the same size or error
     if len(set([b['line_img'].shape[0] for b in batch])) > 1: # All items should be the same height!
         logger.warning("Problem with collating!!! See hw_dataset.py")
         logger.warning(batch)
@@ -579,7 +579,7 @@ if __name__=="__main__":
 
     for i in range(0,iterations): # iterations
         sub_list = []
-        for m in range(0,batch): # batch figsize
+        for m in range(0,batch): # batch size
             length = np.random.randint(min_length, max_length)
             sub_list.append(np.random.rand(vocab, length))
         the_list.append(sub_list)

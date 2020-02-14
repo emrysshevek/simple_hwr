@@ -346,7 +346,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
 def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
                  right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=True):
     """ RETURNS DATA IN "LOWER" origin format!!!
-        GT is a WIDTH x VOCAB figsize numpy array
+        GT is a WIDTH x VOCAB size numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
         [:,0:2] are the x,y coordinates
 
@@ -381,7 +381,7 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
         linewidth = min(max(int(abs(np.random.randn()) * (max_width - 1) * .5 + 1), 1),max_width)
 
     if isinstance(right_padding, str):
-        right_padding = np.random.randint(10)
+        right_padding = np.random.randint(6)
 
     if width is None: # If no width, rescale based on height
         width = ceil(np.max(gt[:,0]) * height)+right_padding

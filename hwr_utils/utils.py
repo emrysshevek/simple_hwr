@@ -212,7 +212,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "interpolated_sos": "normal",
                     "cumsum_window_size": 30,
                     "convolve_func": "conv_weight", # or conv_window
-                    "model_name": "normal",
+                    "model_name":"normal",
+                    "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1}
                     }
 
 
@@ -378,6 +379,11 @@ def make_config_consistent_stroke(config):
     #             config[key][i] = (loss, float(coef))
     #             config.all_losses.add(loss)
     validate_and_prep_loss(config)
+
+    # Update dataset params
+    config.dataset.gt_format = config.gt_format
+    config.dataset.batch_size = config.batch_size
+
     return config
 
 def make_config_consistent_hwr(config):
@@ -470,7 +476,7 @@ def is_galois():
     return get_computer() == "Galois"
 
 def is_taylor():
-    return get_computer() in "Galois", "brodie"
+    return get_computer() in ("Galois", "brodie")
 
 
 def choose_optimal_gpu(priority="memory"):
@@ -556,7 +562,7 @@ def write_out(folder, fname, text):
 def validate_and_prep_loss(config):
     # Each should be the same length
     assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts) or config.model_name != "normal"
-    config.vocab_size = len(config.gt_format) # vocab figsize is the length of the GT format
+    config.vocab_size = len(config.gt_format) # vocab size is the length of the GT format
 
     # Process loss functions
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]

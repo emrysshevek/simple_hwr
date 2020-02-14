@@ -149,7 +149,7 @@ class TrainerBaseline(json.JSONEncoder):
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
 
         # Calculate HWR loss
-        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the figsize?
+        preds_size = Variable(torch.IntTensor([pred_logits.size(0)] * pred_logits.size(1))) # <- what? isn't this square? why are we tiling the size?
 
         output_batch = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
         pred_strs = list(self.decoder.decode_training(output_batch))
@@ -167,7 +167,7 @@ class TrainerBaseline(json.JSONEncoder):
         loss = torch.mean(loss_recognizer.cpu(), 0, keepdim=False).item()
 
         # Error Rate
-        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch figsize?
+        self.config["stats"]["HWR Training Loss"].accumulate(loss, 1) # Might need to be divided by batch size?
         logger.debug("Calculating Error Rate: {}".format(step))
         err, weight = calculate_cer(pred_strs, gt)
 

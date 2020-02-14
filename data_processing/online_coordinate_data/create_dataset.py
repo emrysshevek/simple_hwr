@@ -350,7 +350,7 @@ class CreateDataset:
     def final_process(self, all_results):
         for d in all_results:
             for item in d:
-                # If test set is specified to be smaller, add to training set after a certain figsize
+                # If test set is specified to be smaller, add to training set after a certain size
                 if item["dataset"] in ["train", "val1", "val2"] or (self.test_set_size and len(self.output_dict["test"]) > self.test_set_size):
                     self.output_dict["train"].append(item)
                 elif item["dataset"] == "test":

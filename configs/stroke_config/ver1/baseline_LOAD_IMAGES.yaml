@@ -3,12 +3,12 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: true # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
 logging: info
-gpu_if_available: true
+gpu_if_available: false
 
 # General
 output_folder: ./results
@@ -27,8 +27,11 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 
-# Distortions
-warp: true
+# Image dataset
+dataset:
+  img_height: 61
+  image_prep: loaded # pil_with_distortion, pil, loaded
+  num_of_channels: 1
 
 # LR schedule
 learning_rate: 5e-4          # LR
@@ -132,6 +135,9 @@ test_nn_loss: false # calculate nearest neighbor loss on every test instance
 
 ## CNN
 cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
+
+# Image dataset
+image_prep: loaded # pil_with_distortion, pil, loaded
 
 # CoordConv
   # x-scaled from -1 to 1

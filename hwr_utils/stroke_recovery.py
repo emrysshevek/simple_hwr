@@ -195,7 +195,7 @@ def relativefy_batch(batch, reverse=False):
     import warnings
     warnings.warn("relativefy_batch: Untested")
     for i,b in enumerate(batch):
-        #print(batch.figsize(), batch)
+        #print(batch.size(), batch)
         #print(batch[i,:,0])
         #print(i, b)
         relativefy(b[:, 0], reverse=reverse)

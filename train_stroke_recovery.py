@@ -24,7 +24,7 @@ ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 # Relative position
 # CoordConv - 0 center, X-as-rectanlge
 # L1 loss, DTW
-# Dataset figsize
+# Dataset size
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -103,7 +103,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch=
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
 
         # Flip everything for PIL
-        gt_img = torch.flip(gt_img, (0,))
+        # gt_img = torch.flip(gt_img, (0,))
 
         # Red images
         bg = overlay_images(background_img=gt_img.numpy(), foreground_gt=coords.transpose())
@@ -117,7 +117,11 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch=
             coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
-        render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_folder / f"{i}_{name}{suffix}.png", origin='lower', invert_y_image=True)
+        if config.dataset.image_prep.lower().startswith('pil'):
+            render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_folder / f"{i}_{name}{suffix}.png", origin='lower', invert_y_image=True)
+        else:
+            render_points_on_image_matplotlib(gts=coords, img_path=img_path, save_path=save_folder / f"{i}_{name}{suffix}.png",
+                                   origin='lower')
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
@@ -135,17 +139,13 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch=
             break
     return save_folder
 
-
-### UGH FINISH THIS, FIGURE OUT LOADING THE COUNTER ETC.
-def build_data_loaders(folder, cnn, train_size, test_size):
+def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     ## LOAD DATASET
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json"],
-                                img_height = 61,
-                            num_of_channels = 1,
                             root=config.data_root,
                             max_images_to_load = train_size,
-                            gt_format=config.gt_format,
-                            cnn=cnn
+                            cnn=cnn,
+                            **kwargs,
                             )
 
     train_dataloader = DataLoader(train_dataset,
@@ -158,12 +158,10 @@ def build_data_loaders(folder, cnn, train_size, test_size):
     config.n_train_instances = len(train_dataloader.dataset)
 
     test_dataset=StrokeRecoveryDataset([folder / "test_online_coords.json"],
-                            img_height = 61,
-                            num_of_channels = 1.,
                             root=config.data_root,
                             max_images_to_load=test_size,
-                            gt_format=config.gt_format,
-                            cnn=cnn
+                            cnn=cnn,
+                            ** kwargs
                             )
 
     test_dataloader = DataLoader(test_dataset,
@@ -228,10 +226,10 @@ def main(config_path):
     model_class = model_dict[config.model_name]
     model = model_class(**model_kwargs).to(device)
 
-    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same figsize as the CNN output
+    cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     logger.info(("Current dataset: ", folder))
 
-    train_dataloader, test_dataloader =  build_data_loaders(folder, cnn, train_size, test_size)
+    train_dataloader, test_dataloader =  build_data_loaders(folder, cnn, train_size, test_size, **config.dataset)
 
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]

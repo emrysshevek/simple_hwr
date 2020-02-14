@@ -20,7 +20,7 @@ class CRCR(nn.Module):
 
     def default_CRCR(self, nc=3, leakyRelu=False):
 
-        ks = [3, 3, 3, 3, 3, 3, 2] # kernel figsize 3x3
+        ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
         ps = [1, 1, 1, 1, 1, 1, 0] # padding
         ss = [1, 1, 1, 1, 1, 1, 1] # stride
         nm = [64, 128, 256, 256, 512, 512, 512] # number of channels/maps

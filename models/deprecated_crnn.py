@@ -43,7 +43,7 @@ class CRNN_with_writer_classifier(nn.Module):
                 embedding_idx = mlp_layers.index("embedding")
                 if embedding_idx != get_last_index(mlp_layers, "embedding"):
                     warnings.warn("Multiple dimensions in MLP specified as 'embedding'")
-                mlp_layers = [m if m != "embedding" else embedding_size for m in mlp_layers] # replace None with embedding figsize
+                mlp_layers = [m if m != "embedding" else embedding_size for m in mlp_layers] # replace None with embedding size
             else:
                 embedding_idx = None
 

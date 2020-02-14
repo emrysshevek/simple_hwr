@@ -59,7 +59,7 @@ batch_size: 32
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - sos
+  - stroke_number
   - eos
 
 # NOT IMPLEMENTED
@@ -74,7 +74,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - null
+  - cumsum
   - null
 
 ## Loss function
@@ -87,44 +87,44 @@ loss_fns:
     gts:
       - x
       - y
-    subcoef: 1,1
+      - stroke_number
+    subcoef: 1,1,.1
   - name: cross_entropy
     coef: 1
     gts:
       - eos
-      - sos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
-    coef: .2
+    coef: .4
     gts:
       - x
       - y
-    subcoef: 1,1
+      - stroke_number
+    subcoef: 1,1,.01
     dtw_mapping_basis:
       - x
       - y
   - name: cross_entropy
-    coef: .1
+    coef: .01
     gts:
       - eos
-      - sos
     activation: sigmoid
 
 # Always report these, but don't include in backpropagation
-loss_fns_to_report:
+#loss_fns_to_report:
 #  - name: l2_coords
 #    gts:
 #      - x
 #      - y
-  - name: l1_coords
-    gts:
-      - x
-      - y
+#  - name: l1_coords
+#    gts:
+#      - x
+#      - y
 
 convolve_func: cumsum # or conv_weight, conv_window, cumsum
-cumsum_window_size: 20 # only for the conv_window and conv_weight
+cumsum_window_size: 21 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
