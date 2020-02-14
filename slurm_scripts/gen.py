@@ -78,7 +78,7 @@ def gen(sh_path, log_path, env, command, hardware_dict, cd_path=None):
             f.write(f"""#!/bin/bash
 #SBATCH --gres=gpu:1
 #SBATCH -C 'rhel7&pascal'
-#SBATCH --mem {mem}
+#SBATCH --mem-per-cpu {mem}
 #SBATCH --ntasks {threads}
 #SBATCH --output="{log_path}"
 #SBATCH --time {time}

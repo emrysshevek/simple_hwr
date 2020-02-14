@@ -1,20 +1,18 @@
-import torch
-import robust_loss_pytorch
 import numpy as np
-import torch.nn as nn
-from torch import Tensor
-from pydtw import dtw
-from scipy import spatial
-from robust_loss_pytorch import AdaptiveLossFunction
-#from sdtw import SoftDTW
+import torch
+# from sdtw import SoftDTW
 import torch.multiprocessing as multiprocessing
-from hwr_utils.utils import to_numpy, Counter
-from hwr_utils.stroke_recovery import relativefy
-from hwr_utils.stroke_dataset import pad, create_gts
+import torch.nn as nn
+from pydtw import dtw
 from scipy.spatial import KDTree
-import time
+from torch import Tensor
+
+from hwr_utils.stroke_dataset import create_gts
+from hwr_utils.utils import to_numpy
+
 BCELoss = torch.nn.BCELoss()
 BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss()
+
 
 # DEVICE???
 # x.requires_grad = False
@@ -23,7 +21,7 @@ class CustomLoss(nn.Module):
     def __init__(self, loss_indices, device="cuda", **kwargs):
         super().__init__()
         self.loss_indices = loss_indices
-        self.device="cpu" # I guess this needs to be CPU? IDK
+        self.device = "cpu"  # I guess this needs to be CPU? IDK
         self.__dict__.update(**kwargs)
         if "subcoef" in kwargs:
             subcoef = kwargs["subcoef"]
@@ -34,6 +32,7 @@ class CustomLoss(nn.Module):
             # MAY NOT ALWAYS BE 4!!!
             length = len(range(*loss_indices.indices(4))) if isinstance(loss_indices, slice) else len(loss_indices)
             self.subcoef = torch.ones(length).to(self.device)
+
 
 class DTWLoss(CustomLoss):
     def __init__(self, loss_indices, dtw_mapping_basis=None, **kwargs):
@@ -60,20 +59,20 @@ class DTWLoss(CustomLoss):
                 to_numpy(preds),
                 targs)), chunksize=32)  # iterates through everything all at once
             pool.close()
-            #print(as_and_bs[0])
-            for i, (a,b) in enumerate(as_and_bs): # loop through BATCH
+            # print(as_and_bs[0])
+            for i, (a, b) in enumerate(as_and_bs):  # loop through BATCH
                 loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum()
         return loss
 
     def dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
-        for i in range(len(preds)): # loop through BATCH
-            a,b = self.dtw_single((preds[i], targs[i]))
+        for i in range(len(preds)):  # loop through BATCH
+            a, b = self.dtw_single((preds[i], targs[i]))
             # LEN X VOCAB
-            pred = preds[i][a,:][:, self.loss_indices]
-            targ = targs[i][b,:][:, self.loss_indices]
-            loss += (abs(pred - targ)*self.subcoef).sum() # AVERAGE pointwise loss for 1 image
-        return loss #, to_value(loss)
+            pred = preds[i][a, :][:, self.loss_indices]
+            targ = targs[i][b, :][:, self.loss_indices]
+            loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+        return loss  # , to_value(loss)
 
     def dtw_single(self, _input):
         """ THIS DOES NOT USE SUBCOEF
@@ -84,17 +83,19 @@ class DTWLoss(CustomLoss):
 
         """
         pred, targ = _input
-        pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64") #*self.subcoef
+        pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64")  # *self.subcoef
         x1 = np.ascontiguousarray(pred[:, self.dtw_mapping_basis])  # time step, batch, (x,y)
         x2 = np.ascontiguousarray(targ[:, self.dtw_mapping_basis])
         dist, cost, a, b = dtw.dtw2d(x1, x2)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
-        return a,b
+        return a, b
+
 
 class L1(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
     """
+
     def __init__(self, loss_indices, **kwargs):
         """
         """
@@ -116,18 +117,20 @@ class L1(CustomLoss):
 
         """
         targs, label_lengths = resample_gt(preds, targs)
-        loss = L1.loss(preds, targs, label_lengths) # already takes average loss
-        return loss #, to_value(loss)
+        loss = L1.loss(preds, targs, label_lengths)  # already takes average loss
+        return loss  # , to_value(loss)
 
     def l1(self, preds, targs, label_lengths, **kwargs):
         loss = 0
         for i, pred in enumerate(preds):
-            loss += torch.sum(abs(pred[:, self.loss_indices]-targs[i][:, self.loss_indices])*self.subcoef)
-        return loss #, to_value(loss)
+            loss += torch.sum(abs(pred[:, self.loss_indices] - targs[i][:, self.loss_indices]) * self.subcoef)
+        return loss  # , to_value(loss)
+
 
 class L2(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
     """
+
     def __init__(self, loss_indices, **kwargs):
         """
         """
@@ -149,14 +152,15 @@ class L2(CustomLoss):
 
         """
         targs, label_lengths = resample_gt(preds, targs)
-        loss = L2.loss(preds, targs, label_lengths) # already takes average loss
-        return loss #, to_value(loss)
+        loss = L2.loss(preds, targs, label_lengths)  # already takes average loss
+        return loss  # , to_value(loss)
 
     def l2(self, preds, targs, label_lengths, **kwargs):
         loss = 0
-        for i, pred in enumerate(preds): # loop through batch
-            loss += torch.sum((pred[:, self.loss_indices]-targs[i][:, self.loss_indices])**2*self.subcoef)**(1/2)
-        return loss #, to_value(loss)
+        for i, pred in enumerate(preds):  # loop through batch
+            loss += torch.sum((pred[:, self.loss_indices] - targs[i][:, self.loss_indices]) ** 2 * self.subcoef) ** (
+                        1 / 2)
+        return loss  # , to_value(loss)
 
 
 class CrossEntropy(nn.Module):
@@ -175,16 +179,17 @@ class CrossEntropy(nn.Module):
 
         self._loss = BCELoss
         if "activation" in kwargs.keys():
-            if kwargs["activation"]=="sigmoid":
+            if kwargs["activation"] == "sigmoid":
                 self._loss = BCEWithLogitsLoss
-                #torch.nn.Sigmoid().to(device)
+                # torch.nn.Sigmoid().to(device)
 
     def cross_entropy(self, preds, targs, label_lengths, **kwargs):
         loss = 0
-        for i, pred in enumerate(preds): # loop through batches, since they are not the same size
+        for i, pred in enumerate(preds):  # loop through batches, since they are not the same size
             targ = targs[i]
-            loss += self._loss(pred[:, self.loss_indices],targ[:, self.loss_indices])
+            loss += self._loss(pred[:, self.loss_indices], targ[:, self.loss_indices])
         return loss  # , to_value(loss)
+
 
 class SSL(nn.Module):
     def __init__(self, loss_indices, **kwargs):
@@ -194,32 +199,31 @@ class SSL(nn.Module):
         # loss_indices - the loss_indices to calculate the actual loss
         super().__init__()
         self.loss_indices = 2
-        self.nn_indices = slice(0,2)
+        self.nn_indices = slice(0, 2)
         self.lossfun = self.ssl
 
     def ssl(self, preds, targs, label_lengths):
         ### TODO: L1 distance and SOS/EOS are really two different losses, but they both depend on identifying the start points
 
         # Method
-            ## Find the point nearest to the actual start stroke
-            ## Assume this point should have been the predicted start stroke
-            ## Calculate loss for predicting the start strokes!
+        ## Find the point nearest to the actual start stroke
+        ## Assume this point should have been the predicted start stroke
+        ## Calculate loss for predicting the start strokes!
 
         # OTHER LOSS
-            # Sometimes the model "skips" stroke points because of DTW
-            # Calculate the nearest point to every start and end point
-            # Have this be an additional loss
-
+        # Sometimes the model "skips" stroke points because of DTW
+        # Calculate the nearest point to every start and end point
+        # Have this be an additional loss
 
         # start_time = time.time()
         # for each of the start strokes in targs
         loss_tensor = 0
 
         # Preds are BATCH x LEN x VOCAB
-        for i in range(len(preds)): # loop through batches
+        for i in range(len(preds)):  # loop through batches
             # Get the coords of all start strokes
-            targ_start_strokes = targs[i][torch.nonzero(targs[i][:, self.loss_indices]).squeeze(1), self.nn_indices] #
-            #targ_end_strokes = (targ_start_strokes-1)[1:] # get corresponding end strokes - this excludes the final stroke point!!
+            targ_start_strokes = targs[i][torch.nonzero(targs[i][:, self.loss_indices]).squeeze(1), self.nn_indices]  #
+            # targ_end_strokes = (targ_start_strokes-1)[1:] # get corresponding end strokes - this excludes the final stroke point!!
             k = KDTree(preds[i][:, self.nn_indices].data)
 
             # Start loss_indices; get the preds nearest the actual start points
@@ -257,8 +261,8 @@ class SSL(nn.Module):
             # loss += 0.1 * abs(pred_gt_fitted - targs[i][:, 2]).sum()
             # loss += 0.1 * abs(pred_end_fitted - targs[i][:, 3]).sum()
         loss = to_value(loss_tensor)
-        #print("Time to compute ssl: ", time.time() - start_time)
-        return loss_tensor #, loss
+        # print("Time to compute ssl: ", time.time() - start_time)
+        return loss_tensor  # , loss
 
 
 def resample_gt(preds, targs, gt_format):
@@ -276,8 +280,33 @@ def resample_gt(preds, targs, gt_format):
         label_lengths.append(pred_length)
     return targs, label_lengths
 
+
+class L1_swapper(CustomLoss):
+    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
+    """
+
+    def __init__(self, loss_indices, **kwargs):
+        """
+        """
+        # parse the opts - this will include opts regarding the DTW basis
+        # loss_indices - the loss_indices to calculate the actual loss
+        super().__init__(loss_indices, **kwargs)
+        self.lossfun = self.l1
+
+    def l1(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i, pred in enumerate(preds):
+            diff = torch.sum(torch.abs(pred.reshape(-1, 2) - targs.reshape(-1, 2)), axis=1)
+            diff2 = torch.sum(torch.abs(pred.reshape(-1, 2) - torch.flip(targs.reshape(-1, 2), dims=(1,))), axis=1)
+            loss += torch.sum(torch.min(diff, diff2)) # does not support subcoef
+        return loss  # , to_value(loss)
+
+
+
+
 def to_value(loss_tensor):
     return torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
+
 
 def tensor_sum(tensor):
     return torch.sum(tensor.cpu(), 0, keepdim=False).item()
