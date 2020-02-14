@@ -58,7 +58,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_d
 
     return img
 
-def add_unormalized_distortion(self, img):
+def add_unormalized_distortion(img):
     return distortions.gaussian_noise(
         distortions.blur(
             distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
