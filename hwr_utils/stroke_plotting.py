@@ -114,7 +114,7 @@ def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin=
     plt.figure(figsize=(img_width_inches,2), dpi=200)
     plt.imshow(img, cmap="gray", origin=origin, interpolation="bicubic")
 
-    start_points = gts[2] if gts.shape[0] > 2 else None
+    start_points = gts[2] if gts.shape[0] > 2 else np.zeros(gts.shape[-1])
     plot_stroke_points(x,y,start_points)
 
     if save_path:
