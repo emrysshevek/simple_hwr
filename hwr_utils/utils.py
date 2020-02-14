@@ -389,7 +389,7 @@ def make_config_consistent_stroke(config):
     config.dataset.batch_size = config.batch_size
 
     #
-    config.image_prep = config.image_prep.lower()
+    config.dataset.image_prep = config.dataset.image_prep.lower()
 
     return config
 

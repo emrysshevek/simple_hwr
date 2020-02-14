@@ -8,11 +8,11 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false # Do not train
 offline_pred: false
 logging: info
-gpu_if_available: true
+gpu_if_available: false
 
 # General
 output_folder: ./results
-epochs_to_run: 200
+epochs_to_run: 1000
 update_freq: 50 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
@@ -27,12 +27,15 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 
-# Distortions
-warp: true
+# Image dataset
+dataset:
+  img_height: 61
+  image_prep: loaded_distortion # prefix: "pil" "loaded"  suffixes: "distortion" "no_warp"
+  num_of_channels: 1
 
 # LR schedule
 learning_rate: 5e-4          # LR
-scheduler_step: 10         # Every X steps, multiply LR by gamma
+scheduler_step: 15         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
 ## Loss options:
@@ -44,8 +47,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 16
-vocab_size: 4
+batch_size: 32
 
 ## GTs
 # All options include:
@@ -60,7 +62,7 @@ vocab_size: 4
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - stroke_number
+  - sos
   - eos
 
 # NOT IMPLEMENTED
@@ -75,7 +77,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - cumsum
+  - null
   - null
 
 ## Loss function
@@ -84,34 +86,48 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
   - name: l1_with_stroke_numbers
-    coef: .5
+    coef: .2
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.1
+    subcoef: 1,1
   - name: cross_entropy
     coef: 1
     gts:
       - eos
+      - sos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
-    coef: .5
+    coef: .2
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.05
+    subcoef: 1,1
     dtw_mapping_basis:
       - x
       - y
   - name: cross_entropy
-    coef: 1
+    coef: .1
     gts:
       - eos
+      - sos
     activation: sigmoid
+
+# Always report these, but don't include in backpropagation
+loss_fns_to_report:
+#  - name: l2_coords
+#    gts:
+#      - x
+#      - y
+  - name: l1_coords
+    gts:
+      - x
+      - y
+
+convolve_func: cumsum # or conv_weight, conv_window, cumsum
+cumsum_window_size: 20 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
@@ -120,6 +136,9 @@ test_nn_loss: false # calculate nearest neighbor loss on every test instance
 ## CNN
 cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width
 
+# Image dataset
+image_prep: loaded # pil_with_distortion, pil, loaded
+
 # CoordConv
   # x-scaled from -1 to 1
   # x-scaled to be same scale as y
@@ -127,10 +146,6 @@ coordconv: true
 coordconv_abs: true # scale x-coordconv to be on the same scale as y
 coordconv_default: true # x-coordinates on -1 to 1 range
 coordconv_0_center: true # 0 center
-
-# Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
-x_relative_positions: false # The GT data should be converted to relative positions, rather than absolute
-relative_x_pred_abs_eval: true # predict relative coordinates, loss and GTs based on absolute ones
 
 # Visdom
 visdom_port: 9001
