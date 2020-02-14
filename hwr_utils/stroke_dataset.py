@@ -45,10 +45,6 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_d
     if percent != 1 and resize:
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
-    # Add channel dimension, since resize and warp only keep non-trivial channel axis
-    if num_of_channels == 1:
-        img = img[:, :, np.newaxis]
-
     img = img.astype(np.float32)
 
     if add_distortion:
@@ -56,9 +52,13 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_d
 
     img = img / 127.5 - 1.0
 
+    # Add channel dimension, since resize and warp only keep non-trivial channel axis
+    if num_of_channels == 1:
+        img = img[:, :, np.newaxis]
+
     return img
 
-def add_unormalized_distortion(self, img):
+def add_unormalized_distortion(img):
     return distortions.gaussian_noise(
         distortions.blur(
             distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
