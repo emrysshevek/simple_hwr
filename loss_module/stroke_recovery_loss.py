@@ -14,6 +14,9 @@ from hwr_utils.stroke_dataset import pad, create_gts
 from scipy.spatial import KDTree
 import time
 from loss_module.losses import *
+import logging
+
+logger = logging.getLogger("root."+__name__)
 
 class StrokeLoss:
     def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, device="cuda", **kwargs):
@@ -94,6 +97,10 @@ class StrokeLoss:
 
         self.coefs = Tensor(coefs)
         self.master_loss_defintion = master_loss_defintion
+
+        # Loop through monitor vs effective losses
+        for key, item in master_loss_defintion.items():
+            logger.info(f"Loss {key}: {item}")
 
     def main_loss(self, preds, targs, label_lengths, suffix):
         """ Preds: BATCH, TIME, VOCAB SIZE

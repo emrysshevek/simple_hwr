@@ -264,7 +264,7 @@ def main(config_path):
 
     check_epoch_build_loss(config, loss_exists=False)
     current_epoch = config.counter.epochs
-    for i in range(current_epoch,200):
+    for i in range(current_epoch,config.epochs_to_run):
         epoch = i+1
         #config.counter.epochs = epoch
         config.counter.update(epochs=1)
