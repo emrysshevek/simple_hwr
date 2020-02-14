@@ -26,7 +26,7 @@ MAX_LEN = 64
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
 
-def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
+def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_distortion=False):
     if isinstance(image_path, str):
         image_path = Path(image_path)
 
@@ -50,9 +50,20 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True):
         img = img[:, :, np.newaxis]
 
     img = img.astype(np.float32)
+
+    if add_distortion:
+        img = add_unormalized_distortion(img)
+
     img = img / 127.5 - 1.0
 
     return img
+
+def add_unormalized_distortion(self, img):
+    return distortions.gaussian_noise(
+        distortions.blur(
+            distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
+            max_intensity=1.0),
+        max_intensity=.1)
 
 class BasicDataset(Dataset):
     """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
@@ -229,23 +240,14 @@ class StrokeRecoveryDataset(Dataset):
 
         """
         image_width = gts_to_image_size(len(gt))
-        #print("Image width", image_width)
         # Returns image in upper origin format
-        #padded_gt = gt
         padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
         padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
 
         img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=2)
         # img = img[::-1] # convert to lower origin format
-
-        # # ADD NOISE
         if add_distortion:
-            img = distortions.gaussian_noise(
-                distortions.blur(
-                    distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
-                    max_intensity=1.0),
-                max_intensity=.1)
-
+            img = add_unormalized_distortion(img)
         # Normalize
         img = img / 127.5 - 1.0
 
@@ -262,7 +264,7 @@ class StrokeRecoveryDataset(Dataset):
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
-        if not self.image_prep.lower().endswith("no_warp"):
+        if not self.image_prep.endswith("no_warp") and self.image_prep.startswith("pil") :
             gt = item["gt"].copy() # LENGTH, VOCAB
             gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
             gt = np.c_[gt,item["gt"][:,2:]]
@@ -270,26 +272,25 @@ class StrokeRecoveryDataset(Dataset):
             gt = item["gt"]
 
         # Render image
-        #print(item.keys())
+        add_distortion = "distortion" in self.image_prep.lower()
         if self.image_prep.lower().startswith("pil"):
-            add_distortion = "distortions" in self.image_prep.lower()
             img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion)
         else:
             # Check if the image is already loaded
-            if "line_img" in item:
+            if "line_img" in item and not add_distortion:
                 img = item["line_img"]
             else:
                 # Maybe delete this option
                 # The GTs will be the wrong size if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
-                img = read_img(image_path)
+                img = read_img(image_path, add_distortion)
 
         #img = read_img(image_path)
 
         # Assumes dimension 2 is start points, 3 is EOS
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
         if gt.shape[-1] > 3:
-            start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
+            #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
             end_points = stroke_recovery.get_eos_from_sos(gt[:,2])
             start_points = gt[np.logical_or(gt[:, 2] > 0, end_points > 0)][:MAX_LEN]
         else:

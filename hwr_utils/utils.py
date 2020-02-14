@@ -364,6 +364,10 @@ def make_config_consistent_stroke(config):
         config.update_freq = 1
         config.save_freq = 1
         config.first_loss_epochs = 1 # switch to other loss fast
+        if not config.gpu_if_available:
+            config.batch_size = 2
+            config.train_size = 2
+            config.test_size = 2
 
     ## Process loss functions
     config.all_losses = set()
@@ -383,6 +387,9 @@ def make_config_consistent_stroke(config):
     # Update dataset params
     config.dataset.gt_format = config.gt_format
     config.dataset.batch_size = config.batch_size
+
+    #
+    config.image_prep = config.image_prep.lower()
 
     return config
 
