@@ -26,10 +26,13 @@ ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 # CoordConv - 0 center, X-as-rectanlge
 # L1 loss, DTW
 # Dataset size
+TESTING = False
 
 def parse_args():
+    global TESTING
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default="./configs/stroke_config/baseline.yaml", help='Path to the config file.')
+    parser.add_argument('--testing', type="store_true", default=False, help='Run testing version')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
     opts = parser.parse_args()
     return opts
@@ -190,7 +193,7 @@ def main(config_path):
     torch.cuda.empty_cache()
     os.chdir(ROOT_DIR)
 
-    config = utils.load_config(config_path, hwr=False)
+    config = utils.load_config(config_path, hwr=False, testing=TESTING)
     test_size = config.test_size
     train_size = config.train_size
     batch_size = config.batch_size

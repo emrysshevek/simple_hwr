@@ -9,8 +9,8 @@ test_only: false # Do not train
 offline_pred: false
 logging: info
 gpu_if_available: true
-model_name: start_point_lstm # start_point_lstm, start_point_lstm2, start_point_attn, normal
-model_name: start_point_attn_full
+model_name: start_point_attn_full # start_point_lstm, start_point_lstm2, start_point_attn, normal
+#model_name: start_point_attn
 #model_name: start_point_lstm2
 
 # General
@@ -81,7 +81,8 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - null
+  - sigmoid
+  - sigmoid
 
 ## Loss function
 # l1, dtw, ssl, cross_entropy
@@ -99,7 +100,6 @@ loss_fns:
     gts:
       - sos
       - eos
-    activation: sigmoid
 
 first_loss_epochs: 1000
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.

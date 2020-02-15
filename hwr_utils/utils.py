@@ -227,7 +227,7 @@ def debugger(func):
             globals().update(locals())
     return wrapper
 
-def load_config(config_path, hwr=True):
+def load_config(config_path, hwr=True, testing=False):
     config_path = Path(config_path)
     project_path = Path(os.path.realpath(__file__)).parent.parent.absolute()
     config_root = project_path / "configs"
@@ -248,6 +248,10 @@ def load_config(config_path, hwr=True):
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
     config["project_path"] = project_path
     config.counter = Counter()
+
+    if testing:
+        config.TESTING = True
+
     defaults = hwr_defaults if hwr else stroke_defaults
     for k in defaults.keys():
         if k not in config.keys():

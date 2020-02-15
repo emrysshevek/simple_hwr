@@ -92,7 +92,7 @@ def eval_only(dataloader, model):
     for i, item in enumerate(dataloader):
         preds = TrainerStrokeRecovery.eval(item["line_imgs"], model,
                                            label_lengths=item["label_lengths"],
-                                           relative=config.pred_relativefy)
+                                           relative_indices=config.pred_relativefy)
 
         preds_to_graph = [p.permute([1, 0]) for p in preds]
         graph(item, preds=preds_to_graph, _type="eval", x_relative_positions=x_relative_positions, epoch="current", config=config)

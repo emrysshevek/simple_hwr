@@ -155,10 +155,14 @@ class TrainerBaseline(json.JSONEncoder):
 
 class Trainer:
     def __init__(self, model, optimizer, config, loss_criterion=None, **kwargs):
+        global SIGMOID
         self.model = model
         self.optimizer = optimizer
         self.config = config
         self.loss_criterion = loss_criterion
+        self.relative_indices = self.get_relative_indices(config.pred_opts)
+        self.sigmoid_indices = self.get_sigmoid_indices(config.pred_opts)
+        SIGMOID = torch.nn.Sigmoid().to(config.device)
         if config is None:
             self.logger = utils.setup_logging()
         else:
@@ -190,7 +194,11 @@ class Trainer:
         raise NotImplemented
     
     @staticmethod
-    def update_relative(pred_opts):
+    def get_sigmoid_indices(pred_opts):
+        return [i for i,x in enumerate(pred_opts) if x=="sigmoid"]
+
+    @staticmethod
+    def get_relative_indices(pred_opts):
         return [i for i,x in enumerate(pred_opts) if x=="cumsum"]
 
 
@@ -206,7 +214,6 @@ class TrainerStrokeRecovery(Trainer):
         else:
             self.logger = config.logger
         self.opts = None
-        self.relative = self.update_relative(config.pred_opts)
         if config.convolve_func == "cumsum":
             self.convolve = None # use relativefy
         else:
@@ -214,10 +221,6 @@ class TrainerStrokeRecovery(Trainer):
 
     def default(self, o):
         return None
-
-    def update_relative(self, pred_opts):
-        self.relative = [i for i,x in enumerate(pred_opts) if x=="cumsum"]
-        return self.relative
 
     @staticmethod
     def truncate(preds, label_lengths):
@@ -257,10 +260,10 @@ class TrainerStrokeRecovery(Trainer):
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
             #print(self.config.stats[])
 
-        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.relative,
-                          device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+        preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative_indices=self.relative_indices,
+                          device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve,
+                          activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-        #print(preds[0].size(), gt[0].size())
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
         # Update all other stats
@@ -277,7 +280,8 @@ class TrainerStrokeRecovery(Trainer):
         return self.train(item, train=False, **kwargs)
 
     @staticmethod
-    def eval(line_imgs, model, label_lengths=None, relative=None, device="cuda", gt=None, train=False, convolve=None):
+    def eval(line_imgs, model, label_lengths=None, relative_indices=None, device="cuda",
+             gt=None, train=False, convolve=None, activation=None):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
@@ -285,11 +289,13 @@ class TrainerStrokeRecovery(Trainer):
         preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make absolute preds from relative preds - must be done before truncation
-        if relative:
+        if relative_indices:
             if not train or convolve is None:
-                preds = relativefy_batch_torch(preds, reverse=True, indices=relative)  # assume they were in relative positions, convert to absolute
+                preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
             else:
-                preds = convolve(pred_rel=preds, indices=relative, gt=gt)
+                preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
+        if activation:
+            preds[:,activation] = SIGMOID(preds[:,activation])
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
@@ -314,7 +320,7 @@ class TrainerStartPoints(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
         super().__init__(model, optimizer, config, loss_criterion)
         self.opts = None
-        self.relative = self.update_relative(config.pred_opts)
+        self.relative = self.get_relative_indices(config.pred_opts)
 
     def train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader
@@ -339,11 +345,10 @@ class TrainerStartPoints(Trainer):
             self.config.counter.update(epochs=0, instances=line_imgs.shape[0], updates=1)
 
         preds = self.eval(line_imgs, self.model, label_lengths=label_lengths,
-                          device=self.config.device, train=train)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+                          device=self.config.device, train=train, relative_indices=self.relative_indices,
+                          activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-        if self.relative:
-            preds = relativefy_batch_torch(preds, reverse=True, indices=self.relative)  # assume they were in relative positions, convert to absolute
-        
+
 	# Shorten pred to be the length of the ground truth
         pred_list = []
         for i, pred in enumerate(preds):
@@ -358,10 +363,16 @@ class TrainerStartPoints(Trainer):
         return loss, pred_list, None
 
     @staticmethod
-    def eval(line_imgs, model, label_lengths=None, device="cuda", train=False, convolve=None):
+    def eval(line_imgs, model, label_lengths=None, device="cuda", train=False, convolve=None,
+             relative_indices=None, activation = None):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
         pred_logits = model(line_imgs).cpu()
         preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+
+        if relative_indices:
+            preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
+        if activation:
+            preds[:,activation] = SIGMOID(preds[:,activation])
         return preds
