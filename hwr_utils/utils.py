@@ -393,7 +393,8 @@ def make_config_consistent_stroke(config):
 
     #
     config.dataset.image_prep = config.dataset.image_prep.lower()
-
+    if "loaded" in config.dataset.image_prep:
+        config.dataset.img_height = 60
     return config
 
 def make_config_consistent_hwr(config):
