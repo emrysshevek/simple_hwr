@@ -32,7 +32,7 @@ def parse_args():
     global TESTING
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default="./configs/stroke_config/baseline.yaml", help='Path to the config file.')
-    parser.add_argument('--testing', type="store_true", default=False, help='Run testing version')
+    parser.add_argument('--testing', action="store_true", default=False, help='Run testing version')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
     opts = parser.parse_args()
     return opts
