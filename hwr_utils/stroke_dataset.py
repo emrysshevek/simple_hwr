@@ -298,6 +298,9 @@ class StrokeRecoveryDataset(Dataset):
             # Find things that are both start and end points
             s = np.argwhere(sos + eos > 1).reshape(-1)
             if s.size: # duplicate here so later loss function works correctly
+                print(start_points)
+                print(s)
+                print([start_points[s]])
                 start_points = np.insert(start_points, s, [start_points[s]], 0)
 
             try:
