@@ -295,7 +295,7 @@ class TrainerStrokeRecovery(Trainer):
             else:
                 preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
         if activation:
-            preds[:,activation] = SIGMOID(preds[:,activation])
+            preds[:,:,activation] = SIGMOID(preds[:,:,activation])
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
@@ -348,7 +348,6 @@ class TrainerStartPoints(Trainer):
                           device=self.config.device, train=train, relative_indices=self.relative_indices,
                           activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-
 	# Shorten pred to be the length of the ground truth
         pred_list = []
         for i, pred in enumerate(preds):
@@ -364,7 +363,7 @@ class TrainerStartPoints(Trainer):
 
     @staticmethod
     def eval(line_imgs, model, label_lengths=None, device="cuda", train=False, convolve=None,
-             relative_indices=None, activation = None):
+             relative_indices=None, activation=None):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
@@ -374,5 +373,5 @@ class TrainerStartPoints(Trainer):
         if relative_indices:
             preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
         if activation:
-            preds[:,activation] = SIGMOID(preds[:,activation])
+            preds[:, :, activation] = SIGMOID(preds[:, :, activation])
         return preds
