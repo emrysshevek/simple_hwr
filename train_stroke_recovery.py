@@ -64,7 +64,7 @@ def run_epoch(dataloader, report_freq=500):
     save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
     utils.write_out(save_folder, "example_data", f"GT {str(item['gt_list'][0])}"
                                                  f"\nPREDS\n{str(preds_to_graph[0].transpose(1,0))}"
-                                                 f"\nStartPoints\n{str(item['start_times'][0])}")
+                                                 f"\nStartPoints\n{str(item['start_points'][0])}")
 
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances

@@ -291,10 +291,17 @@ class StrokeRecoveryDataset(Dataset):
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
         if gt.shape[-1] > 3:
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
-            end_points = stroke_recovery.get_eos_from_sos(gt[:,2])
-            start_points = gt[np.logical_or(gt[:, 2] > 0, end_points > 0)][:MAX_LEN]
-            width = start_points.shape[0]
+            sos = gt[:, 2]
+            eos = stroke_recovery.get_eos_from_sos(sos)
+            start_points = gt[np.logical_or(sos > 0, eos > 0)][:MAX_LEN]
+
+            # Find things that are both start and end points
+            s = np.argwhere(sos + eos > 1).reshape(-1)
+            if s.size: # duplicate here so later loss function works correctly
+                start_points = np.insert(start_points, s, [start_points[s]], 0)
+
             try:
+                width = start_points.shape[0]
                 assert width % 2 == 0 # for every start point, there is an end point
                 assert np.sum(start_points[:,2]) == width / 2
             except:
