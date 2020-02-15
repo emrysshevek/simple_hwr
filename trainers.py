@@ -260,6 +260,7 @@ class TrainerStrokeRecovery(Trainer):
         preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative=self.relative,
                           device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
+        #print(preds[0].size(), gt[0].size())
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
         # Update all other stats

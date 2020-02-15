@@ -369,6 +369,9 @@ def make_config_consistent_stroke(config):
             config.train_size = 2
             config.test_size = 2
 
+    if is_dalai():
+        config.dataset_folder = "online_coordinate_data/3_stroke_vverysmallFull"
+
     ## Process loss functions
     config.all_losses = set()
     # for key in [k for k in config.keys() if "loss_fns" in k]:
@@ -481,6 +484,9 @@ def get_computer():
 
 def is_galois():
     return get_computer() == "Galois"
+
+def is_dalai():
+    return get_computer() == "DalaiLama"
 
 def is_taylor():
     return get_computer() in ("Galois", "brodie")

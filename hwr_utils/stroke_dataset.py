@@ -293,6 +293,12 @@ class StrokeRecoveryDataset(Dataset):
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
             end_points = stroke_recovery.get_eos_from_sos(gt[:,2])
             start_points = gt[np.logical_or(gt[:, 2] > 0, end_points > 0)][:MAX_LEN]
+            width = start_points.shape[0]
+            try:
+                assert width % 2 == 0 # for every start point, there is an end point
+                assert np.sum(start_points[:,2]) == width / 2
+            except:
+                print("FAILED", start_points[:,2])
         else:
             start_points = np.array([])
 
