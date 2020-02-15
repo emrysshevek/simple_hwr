@@ -31,7 +31,7 @@ dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 warp: true
 
 # LR schedule
-learning_rate: 5e-4          # LR
+learning_rate: 1e-3          # LR
 scheduler_step: 15         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
@@ -83,7 +83,7 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
   - name: l1_with_stroke_numbers
-    coef: .2
+    coef: 1
     gts:
       - x
       - y
@@ -97,17 +97,17 @@ loss_fns:
 
 loss_fns2:
   - name: dtw
-    coef: .4
+    coef: 1
     gts:
       - x
       - y
       - stroke_number
-    subcoef: 1,1,.01
+    subcoef: 1,1,.1
     dtw_mapping_basis:
       - x
       - y
   - name: cross_entropy
-    coef: .01
+    coef: .1
     gts:
       - eos
     activation: sigmoid

@@ -39,7 +39,8 @@ pad_dpi = {"padding":.05, "dpi":71}
 def render_points_on_image(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False, show=False):
     return render_points_on_image_pil(gts, img, save_path, img_shape, origin, invert_y_image, show=show)
 
-def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
+def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None, origin='lower',
+                                      invert_y_image=False, show=False):
     """ This is for when loading the images created by matplotlib
     Args:
         gts: SHOULD BE (VOCAB SIZE X WIDTH)
@@ -87,7 +88,7 @@ def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=N
     if save_path:
         plt.savefig(save_path)
         plt.close()
-    else:
+    if show:
         plt.show()
 
 def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False, show=False):
