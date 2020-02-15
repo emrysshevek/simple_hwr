@@ -12,8 +12,7 @@ from hwr_utils.utils import to_numpy
 
 BCELoss = torch.nn.BCELoss()
 BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss()
-
-
+SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False
 
@@ -23,6 +22,7 @@ class CustomLoss(nn.Module):
         self.loss_indices = loss_indices
         self.device = "cpu"  # I guess this needs to be CPU? IDK
         self.__dict__.update(**kwargs)
+        SIGMOID.to(device)
         if "subcoef" in kwargs:
             subcoef = kwargs["subcoef"]
             if isinstance(subcoef, str):
@@ -32,7 +32,6 @@ class CustomLoss(nn.Module):
             # MAY NOT ALWAYS BE 4!!!
             length = len(range(*loss_indices.indices(4))) if isinstance(loss_indices, slice) else len(loss_indices)
             self.subcoef = torch.ones(length).to(self.device)
-
 
 class DTWLoss(CustomLoss):
     def __init__(self, loss_indices, dtw_mapping_basis=None, **kwargs):
@@ -191,6 +190,7 @@ class CrossEntropy(nn.Module):
             if kwargs["activation"] == "sigmoid":
                 self._loss = BCEWithLogitsLoss
                 # torch.nn.Sigmoid().to(device)
+
 
     def cross_entropy(self, preds, targs, label_lengths, **kwargs):
         loss = 0

@@ -30,6 +30,7 @@ ROOT_DIR = os.path.dirname(os.path.realpath(__file__))
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', type=str, default="./configs/stroke_config/baseline.yaml", help='Path to the config file.')
+    parser.add_argument('--testing', action="store_true", default=False, help='Run testing version')
     #parser.add_argument('--name', type=str, default="", help='Optional - special name for this run')
     opts = parser.parse_args()
     return opts
@@ -185,12 +186,12 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     config.n_test_points = int(n_test_points)
     return train_dataloader, test_dataloader
 
-def main(config_path):
+def main(config_path, testing=False):
     global epoch, device, trainer, batch_size, output, loss_obj, config, LOGGER
     torch.cuda.empty_cache()
     os.chdir(ROOT_DIR)
 
-    config = utils.load_config(config_path, hwr=False)
+    config = utils.load_config(config_path, hwr=False, testing=testing)
     test_size = config.test_size
     train_size = config.train_size
     batch_size = config.batch_size
@@ -304,7 +305,7 @@ def check_epoch_build_loss(config, loss_exists=True):
 
 if __name__=="__main__":
     opts = parse_args()
-    main(config_path=opts.config)
+    main(config_path=opts.config, testing=opts.testing)
     
     # TO DO:
         # logging
