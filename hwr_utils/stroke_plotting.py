@@ -365,7 +365,7 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
 
     """
     ### HACK
-    use_stroke_number = True if np.any(gt[:,2] > 1.5) else False
+    use_stroke_number = True if np.any(gt[:,2] > 8) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()
