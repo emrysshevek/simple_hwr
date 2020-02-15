@@ -291,8 +291,8 @@ class StrokeRecoveryDataset(Dataset):
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
         if gt.shape[-1] > 3:
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
-            sos = gt[:, 2][:MAX_LEN]
-            eos = stroke_recovery.get_eos_from_sos(sos)[:MAX_LEN]
+            sos = gt[:, 2]
+            eos = stroke_recovery.get_eos_from_sos(sos)
             start_points = gt[np.logical_or(sos > 0, eos > 0)][:MAX_LEN]
 
             # Find things that are both start and end points
