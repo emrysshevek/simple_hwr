@@ -291,24 +291,31 @@ class StrokeRecoveryDataset(Dataset):
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
         if gt.shape[-1] > 3:
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
-            sos = gt[:, 2]
-            eos = stroke_recovery.get_eos_from_sos(sos)
+            sos = gt[:, 2][:MAX_LEN]
+            eos = stroke_recovery.get_eos_from_sos(sos)[:MAX_LEN]
             start_points = gt[np.logical_or(sos > 0, eos > 0)][:MAX_LEN]
 
             # Find things that are both start and end points
             s = np.argwhere(sos + eos > 1).reshape(-1)
             if s.size: # duplicate here so later loss function works correctly
-                print(start_points)
-                print(s)
-                print([start_points[s]])
-                start_points = np.insert(start_points, s, [start_points[s]], 0)
+                sos = start_points[:, 2]
+                eos = stroke_recovery.get_eos_from_sos(sos)
+                s = np.argwhere(sos + eos > 1).reshape(-1)
+                if True: # make it so no points are both start and stop
+                    start_points[s, 2] = 0
+                    replacement = start_points[s]
+                    replacement[:, 2] = 1
+                else:
+                    replacement = [start_points[s]]
 
+                start_points = np.insert(start_points, s, replacement, 0)
             try:
                 width = start_points.shape[0]
                 assert width % 2 == 0 # for every start point, there is an end point
                 assert np.sum(start_points[:,2]) == width / 2
             except:
                 print("FAILED", start_points[:,2])
+
         else:
             start_points = np.array([])
 
