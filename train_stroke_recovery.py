@@ -14,6 +14,7 @@ import argparse
 from hwr_utils.hwr_logger import logger
 from loss_module import losses
 from models import start_points, stroke_model
+from hwr_utils.stroke_plotting import *
 
 from hwr_utils.stroke_plotting import draw_from_gt
 
@@ -61,7 +62,9 @@ def run_epoch(dataloader, report_freq=500):
     #preds_to_graph = preds.permute([0, 2, 1])
     preds_to_graph = [p.permute([1, 0]) for p in preds]
     save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
-    utils.write_out(save_folder, "example_data", f"{str(item['gt_list'][0])}\nPREDS\n{str(preds_to_graph[0])}")
+    utils.write_out(save_folder, "example_data", f"GT {str(item['gt_list'][0])}"
+                                                 f"\nPREDS\n{str(preds_to_graph[0].transpose(1,0))}"
+                                                 f"\nStartPoints\n{str(item['start_points'][0])}")
 
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances
@@ -76,14 +79,16 @@ def test(dataloader):
 
     return config.stats["Actual_Loss_Function_test"].get_last()
 
-def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch="current"):
-    if save_folder is None:
+def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoch="current", show=False):
+    if save_folder == "auto":
         _epoch = str(epoch)
         save_folder = (config.image_dir / _epoch / _type)
-    else:
+        save_folder.mkdir(parents=True, exist_ok=True)
+    elif save_folder is not None:
         save_folder = Path(save_folder)
-
-    save_folder.mkdir(parents=True, exist_ok=True)
+        save_folder.mkdir(parents=True, exist_ok=True)
+    else:
+        show = True
 
     def subgraph(coords, gt_img, name, is_gt=True):
         if not is_gt:
@@ -107,7 +112,8 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch=
 
         # Red images
         bg = overlay_images(background_img=gt_img.numpy(), foreground_gt=coords.transpose())
-        bg.save(save_folder / f"overlay{suffix}_{i}_{name}.png")
+        if save_folder:
+            bg.save(save_folder / f"overlay{suffix}_{i}_{name}.png")
 
         ## Undo relative positions for X for graphing
         ## In normal mode, the cumulative sum has already been taken
@@ -117,11 +123,12 @@ def graph(batch, config=None, preds=None, _type="test", save_folder=None, epoch=
             coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
+        save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None
         if config.dataset.image_prep.lower().startswith('pil'):
-            render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_folder / f"{i}_{name}{suffix}.png", origin='lower', invert_y_image=True)
+            render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_path, origin='lower', invert_y_image=True, show=show)
         else:
-            render_points_on_image_matplotlib(gts=coords, img_path=img_path, save_path=save_folder / f"{i}_{name}{suffix}.png",
-                                   origin='lower')
+            render_points_on_image_matplotlib(gts=coords, img_path=img_path, save_path=save_path,
+                                   origin='lower', show=show)
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
@@ -221,6 +228,8 @@ def main(config_path):
     model_dict = {"start_point_lstm": start_points.StartPointModel,
               "start_point_lstm2":start_points.StartPointModel2,
               "start_point_attn": start_points.StartPointAttnModel,
+              "start_point_attn_deep": start_points.StartPointAttnModelDeep,
+              "start_point_attn_full": start_points.StartPointAttnModelFull,
               "normal":stroke_model.StrokeRecoveryModel}
 
     model_class = model_dict[config.model_name]

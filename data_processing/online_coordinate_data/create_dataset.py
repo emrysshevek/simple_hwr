@@ -62,7 +62,7 @@ class CreateDataset:
                  json_path="prepare_online_data/online_augmentation.json",
                  img_folder="prepare_online_data/lineImages",
                  data_folder="../../data",
-                 render_images=True, test_set_size=None, combine_images=False):
+                 render_images=True, train_set_size=None, test_set_size=None, combine_images=False):
 
         # Specify data folder:
             # xml, json, and default images relative to the data folder
@@ -90,6 +90,7 @@ class CreateDataset:
         self.square=square
         self.render_images=render_images
         self.test_set_size = test_set_size
+        self.train_set_size = train_set_size
         self.combine_images = combine_images
         self.process_fn = self.process_multiple if self.combine_images else self.process_one
 
@@ -317,8 +318,10 @@ class CreateDataset:
         ## Add shapes -- the system needs some time to actually perform the writing op before reading it back
         for item in new_items:
             new_img_path = hyperparams.absolute_data_folder / item["image_path"]
-            shape = cv2.imread(new_img_path.as_posix()).shape
-            item["shape"] = shape
+            img = cv2.imread(new_img_path.as_posix())
+            if img is None:
+                print("Image file not found; is render off?")
+            item["shape"] = img.shape
             #ratio = item["x_to_y"]
             #print(shape, 61*ratio)
 
@@ -355,6 +358,8 @@ class CreateDataset:
                     self.output_dict["train"].append(item)
                 elif item["dataset"] == "test":
                     self.output_dict["test"].append(item)
+            if self.train_set_size and self.test_set_size and len(self.output_dict["test"]) > self.test_set_size and len(self.output_dict["train"]) > self.train_set_size:
+                break
 
         # PICKLE IT
         pickle.dump(self.output_dict["train"], (self.output_folder / "train_online_coords.pickle").open("wb"))
@@ -446,13 +451,14 @@ def old():
     data_set.parallel(max_iter=instances, parallel=True)
 
 def new():
-    strokes = None      # None=MAX stroke
+    strokes = 3      # None=MAX stroke
     square = False      # Don't require square images
     instances = None    # None=Use all available instances
-    test_set_size = 500 # use leftover test images in Training
+    test_set_size = 30 # use leftover test images in Training
+    train_set_size = 60
     combine_images = False # combine images to make them longer
-    RENDER = False
-    variant="largeTrnSet"
+    RENDER = True
+    variant="verysmall"
     if square:
         variant += "Square"
     if instances is None:
@@ -465,7 +471,11 @@ def new():
                              output_folder_name=f"./{number_of_strokes}_stroke_v{variant}",
                              render_images=RENDER,
                              test_set_size=test_set_size,
-                             combine_images=combine_images)
+                             train_set_size=train_set_size,
+                             combine_images=combine_images,
+                             #img_folder="prepare_online_data/lineImages",
+                             #json_path="online_coordinate_data/3_stroke_64_v2/train_online_coords.json"
+                             )
     data_set.parallel(max_iter=instances, parallel=True)
 
 if __name__ == "__main__":

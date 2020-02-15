@@ -167,7 +167,7 @@ class StrokeRecoveryDataset(Dataset):
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output, parameter=parameter) # can be d if the function should be a function of distance
         if "number_of_samples" not in item:
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
-            print("UNK NUMBER OF SAMPLES!!!")
+            #print("UNK NUMBER OF SAMPLES!!!")
         gt = create_gts(x_func, y_func, start_times=output.start_times,
                         number_of_samples=item["number_of_samples"],
                         noise=self.noise,
@@ -291,8 +291,33 @@ class StrokeRecoveryDataset(Dataset):
         # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
         if gt.shape[-1] > 3:
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
-            end_points = stroke_recovery.get_eos_from_sos(gt[:,2])
-            start_points = gt[np.logical_or(gt[:, 2] > 0, end_points > 0)][:MAX_LEN]
+
+            # Logic to get parallel SOS and EOS
+            sos = gt[:, 2]
+            eos = stroke_recovery.get_eos_from_sos(sos)
+            start_points = gt[np.logical_or(sos > 0, eos > 0)][:MAX_LEN]
+
+            # Find things that are both start and end points
+            s = np.argwhere(sos + eos > 1).reshape(-1)
+            if s.size: # duplicate here so later loss function works correctly
+                sos = start_points[:, 2]
+                eos = stroke_recovery.get_eos_from_sos(sos)
+                s = np.argwhere(sos + eos > 1).reshape(-1)
+                if True: # make it so no points are both start and stop
+                    start_points[s, 2] = 0
+                    replacement = start_points[s]
+                    replacement[:, 2] = 1
+                else:
+                    replacement = [start_points[s]]
+
+                start_points = np.insert(start_points, s, replacement, 0)[:MAX_LEN]
+            # try:
+            #     width = start_points.shape[0]
+            #     assert width % 2 == 0 # for every start point, there is an end point
+            #     assert np.sum(start_points[:,2]) == width / 2
+            # except:
+            #     print("FAILED", start_points[:,2])
+
         else:
             start_points = np.array([])
 

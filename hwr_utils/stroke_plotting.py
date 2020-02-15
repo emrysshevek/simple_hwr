@@ -36,8 +36,8 @@ def plot_stroke_points(x,y, start_points, square=False):
 
 pad_dpi = {"padding":.05, "dpi":71}
 
-def render_points_on_image(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
-    return render_points_on_image_pil(gts, img, save_path, img_shape, origin, invert_y_image)
+def render_points_on_image(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False, show=False):
+    return render_points_on_image_pil(gts, img, save_path, img_shape, origin, invert_y_image, show=show)
 
 def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
     """ This is for when loading the images created by matplotlib
@@ -90,7 +90,7 @@ def render_points_on_image_matplotlib(gts, img_path, save_path=None, img_shape=N
     else:
         plt.show()
 
-def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False):
+def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin='lower', invert_y_image=False, show=False):
     """ This is for when drawing on the images created by PIL, which doesn't have padding
         Origin needs to be lower for the GT points to plot right
 
@@ -120,7 +120,7 @@ def render_points_on_image_pil(gts, img, save_path=None, img_shape=None, origin=
     if save_path:
         plt.savefig(save_path)
         plt.close()
-    else:
+    if show:
         plt.show()
 
 def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
@@ -262,13 +262,17 @@ def gt_to_pil_format(instance, stroke_number=True):
     """
 
     Args:
-        instance:
+        instance: NUMPY!
 
     Returns:
         Pil format; list of strokes Length X (x,y)
     """
+
+    # If start points are had
     if instance.shape[-1] > 2:
+        # if start points are sequential 000011112222...
         start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
+
         start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
         l = np.split(instance[:, 0:2], start_indices)
         return l
@@ -360,7 +364,7 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
 
     """
     ### HACK
-    use_stroke_number = True if np.any(gt[2] > 1) else False
+    use_stroke_number = True if np.any(gt[:,2] > 1.5) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()
