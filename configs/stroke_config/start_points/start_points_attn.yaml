@@ -21,6 +21,11 @@ save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
 
+dataset:
+  img_height: 61
+  image_prep: pil # prefix: "pil" "loaded"  suffixes: "distortion" "no_warp"
+  num_of_channels: 1
+
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
@@ -34,8 +39,8 @@ dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 warp: true
 
 # LR schedule
-learning_rate: 5e-4          # LR
-scheduler_step: 10         # Every X steps, multiply LR by gamma
+learning_rate: 1e-3          # LR
+scheduler_step: 20         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
 ## Loss options:
@@ -83,15 +88,16 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: l1_
+  - name: l1_swapper
     coef: 1
     gts:
       - x
       - y
     subcoef: 1,1
   - name: cross_entropy
-    coef: .1
+    coef: 1
     gts:
+      - sos
       - eos
     activation: sigmoid
 

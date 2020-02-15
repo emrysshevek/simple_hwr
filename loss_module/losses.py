@@ -105,6 +105,15 @@ class L1(CustomLoss):
         self.lossfun = self.l1
 
     @staticmethod
+    def l1_swapper(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i, pred in enumerate(preds):
+            diff = torch.sum(torch.abs(pred.reshape(-1, 2) - targs.reshape(-1, 2)), axis=1)
+            diff2 = torch.sum(torch.abs(pred.reshape(-1, 2) - torch.flip(targs.reshape(-1, 2), dims=(1,))), axis=1)
+            loss += torch.sum(torch.min(diff, diff2)) # does not support subcoef
+        return loss  # , to_value(loss)
+
+    @staticmethod
     def variable_l1(preds, targs, label_lengths, **kwargs):
         """ Resmaple the targets to match whatever was predicted, i.e. so they have the same number (targs/preds)
 
@@ -279,29 +288,6 @@ def resample_gt(preds, targs, gt_format):
         targs.append(t)
         label_lengths.append(pred_length)
     return targs, label_lengths
-
-
-class L1_swapper(CustomLoss):
-    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
-    """
-
-    def __init__(self, loss_indices, **kwargs):
-        """
-        """
-        # parse the opts - this will include opts regarding the DTW basis
-        # loss_indices - the loss_indices to calculate the actual loss
-        super().__init__(loss_indices, **kwargs)
-        self.lossfun = self.l1
-
-    def l1(self, preds, targs, label_lengths, **kwargs):
-        loss = 0
-        for i, pred in enumerate(preds):
-            diff = torch.sum(torch.abs(pred.reshape(-1, 2) - targs.reshape(-1, 2)), axis=1)
-            diff2 = torch.sum(torch.abs(pred.reshape(-1, 2) - torch.flip(targs.reshape(-1, 2), dims=(1,))), axis=1)
-            loss += torch.sum(torch.min(diff, diff2)) # does not support subcoef
-        return loss  # , to_value(loss)
-
-
 
 
 def to_value(loss_tensor):

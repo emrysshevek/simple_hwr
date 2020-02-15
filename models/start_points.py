@@ -13,9 +13,9 @@ class StartPointModel(nn.Module):
         if first_conv_op:
             first_conv_op = CoordConv
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
-        self.encoder = nn.LSTM(input_size=1024, hidden_size=1024, bidirectional=True, dropout=.3, num_layers=1)
+        self.encoder = nn.LSTM(input_size=1024, hidden_size=1024, bidirectional=True, dropout=.5, num_layers=1)
         # self.linear1 = nn.Linear
-        self.decoder = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=2, dropout=.3)
+        self.decoder = nn.LSTM(input_size=1024, hidden_size=1024, num_layers=2, dropout=.5)
         self.linear = nn.Linear(1024, vocab_size)
         self.device = device
 
@@ -50,8 +50,8 @@ class StartPointModel2(nn.Module):
             first_conv_op = CoordConv
         self.decoder_size = 256
         self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type=cnn_type, first_conv_opts=first_conv_opts)
-        self.encoder = nn.LSTM(input_size=1024, hidden_size=self.decoder_size, bidirectional=True, dropout=.3, num_layers=1)
-        self.decoder = nn.LSTM(input_size=self.decoder_size, hidden_size=self.decoder_size, num_layers=2, dropout=.3)
+        self.encoder = nn.LSTM(input_size=1024, hidden_size=self.decoder_size, bidirectional=True, dropout=.5, num_layers=1)
+        self.decoder = nn.LSTM(input_size=self.decoder_size, hidden_size=self.decoder_size, num_layers=2, dropout=.5)
         self.linear = nn.Linear(self.decoder_size, vocab_size)
         self.device = device
 
