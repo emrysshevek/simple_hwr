@@ -464,7 +464,7 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
             img = read_img(image_path)
 
             # Add the image to the datafile!
-            data[i]["line_imgs"] = img
+            data[i]["line_img"] = img
             instance["img"] = img
             instance["shape"] = img.shape
             width = instance["shape"][1] # H,W,Channels

@@ -5,7 +5,8 @@ from pathlib import Path
 import socket
 
 # GLOBALS
-email = "taylornarchibald@gmail.com" # mikebbrodie@gmail.com
+EMAIL = "taylornarchibald@gmail.com" # mikebbrodie@gmail.com
+MEM = 32000
 
 ## Setup paths
 group_path = Path("/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr")
@@ -69,7 +70,7 @@ def mkdir(paths, parent=False):
 def gen(sh_path, log_path, env, command, hardware_dict, cd_path=None):
     time = hardware_dict["time"]
     threads = hardware_dict["threads"]
-    mem = int( 64000 / threads )
+    mem = int( MEM / threads )
     if cd_path is None:
         cd_path,_ = os.path.split(sh_path)
     mkdir(sh_path, parent=True)
@@ -82,7 +83,7 @@ def gen(sh_path, log_path, env, command, hardware_dict, cd_path=None):
 #SBATCH --ntasks {threads}
 #SBATCH --output="{log_path}"
 #SBATCH --time {time}
-#SBATCH --mail-user={email}   # email address
+#SBATCH --mail-user={EMAIL}   # email address
 #SBATCH --mail-type=BEGIN
 #SBATCH --mail-type=END
 #SBATCH --mail-type=FAIL
