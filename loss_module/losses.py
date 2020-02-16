@@ -104,10 +104,10 @@ class L1(CustomLoss):
         self.lossfun = self.l1
 
     @staticmethod
-    def l1_swapper(self, preds, targs, label_lengths, **kwargs):
+    def l1_swapper(preds, targs, label_lengths, **kwargs):
         loss = 0
         for i, pred in enumerate(preds):
-            diff = torch.sum(torch.abs(pred.reshape(-1, 2) - targs.reshape(-1, 2)), axis=1)
+            diff  = torch.sum(torch.abs(pred.reshape(-1, 2) - targs.reshape(-1, 2)), axis=1)
             diff2 = torch.sum(torch.abs(pred.reshape(-1, 2) - torch.flip(targs.reshape(-1, 2), dims=(1,))), axis=1)
             loss += torch.sum(torch.min(diff, diff2)) # does not support subcoef
         return loss  # , to_value(loss)
@@ -133,7 +133,6 @@ class L1(CustomLoss):
         for i, pred in enumerate(preds):
             loss += torch.sum(abs(pred[:, self.loss_indices] - targs[i][:, self.loss_indices]) * self.subcoef)
         return loss  # , to_value(loss)
-
 
 class L2(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)

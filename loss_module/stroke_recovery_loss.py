@@ -58,10 +58,10 @@ class StrokeLoss:
         if loss["name"] in self.master_loss_defintion:
             loss_fn = self.master_loss_defintion[loss["name"]]["fn"]
         elif loss["name"].lower().startswith("l1"):
-            l1 = loss_fn = L1(**loss, device=self.device)
-            if loss["name"].lower() == "l1_swapper":
+            l1 = L1(**loss, device=self.device)
+            if "swapper" in loss["name"].lower():
                 l1.lossfun = l1.l1_swapper
-            loss_fn = L1(**loss, device=self.device).lossfun
+            loss_fn = l1.lossfun
         elif loss["name"].lower().startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
         elif loss["name"].lower().startswith("dtw"):

@@ -19,14 +19,14 @@ class StartPointModel(nn.Module):
         self.linear = nn.Linear(1024, vocab_size)
         self.device = device
 
-    def forward(self, input):
+    def forward(self, input, gts=None):
         if self.training:
-            return self._forward(input)
+            return self._forward(input, gts)
         else:
             with torch.no_grad():
-                return self._forward(input)
+                return self._forward(input, gts)
 
-    def _forward(self, input):
+    def _forward(self, input, gts=None):
         cnn_output = self.cnn(input)
         _, hidden = self.encoder(cnn_output)  # width, batch, alphabet
         _, b, _ = hidden[0].shape
@@ -55,14 +55,14 @@ class StartPointModel2(nn.Module):
         self.linear = nn.Linear(self.decoder_size, vocab_size)
         self.device = device
 
-    def forward(self, input):
+    def forward(self, input, gts=None):
         if self.training:
-            return self._forward(input)
+            return self._forward(input, gts)
         else:
             with torch.no_grad():
-                return self._forward(input)
+                return self._forward(input, gts)
 
-    def _forward(self, input):
+    def _forward(self, input, gts=None):
         cnn_output = self.cnn(input)
         _, hidden = self.encoder(cnn_output)  # width, batch, alphabet
         _, b, _ = hidden[0].shape
@@ -91,14 +91,14 @@ class StartPointAttnModel(nn.Module):
         self.linear = nn.Linear(256, vocab_size)
         self.device = device
 
-    def forward(self, input):
+    def forward(self, input, gts=None):
         if self.training:
-            return self._forward(input)
+            return self._forward(input, gts)
         else:
             with torch.no_grad():
-                return self._forward(input)
+                return self._forward(input, gts)
 
-    def _forward(self, input):
+    def _forward(self, input, gts=None):
         cnn_output = self.cnn(input)
         encoding, hidden = self.encoder(cnn_output)  # width, batch, alphabet
         _, b, _ = hidden[0].shape
@@ -134,14 +134,14 @@ class StartPointAttnModelDeep(nn.Module):
         self.linear = nn.Linear(self.decoder_dim, vocab_size)
         self.device = device
 
-    def forward(self, input):
+    def forward(self, input, gts=None):
         if self.training:
-            return self._forward(input)
+            return self._forward(input, gts)
         else:
             with torch.no_grad():
-                return self._forward(input)
+                return self._forward(input, gts)
 
-    def _forward(self, input):
+    def _forward(self, input, gts=None):
         cnn_output = self.cnn(input)
         encoding, hidden = self.encoder(cnn_output)  # width, batch, alphabet
         _, b, _ = hidden[0].shape
@@ -179,14 +179,14 @@ class StartPointAttnModelFull(nn.Module):
         self.linear = nn.Linear(self.context_dim+self.decoder_dim, vocab_size)
         self.device = device
 
-    def forward(self, input):
+    def forward(self, input, gts=None):
         if self.training:
-            return self._forward(input)
+            return self._forward(input, gts)
         else:
             with torch.no_grad():
-                return self._forward(input)
+                return self._forward(input, gts)
 
-    def _forward(self, input):
+    def _forward(self, input, gts=None):
         print(input.shape)
         cnn_output = self.cnn(input)
         encoding, hidden = self.encoder(cnn_output)  # width, batch, alphabet
