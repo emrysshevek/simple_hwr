@@ -104,10 +104,12 @@ class L1(CustomLoss):
         self.lossfun = self.l1
 
     @staticmethod
+    # BATCH x LEN x VOCAB
     def l1_swapper(preds, targs, label_lengths, **kwargs):
         loss = 0
         for i, pred in enumerate(preds):
-            targ = targs[i]
+            targ = targs[i].transpose(1,0) # swap width and vocab -> VOCAB x WIDTH
+            pred = pred.transpose(1,0)
             diff  = torch.sum(torch.abs(pred.reshape(-1, 2) - targ.reshape(-1, 2)), axis=1)
             diff2 = torch.sum(torch.abs(pred.reshape(-1, 2) - torch.flip(targ.reshape(-1, 2), dims=(1,))), axis=1)
             loss += torch.sum(torch.min(diff, diff2)) # does not support subcoef

@@ -94,11 +94,10 @@ loss_fns:
     gts:
       - x
       - y
-    subcoef: 1,1
+      - sos
   - name: cross_entropy
     coef: 1
     gts:
-      - sos
       - eos
 
 first_loss_epochs: 1000
