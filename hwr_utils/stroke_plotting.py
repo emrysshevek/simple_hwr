@@ -270,11 +270,11 @@ def gt_to_pil_format(instance, stroke_number=True):
     """
 
     # If start points are had
-    if instance.shape[-1] > 2:
+    if instance.shape[-1] > 1:
         # if start points are sequential 000011112222...
         start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
 
-        start_indices = np.argwhere(start_points == 1).astype(int).reshape(-1)
+        start_indices = np.argwhere(np.round(start_points) == 1).astype(int).reshape(-1)
         l = np.split(instance[:, 0:2], start_indices)
         return l
     else:
@@ -337,7 +337,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
     for line in raw:
         coords = zip((np.array(line["x"]) * height), (np.array(line["y"]) * height))
         coords = list(coords)
-        draw.line(coords, fill=0, width=1)
+        draw.line(coords, fill=0, width=1, joint='curve')
 
     data = np.array(img)[::-1]  # invert the y-axis
 
@@ -365,7 +365,7 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
 
     """
     ### HACK
-    use_stroke_number = True if np.any(gt[:,2] > 8) else False
+    use_stroke_number = True if np.any(gt[:,2] > 3) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()
@@ -399,14 +399,13 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
 
     gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2:]]
     pil_format = gt_to_pil_format(gt_rescaled, stroke_number=use_stroke_number)
-
     img = Image.new(image_type, (width, height), background)
     draw = ImageDraw.Draw(img)
 
     for line in pil_format:
         if line.size:
-            line = line.flatten().tolist()
-            draw.line(line, fill=color, width=linewidth)
+            line = [tuple(x) for x in line.flatten().reshape(-1,2).tolist()]
+            draw.line(line, fill=color, width=linewidth, joint='curve')
 
     data = np.array(img)[::-1]  # invert the y-axis, to upper origin
 
