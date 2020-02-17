@@ -395,10 +395,11 @@ def make_config_consistent_stroke(config):
     config.dataset.gt_format = config.gt_format
     config.dataset.batch_size = config.batch_size
 
-    #
     config.dataset.image_prep = config.dataset.image_prep.lower()
     if "loaded" in config.dataset.image_prep:
         config.dataset.img_height = 60
+
+    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
     return config
 
 def make_config_consistent_hwr(config):
