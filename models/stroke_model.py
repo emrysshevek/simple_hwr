@@ -17,6 +17,7 @@ class StrokeRecoveryModel(nn.Module):
             self.rnn = BidirectionalRNN(nIn=64, nHidden=1, nOut=vocab_size, dropout=.5, num_layers=1,
                                         rnn_constructor=nn.LSTM)
             self.cnn = fake_cnn
+            self.cnn.cnn_type = "FAKE"
             print("DALAi!!!!")
 
     def forward(self, input):
@@ -39,6 +40,7 @@ def fake_cnn(img):
     b, c, h, w = img.shape
     return torch.ones(w + 3 + (w+1) % 2, b, 64)
 
+fake_cnn.cnn_type = "FAKE"
 
 class StartEndPointReconstructor(nn.Module):
     def __init__(self, vocab_size=2, device="cuda", cnn_type="default64", first_conv_op=CoordConv, first_conv_opts=None, **kwargs):

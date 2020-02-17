@@ -9,7 +9,8 @@ from hwr_utils.stroke_dataset import BasicDataset
 from hwr_utils.stroke_recovery import *
 from hwr_utils import utils
 from torch.optim import lr_scheduler
-from train_stroke_recovery import StrokeRecoveryModel, parse_args, graph
+from models.stroke_model import StrokeRecoveryModel
+from train_stroke_recovery import parse_args, graph
 from hwr_utils.hwr_logger import logger
 from pathlib import Path
 
@@ -26,21 +27,25 @@ result = Popen(command, shell=True)
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
+
     config = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long/TEST.yaml"
+    config =     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
 
     # Make these the same as whereever the file is being loaded from; make the log_dir and results dir be a subset
     # main_model_path, log_dir, full_specs, results_dir, load_path
 
 
     config = utils.load_config(config_path, hwr=False)
-    batch_size = config.batch_size
-    x_relative_positions = config.x_relative_positions
 
-    if x_relative_positions == "both":
-        raise Exception("Not implemented")
+    # Free GPU memory if necessary
+    if config.device == "cuda":
+        utils.kill_gpu_hogs()
+
+    batch_size = config.batch_size
+
     vocab_size = config.vocab_size
 
-    device=torch.device("cuda")
+    device=torch.device(config.device)
     #device=torch.device("cpu")
 
     #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
@@ -50,6 +55,8 @@ def main(config_path):
 
     # OVERLOAD
     folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/")
+    #folder = Path(r"fish:////taylor@localhost:2222/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/")
+    folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/words")
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
 
     ## Loader
@@ -81,6 +88,7 @@ def main(config_path):
     config.model = model
     config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/GOOD/baseline_model.pt"
     config.load_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
+    config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
 
     ## LOAD THE WEIGHTS
     utils.load_model(config) # should be load_model_strokes??????
@@ -95,33 +103,13 @@ def eval_only(dataloader, model):
                                            relative_indices=config.pred_relativefy)
 
         preds_to_graph = [p.permute([1, 0]) for p in preds]
-        graph(item, preds=preds_to_graph, _type="eval", x_relative_positions=x_relative_positions, epoch="current", config=config)
+        graph(item, preds=preds_to_graph, _type="eval", epoch="current", config=config)
+
+        if config.counter.updates % config.update_freq == 0 and i > 0:
+            utils.reset_all_stats(config, keyword="_train")
+            logger.info(("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last()))
 
 
 if __name__=="__main__":
     opts = parse_args()
     main(config_path=opts.config)
-
-
-class StrokeRecoveryModel(nn.Module):
-    def __init__(self, vocab_size=5, device="cuda", first_conv_op=CoordConv, first_conv_opts=None):
-        super().__init__()
-        if first_conv_op:
-            first_conv_op = CoordConv
-        self.cnn = CNN(nc=1, first_conv_op=first_conv_op, cnn_type="default64", first_conv_opts=first_conv_opts)
-        self.attn = nn.MultiheadAttention(embed_dim=1024, num_heads=4)
-        # self.rnn = nn.LSTM(2*1024, hidden_size=1024, num_layers=2)
-        self.rnn = BidirectionalRNN(1024, 128, vocab_size)
-        self.linear_out = nn.Linear(1024, vocab_size)
-        self.sigmoid = torch.nn.Sigmoid().to(device)
-
-    def get_cnn(self):
-        return self.cnn
-
-    def forward(self, input):
-        cnn_output = self.cnn(input)
-        attn_output, attn_weights = self.attn(cnn_output, cnn_output, cnn_output)
-        # rnn_output = self.rnn(torch.cat([cnn_output, attn_output], dim=-1))
-        rnn_output = self.rnn(attn_output)
-        rnn_output[:,:,2:] = self.sigmoid(rnn_output[:,:,2:]) # force SOS (start of stroke) and EOS (end of stroke) to be probabilistic
-        return rnn_output

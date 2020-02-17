@@ -77,9 +77,14 @@ class BasicDataset(Dataset):
         self.num_of_channels = 1
         self.collate = collate_stroke_eval
         self.cnn = cnn
-        if pickle_file:
+        if pickle_file is None and cnn:
+            output = Path(root / "stroke_cached")
+            output.mkdir(parents=True, exist_ok=True)
+            pickle_file = output / (self.cnn.cnn_type + ".pickle")
+        if Path(pickle_file).exists():
             self.data = unpickle_it(pickle_file)
         else:
+            print("Pickle not found, rebuilding")
             # Rebuild the dataset - find all PNG files
             for i in root.rglob("*" + extension):
                 self.data.append({"image_path":i.as_posix()})
@@ -87,12 +92,9 @@ class BasicDataset(Dataset):
 
             # Add label lengths - save to pickle
             if self.cnn:
-                output = Path(root / "stroke_cached")
-                output.mkdir(parents=True, exist_ok=True)
-                filename = output / (self.cnn.cnn_type + ".pickle")
                 add_output_size_to_data(self.data, self.cnn, key="label_length", root=self.root)
-                logger.info(f"DUMPING cached version to: {filename}")
-                pickle.dump(self.data, filename.open(mode="wb"))
+                logger.info(f"DUMPING cached version to: {pickle_file}")
+                pickle.dump(self.data, pickle_file.open(mode="wb"))
 
     def __len__(self):
         return len(self.data)
@@ -243,8 +245,7 @@ class StrokeRecoveryDataset(Dataset):
         # Returns image in upper origin format
         padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
         padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
-
-        img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=2)
+        img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=10)
         # img = img[::-1] # convert to lower origin format
         if add_distortion:
             img = add_unormalized_distortion(img)
@@ -491,9 +492,25 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
 
     # If using default64 - go from image size
     width_to_output_mapping = lambda width: -(width % 2) + width + 4
+    bad_indicies = []
     for i, instance in enumerate(data):
+        if not "shape" in instance:
+            try:
+                image_path = root / instance['image_path']
+                img = read_img(image_path)
+                instance["shape"] = img.shape
+            except:
+                print("Failed", image_path)
+                bad_indicies.append(i)
+                instance["shape"] = [0, 0]
+
         width = instance["shape"][1]
+
         instance[key] = width_to_output_mapping(width)
+
+    for index in sorted(bad_indicies, reverse=True):
+        del data[index]
+
     #return width_to_output_mapping
 
 def gts_to_image_size(gt_length):

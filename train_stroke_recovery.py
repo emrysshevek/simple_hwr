@@ -91,6 +91,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
     else:
         show = True
 
+    print("saving", save_folder)
     def subgraph(coords, gt_img, name, is_gt=True):
         if not is_gt:
             # Prep for other plot
@@ -196,8 +197,6 @@ def main(config_path, testing=False):
     train_size = config.train_size
     batch_size = config.batch_size
     vocab_size = config.vocab_size
-
-    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
     device = config.device
 
     # Free GPU memory if necessary
