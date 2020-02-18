@@ -30,7 +30,11 @@ class StrokeRecoveryModel(nn.Module):
                 return self._forward(input)
 
     def _forward(self, input):
-        cnn_output = self.cnn(input)
+        cnn_output = self.cnn(input) # W, B, 1024
+        # w,b,d = cnn_output.shape
+        # width_positional = torch.arange(w).repeat(1, w, 1) / 60
+        # sine_width_positional = torch.arange(w).repeat(1, w, 1) / 60
+
         rnn_output = self.rnn(cnn_output) # width, batch, alphabet
         # sigmoids are done in the loss
         return rnn_output

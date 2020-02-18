@@ -324,7 +324,7 @@ class CNN(nn.Module):
     def forward(self, input):
         # INPUT: BATCH, CHANNELS (1 or 3), Height, Width
         if self.intermediate_pass is None:
-            x = self.post_process(self.cnn(input))
+            x = self.post_process(self.cnn(input)) # [w, b, c]
             #assert self.cnnOutSize == x.shape[1] * x.shape[2]
             return x
         else:
