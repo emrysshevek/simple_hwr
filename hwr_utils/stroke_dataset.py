@@ -149,7 +149,7 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-    def resample_one(self, item, parameter="t"):
+    def resample_one(self, item, parameter="d"):
         """ Resample will be based on time, unless the number of samples has been calculated;
                 this is only calculated if you supply a pickle file or a CNN! In this case the number
                 of stroke points corresponds to the image width in pixels. Otherwise:
@@ -245,6 +245,14 @@ class StrokeRecoveryDataset(Dataset):
         return gt
 
     @staticmethod
+    def enlarge_gt(gt, height=61, width=None):
+        if width:
+            max_x = np.floor(np.max(gt[:, 0]) * height)
+            if max_x < width:
+                gt[:, 0:2] = gt[:, 0:2] * width/max_x # multiply by ratio to shrink gts
+        return gt
+
+    @staticmethod
     def prep_image(gt, img_height=61, add_distortion=True):
         """ Important that this modifies the actual GT so that plotting afterward still works
 
@@ -258,8 +266,10 @@ class StrokeRecoveryDataset(Dataset):
         image_width = gts_to_image_size(len(gt))
         # Returns image in upper origin format
         padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
-        padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
-        img = draw_from_gt(padded_gt, show=False, save_path=None, width=None, height=img_height, right_padding="random", linewidth=None, max_width=10)
+        # padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
+        # padded_gt = StrokeRecoveryDataset.enlarge_gt(padded_gt, width=image_width)  # enlarge to fit - needs to be at least as big as GTs
+
+        img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=image_width+2, height=img_height, right_padding="random", linewidth=None, max_width=10)
         # img = img[::-1] # convert to lower origin format
         if add_distortion:
             img = add_unormalized_distortion(img)
@@ -370,7 +380,6 @@ def create_gts(x_func, y_func, starts, number_of_samples, gt_format, noise=None)
         starts: [1,0,0,0,...] where 1 is the start stroke point
         number_of_samples: Number of GT points
         noise: Add some noise to the sampling
-        relative_x_positions: Make all GT's relative to previous point; first point relative to 0,0 (unchanged)
         start_of_stroke_method: "normal" - use 1's for starts
                               "interpolated" - use 0's for starts, 1's for ends, and interpolate
                               "interpolated_distance" - use 0's for starts, total distance for ends, and interpolate

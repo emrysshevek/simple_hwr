@@ -348,7 +348,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
         img.show()
     return data
 
-def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
+def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
                  right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=True):
     """ RETURNS DATA IN "LOWER" origin format!!!
         GT is a WIDTH x VOCAB size numpy array
@@ -388,14 +388,17 @@ def draw_from_gt(gt, show=True, save_path=None, width=None, height=61,
     if isinstance(right_padding, str):
         right_padding = np.random.randint(6)
 
-    if width is None: # If no width, rescale based on height
-        width = ceil(np.max(gt[:,0]) * height)+right_padding
-        width = max(width, height) # needs to be positive
-        rescale = height
+    #
+    width = ceil(np.max(gt[:, 0]) * height) + right_padding
+    width = max(width, height) # needs to be positive
+    rescale = height
 
-    else: # If a width is specified, we can't rescale to height
-        max_rescale = width/np.max(gt[:, 0])
-        rescale = min(height, max_rescale)
+    if min_width:
+        width = max(width, min_width)
+
+    # else: # If a width is specified, we can't rescale to height
+    #     max_rescale = min_width / np.max(gt[:, 0])
+    #     rescale = min(height, max_rescale)
 
     gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2:]]
     pil_format = gt_to_pil_format(gt_rescaled, stroke_number=use_stroke_number)

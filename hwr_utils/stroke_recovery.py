@@ -179,15 +179,18 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     # Have interpolation not move after last point
     x_list = np.append(x_list, x_list[-1])
     y_list = np.append(y_list, y_list[-1])
-    t_list = np.append(t_list, t_list[-1] + 20)
+    t_list = np.append(t_list, t_list[-1] + 10)
     x_to_y = np.max(x_list) / np.max(y_list)
 
     # Start strokes (binary list) will now be 1 short!
     d_list = reparameterize_as_func_of_distance(x_list, y_list, start_strokes)
+    start_distances = np.r_[d_list[start_strokes==1], d_list[-2]]
 
-    start_distances = np.r_[d_list[start_strokes==1], d_list[-1]]
+    # print(start_distances[-3:])
+    # print(start_times[-3:])
+    # stop
     output = edict({"x":x_list, "y":y_list, "t":t_list, "d":d_list, "start_times":start_times, "start_distances":start_distances, "x_to_y":x_to_y,
-                    "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1],
+                    "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-2],
                     "trange":start_times[-2]-start_times[0], "drange":d_list[-2]-d_list[0]})
 
     #print(d_list, x_list, y_list, t_list)

@@ -48,6 +48,7 @@ def run_epoch(dataloader, report_freq=500):
     for i, item in enumerate(dataloader):
         current_batch_size = item["line_imgs"].shape[0]
         instances += current_batch_size
+        #print(item["gt"].shape, item["label_lengths"])
         loss, preds, *_ = trainer.train(item, train=True)
 
         loss_list += [loss]
