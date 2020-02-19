@@ -181,8 +181,9 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     x_to_y = np.max(x_list) / np.max(y_list)
 
     # Start strokes (binary list) will now be 1 short!
-    d_list = reparameterize_as_func_of_distance(x_list, y_list, start_times)
-    output = edict({"x":x_list, "y":y_list, "t":t_list, "d":d_list, "start_times":start_times, "x_to_y":x_to_y,
+    d_list = reparameterize_as_func_of_distance(x_list, y_list, start_strokes)
+    start_distances = d_list[start_strokes]
+    output = edict({"x":x_list, "y":y_list, "t":t_list, "d":d_list, "start_times":start_times, "start_distances":start_distances, "x_to_y":x_to_y,
                     "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1],
                     "trange":start_times[-1]-start_times[0], "drange":d_list[-1]-d_list[0]})
     return output
@@ -520,14 +521,14 @@ def calc_stroke_distances(x,y,start_strokes):
     lengths = cum_sum[end_indices] - cum_sum[start_indices]
     return lengths
 
-def reparameterize_as_func_of_distance(x,y,start_strokes):
+def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=True):
     """ Instead of time, re-parameterize entire sequence as distance travelled
 
     Args:
         x: List of x's
         y: List of y's
         start_strokes: List of start stroke identifiers [1,0,0,1...
-
+        has_repeated_end: the last point is repeated
     Returns:
         distance travelled for each complete stroke
     """
@@ -536,7 +537,11 @@ def reparameterize_as_func_of_distance(x,y,start_strokes):
     if isinstance(y, list):
         y=np.array(y)
 
+    print(x,y,start_strokes)
     distances = distance_metric(x,y)
+    distances[start_strokes==1] = 0 # don't count pen up motion
+    if has_repeated_end:
+        distances[-1] = distances[-2]+10 # for interpolating later
     cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps length the same
     return cum_sum
 

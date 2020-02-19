@@ -149,7 +149,7 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-    def resample_one(self, item, parameter="t"):
+    def resample_one(self, item, parameter="d"):
         """ Resample will be based on time, unless the number of samples has been calculated;
                 this is only calculated if you supply a pickle file or a CNN! In this case the number
                 of stroke points corresponds to the image width in pixels. Otherwise:
@@ -170,7 +170,9 @@ class StrokeRecoveryDataset(Dataset):
         if "number_of_samples" not in item:
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
             #print("UNK NUMBER OF SAMPLES!!!")
-        gt = create_gts(x_func, y_func, start_times=output.start_times,
+
+        starts = output.start_times if parameter=="t" else output.start_distances
+        gt = create_gts(x_func, y_func, start_times=starts,
                         number_of_samples=item["number_of_samples"],
                         noise=self.noise,
                         gt_format=self.gt_format)
@@ -182,7 +184,7 @@ class StrokeRecoveryDataset(Dataset):
         return item
 
     def resample_data(self, data_list, parallel=True):
-        if parallel:
+        if parallel and False:
             poolcount = max(1, multiprocessing.cpu_count()-3)
             pool = multiprocessing.Pool(processes=poolcount)
             all_results = list(pool.imap_unordered(self.resample_one, tqdm(data_list)))  # iterates through everything all at once

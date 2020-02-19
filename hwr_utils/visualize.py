@@ -185,7 +185,7 @@ def load_all(path, key=None, clear=True, keywords=""):
             name = p.parent.name.replace("-", "_")
 
             plotter = Plot(name, port=DEFAULT_PORT)
-            stats = json.loads(p.read_text())
+            stats = json.loads(p.read_text())["stats"]
             for key in stats.keys():
                 losses = stats[key]
                 plotter.register_plot(key, losses["x_title"], key, plot_type="line") # , ymax=.1
@@ -198,7 +198,8 @@ def load_all(path, key=None, clear=True, keywords=""):
 
 if __name__=="__main__":
     # python -m visdom.server -p 8081
-    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/"
-    path = r"./results/stroke_config"
+    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver2/"
+    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2"
+    #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
     load_all(path, keywords="2020") #, key="validation_cer")

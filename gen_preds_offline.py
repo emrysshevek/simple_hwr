@@ -56,7 +56,7 @@ def main(config_path):
     # OVERLOAD
     folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/")
     #folder = Path(r"fish:////taylor@localhost:2222/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/")
-    folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/words")
+    #folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/words")
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
 
     ## Loader
@@ -94,6 +94,7 @@ def main(config_path):
     ## LOAD THE WEIGHTS
     utils.load_model(config) # should be load_model_strokes??????
     model = model.to(device)
+    model.eval()
 
     eval_only(eval_loader, model)
 
