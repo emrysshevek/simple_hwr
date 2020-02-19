@@ -38,6 +38,8 @@ from torch import Tensor, tensor
 
 # Add more instances -- otherwise make it so the first instance is at the start of the letter
 
+
+EPSILON = 1e-8
 def distance_metric(x,y):
     """ Euclidean distance metric between x and x-1; first item in stroke has distance of epsilon
     Args:
@@ -182,10 +184,13 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 
     # Start strokes (binary list) will now be 1 short!
     d_list = reparameterize_as_func_of_distance(x_list, y_list, start_strokes)
-    start_distances = d_list[start_strokes]
+
+    start_distances = np.r_[d_list[start_strokes==1], d_list[-1]]
     output = edict({"x":x_list, "y":y_list, "t":t_list, "d":d_list, "start_times":start_times, "start_distances":start_distances, "x_to_y":x_to_y,
                     "start_strokes":start_strokes, "raw":strokes, "tmin":start_times[0], "tmax":start_times[-1],
-                    "trange":start_times[-1]-start_times[0], "drange":d_list[-1]-d_list[0]})
+                    "trange":start_times[-2]-start_times[0], "drange":d_list[-2]-d_list[0]})
+
+    #print(d_list, x_list, y_list, t_list)
     return output
 
 ## DOES THIS WORK? SHOULD BE THE SAME AS BATCH_TORCH, NEED TO TEST
@@ -452,7 +457,7 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     Returns:
         list of x_points, list of y_points, binary list of whether the corresponding point is a start stroke
     """
-    last_time = starts[-1]
+    last_time = starts[-2]
     interval = last_time / number_of_samples
     std_dev = interval / 4
     time = np.linspace(0, last_time, number_of_samples)
@@ -537,12 +542,14 @@ def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=Tru
     if isinstance(y, list):
         y=np.array(y)
 
-    print(x,y,start_strokes)
     distances = distance_metric(x,y)
-    distances[start_strokes==1] = 0 # don't count pen up motion
-    if has_repeated_end:
-        distances[-1] = distances[-2]+10 # for interpolating later
+    distances[start_strokes==1] = EPSILON # don't count pen up motion
+    distances[0] = 0
     cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps length the same
+
+    if has_repeated_end:
+        cum_sum[-1] = cum_sum[-2]+10 # for interpolating later
+
     return cum_sum
 
 def get_stroke_length_gt(x, y, start_points, use_distance=True):

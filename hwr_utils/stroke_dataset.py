@@ -61,7 +61,7 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_d
 def add_unormalized_distortion(img):
     return distortions.gaussian_noise(
         distortions.blur(
-            distortions.random_distortions(img.astype(np.float32), noise_max=1), # this one can really mess it up, def no bigger than 2
+            distortions.random_distortions(img.astype(np.float32), noise_max=1.1), # this one can really mess it up, def no bigger than 2
             max_intensity=1.0),
         max_intensity=.1)
 
@@ -149,7 +149,7 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-    def resample_one(self, item, parameter="d"):
+    def resample_one(self, item, parameter="t"):
         """ Resample will be based on time, unless the number of samples has been calculated;
                 this is only calculated if you supply a pickle file or a CNN! In this case the number
                 of stroke points corresponds to the image width in pixels. Otherwise:
@@ -167,20 +167,32 @@ class StrokeRecoveryDataset(Dataset):
         """
         output = stroke_recovery.prep_stroke_dict(item["raw"])  # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output, parameter=parameter) # can be d if the function should be a function of distance
+        # x_funct, y_funct = stroke_recovery.create_functions_from_strokes(output, parameter="t")
+        #
+        # for i,t in enumerate(output.t):
+        #     print(x_funct(t), x_func(output.d[i]))
+        # STop
+        # print(x_func(1))
+        # print(output.x, output.d, output.t)
+        # stop
         if "number_of_samples" not in item:
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
-            #print("UNK NUMBER OF SAMPLES!!!")
+            print("UNK NUMBER OF SAMPLES!!!")
 
         starts = output.start_times if parameter=="t" else output.start_distances
-        gt = create_gts(x_func, y_func, start_times=starts,
+        gt = create_gts(x_func, y_func, starts=starts,
                         number_of_samples=item["number_of_samples"],
                         noise=self.noise,
                         gt_format=self.gt_format)
+        # try:
+        #     assert not any(np.isnan(gt))
+        # except:
+        #     print(gt, starts)
+        #     pass
 
         item["gt"] = gt  # {"x":x, "y":y, "is_start_time":is_start_stroke, "full": gt}
         item["x_func"] = x_func
         item["y_func"] = y_func
-        item["start_times"] = output.start_times
         return item
 
     def resample_data(self, data_list, parallel=True):
@@ -330,7 +342,6 @@ class StrokeRecoveryDataset(Dataset):
             "path": image_path,
             "x_func": item["x_func"],
             "y_func": item["y_func"],
-            "start_times": item["start_times"],
             "gt_format": self.gt_format,
             "start_points": start_points
         }
@@ -350,13 +361,13 @@ def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
                       noise=noise,
                       gt_format=gt_format)
 
-def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=None):
+def create_gts(x_func, y_func, starts, number_of_samples, gt_format, noise=None):
     """ Return LENGTH X VOCAB
 
     Args:
         x_func:
         y_func:
-        start_times: [1,0,0,0,...] where 1 is the start stroke point
+        starts: [1,0,0,0,...] where 1 is the start stroke point
         number_of_samples: Number of GT points
         noise: Add some noise to the sampling
         relative_x_positions: Make all GT's relative to previous point; first point relative to 0,0 (unchanged)
@@ -370,8 +381,9 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
     # [{'el': 'x', 'opts': None}, {'el': 'y', 'opts': None}, {'el': 'stroke_number', 'opts': None}, {'el': 'eos', 'opts': None}]
 
     # Sample from x/y functions
-    x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, start_times,
+    x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, starts,
                                                    number_of_samples=number_of_samples, noise=noise)
+    assert len(x) == len(y) == number_of_samples
 
     # Make coordinates relative to previous one
     # x = stroke_recovery.relativefy(x)
@@ -402,6 +414,9 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
 
     gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
 
+    # print(gt)
+    # draw_from_gt(gt, show=True)
+    # stop
     return gt
 
 # def sos_filtered(x,y,is_start_stroke, end_of_sequence_flag):
@@ -490,10 +505,14 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
     """ IMAGE SIZE TO NUMBER OF GTs
     """
     # If using default
-    # width_to_output_mapping = lambda width: int(width / 4) + 1
+    if cnn.cnn_type=="default":
+        width_to_output_mapping = lambda width: int(width / 4) + 1
+    elif cnn.cnn_type in ("default64", "FAKE"):
+        # If using default64 - go from image size
+        width_to_output_mapping = lambda width: -(width % 2) + width + 4
+    else:
+        raise Exception(f"Unknown CNN type {cnn.cnn_type}")
 
-    # If using default64 - go from image size
-    width_to_output_mapping = lambda width: -(width % 2) + width + 4
     bad_indicies = []
     for i, instance in enumerate(data):
         if not "shape" in instance:
@@ -507,10 +526,10 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
                 instance["shape"] = [0, 0]
 
         width = instance["shape"][1]
-
         instance[key] = width_to_output_mapping(width)
 
     for index in sorted(bad_indicies, reverse=True):
+        print("Deleting bad files", index)
         del data[index]
 
     #return width_to_output_mapping
@@ -633,7 +652,6 @@ def collate_stroke(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
         "x_func": [b["x_func"] for b in batch],
         "y_func": [b["y_func"] for b in batch],
-        "start_times": [b["start_times"] for b in batch],
     }
 
 

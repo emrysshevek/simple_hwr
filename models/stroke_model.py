@@ -42,7 +42,7 @@ class StrokeRecoveryModel(nn.Module):
 
 def fake_cnn(img):
     b, c, h, w = img.shape
-    return torch.ones(w + 3 + (w+1) % 2, b, 64)
+    return torch.ones(w % 2 + w, b, 64)
 
 fake_cnn.cnn_type = "FAKE"
 
