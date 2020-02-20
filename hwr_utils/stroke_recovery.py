@@ -222,7 +222,7 @@ class PredConvolver:
     def __init__(self, convolve_type, kernel_length=21):
         convolve_functions = {"cumsum":relativefy_batch_torch, "conv_weight":conv_weight, "conv_window": conv_window}
         self.convolve_func = convolve_functions[convolve_type]
-        if convolve_type:
+        if convolve_type=="conv_weight":
             kernel = Tensor(range(0, kernel_length)).unsqueeze(1).repeat(1, 1, 1, 1) / (kernel_length - 1)
             self.kwargs = {"kernel": kernel, "inverse_kernel":1-kernel, "kernel_length": kernel_length}
         elif convolve_type=="conv_window":
@@ -230,6 +230,7 @@ class PredConvolver:
             self.kwargs = {"kernel": kernel_window, "kernel_length": kernel_length}
         elif convolve_type=="cumsum": # NOT BEING USED PRESENTLY
             self.kwargs = {"reverse":True}
+        print("Convolve Options", self.__dict__)
 
     def convolve(self, pred_rel, indices, gt):
         return self.convolve_func(pred_rel=pred_rel, gt_abs=gt, indices=indices, **self.kwargs)
@@ -356,6 +357,13 @@ def relativefy(x, reverse=False):
         return relativefy_torch(x, reverse)
     else:
         raise Exception(f"Unexpected type {type(x)}")
+
+def convert_stroke_numbers_to_start_strokes(x):
+    start_strokes = np.zeros(x)
+    # Where the stroke number crosses the threshold
+    next_number_indices = np.argwhere(np.round(x[1:]) != np.round(x[:-1])) + 1
+    start_strokes[next_number_indices] = 1
+    return start_strokes
 
 def relativefy_numpy(x, reverse=False):
     """ Make the x-coordinate relative to the previous one

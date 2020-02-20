@@ -1,9 +1,7 @@
 from hwr_utils import visualize
 from torch.utils.data import DataLoader
-from models.basic import CNN, BidirectionalRNN
 from torch import nn
 from loss_module.stroke_recovery_loss import StrokeLoss
-from models.CoordConv import CoordConv
 from trainers import TrainerStrokeRecovery, TrainerStartPoints
 from hwr_utils.stroke_dataset import StrokeRecoveryDataset
 from hwr_utils.stroke_recovery import *
@@ -123,7 +121,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
         # if config.pred_relativefy:
         if "stroke_number" in config.gt_format:
             idx = config.gt_format.index("stroke_number")
-            coords[idx] = relativefy_numpy(coords[idx], reverse=False)
+            coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
         save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None
