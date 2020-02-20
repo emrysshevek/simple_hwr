@@ -359,7 +359,8 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
     return data
 
 def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
-                 right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=None):
+                 right_padding="random", linewidth=None, max_width=5, color=0, alpha=False,
+                 use_stroke_number=None, plot_points=False):
     """ RETURNS DATA IN "LOWER" origin format!!!
         GT is a WIDTH x VOCAB size numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
@@ -425,6 +426,22 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
             line2 = line + linewidth / 2
             line = np.r_[line1, line2].flatten().tolist()
             draw.ellipse(line, fill='black', outline='black')
+
+    if plot_points:
+        image_type = "RGB"
+        linewidth=1
+        background = Image.new(image_type, (width, height), (255, 255, 255))
+        background.paste(img)  # 3 is the alpha channel
+        draw = ImageDraw.Draw(background)
+
+        for line in pil_format:
+            for point in line:
+                line1 = point - linewidth / 2
+                line2 = point + linewidth / 2
+                point = np.r_[line1, line2].flatten().tolist()
+                print(point)
+                draw.ellipse(point, fill='blue', outline='blue')
+        img = background
 
     data = np.array(img)[::-1]  # invert the y-axis, to upper origin
 

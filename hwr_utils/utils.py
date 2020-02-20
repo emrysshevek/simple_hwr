@@ -1220,11 +1220,11 @@ def plot_tensor(tensor):
     plt.imshow(t, cmap='gray')
     plt.show()
 
-def kill_gpu_hogs():
+def kill_gpu_hogs(force=False):
     ## Try to kill just nvidia ones first; ask before killing everything; try to restart Visdom
     if is_taylor():
         utilization, memory_utilization = get_gpu_utilization()
-        if memory_utilization > 50:
+        if memory_utilization > 50 or force:
             kill_all = input("GPU memory utilization over 50%; kill all python scripts? Y/n")
             if kill_all.lower()!="y":
                 return
