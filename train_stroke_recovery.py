@@ -65,6 +65,7 @@ def run_epoch(dataloader, report_freq=500):
     utils.write_out(save_folder, "example_data", f"GT {str(item['gt_list'][0])}"
                                                  f"\nPREDS\n{str(preds_to_graph[0].transpose(1,0))}"
                                                  f"\nStartPoints\n{str(item['start_points'][0])}")
+    utils.pickle_it({"item":item, "preds":preds_to_graph}, Path(save_folder) / "example_data.pickle")
 
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances

@@ -359,7 +359,7 @@ def relativefy(x, reverse=False):
         raise Exception(f"Unexpected type {type(x)}")
 
 def convert_stroke_numbers_to_start_strokes(x):
-    start_strokes = np.zeros(x)
+    start_strokes = np.zeros(x.shape)
     # Where the stroke number crosses the threshold
     next_number_indices = np.argwhere(np.round(x[1:]) != np.round(x[:-1])) + 1
     start_strokes[next_number_indices] = 1
