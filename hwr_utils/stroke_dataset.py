@@ -149,7 +149,7 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-    def resample_one(self, item, parameter="t"):
+    def resample_one(self, item, parameter="d"):
         """ Resample will be based on time, unless the number of samples has been calculated;
                 this is only calculated if you supply a pickle file or a CNN! In this case the number
                 of stroke points corresponds to the image width in pixels. Otherwise:
