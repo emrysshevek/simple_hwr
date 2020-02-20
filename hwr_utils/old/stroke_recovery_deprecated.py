@@ -88,7 +88,7 @@ def read_stroke_xml_old(path, max_stroke_count=None):
     stroke_lists = []
     start_end_strokes_lists = []
 
-    # If not constrained by number of strokes, set max_stroke_count to full length window
+    # If not constrained by number of strokes, set max_stroke_count to full desired_num_of_strokes window
     if max_stroke_count is None:
         max_stroke_count = len(all_strokes) - 1
 

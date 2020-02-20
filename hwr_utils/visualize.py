@@ -172,7 +172,6 @@ def load_all_hwr(path, key='test_cer', clear=True, keywords=""):
             except:
                 print(f"Problem with {name, key}")
 
-
 def load_all(path, key=None, clear=True, keywords=""):
     # python -m visdom.server -p 8080
     if False:

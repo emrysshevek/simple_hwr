@@ -117,6 +117,7 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
              x(t), y(t), stroke_up_down(t), start_times
                  Note that the last start time is the end of the last stroke
     """
+
     x_list = []
     y_list = []
     t_list = []
@@ -387,17 +388,17 @@ def relativefy_torch(x, reverse=False):
         return r
 
 
-def get_all_substrokes(stroke_dict, length=3):
+def get_all_substrokes(stroke_dict, desired_num_of_strokes=3):
     """
 
     Args:
         stroke_dict: ['x', 'y', 't', 'start_times', 'x_to_y', 'start_strokes', 'raw', 'tmin', 'tmax', 'trange']
-        length:
+        desired_num_of_strokes:
 
     Returns:
 
     """
-    if length is None:
+    if desired_num_of_strokes is None:
         yield stroke_dict
         return
 
@@ -405,19 +406,19 @@ def get_all_substrokes(stroke_dict, length=3):
     start_args = np.append(start_args, None) # last start arg should be the end of the sequence
 
     # If fewer strokes, just return the whole thing
-    if start_args.shape[0] <= length:
+    if start_args.shape[0] <= desired_num_of_strokes:
         return stroke_dict
 
-    for stroke_number in range(start_args.shape[0]-length): # remember, last start_stroke is really the end stroke
+    for stroke_number in range(start_args.shape[0] - desired_num_of_strokes): # remember, last start_stroke is really the end stroke
         start_idx = start_args[stroke_number]
-        end_idx = start_args[stroke_number+length]
+        end_idx = start_args[stroke_number + desired_num_of_strokes]
 
         t = stroke_dict.t[start_idx:end_idx].copy()
         x = stroke_dict.x[start_idx:end_idx].copy()
         y = stroke_dict.y[start_idx:end_idx].copy()
-        raw = stroke_dict.raw[stroke_number:stroke_number+length]
+        raw = stroke_dict.raw[stroke_number:stroke_number + desired_num_of_strokes]
         start_strokes = stroke_dict.start_strokes[start_idx:end_idx]
-        start_times =   stroke_dict.start_times[stroke_number:stroke_number+length+1].copy()
+        start_times = stroke_dict.start_times[stroke_number:stroke_number + desired_num_of_strokes + 1].copy()
 
         y, scale_param = normalize(y)
         x, scale_param = normalize(x, scale_param)
@@ -460,7 +461,7 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     Returns:
         list of x_points, list of y_points, binary list of whether the corresponding point is a start stroke
     """
-    last_time = starts[-2]
+    last_time = starts[-1] # get the last start point - this should actually be the first start point of the next stroke!!
     interval = last_time / number_of_samples
     std_dev = interval / 4
     time = np.linspace(0, last_time, number_of_samples)
@@ -548,7 +549,7 @@ def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=Tru
     distances = distance_metric(x,y)
     distances[start_strokes==1] = EPSILON # don't count pen up motion
     distances[0] = 0
-    cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps length the same
+    cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps desired_num_of_strokes the same
 
     if has_repeated_end:
         cum_sum[-1] = cum_sum[-2]+10 # for interpolating later
@@ -571,12 +572,12 @@ def get_stroke_length_gt(x, y, start_points, use_distance=True):
     ys = np.zeros(2*start_point_ct)
 
 
-    # Make each target the actual stroke length
+    # Make each target the actual stroke desired_num_of_strokes
     if use_distance:
         distances = calc_stroke_distances(x,y, start_points)
         ys[1::2] = distances
     else:
-        # Make each stroke length "1" unit
+        # Make each stroke desired_num_of_strokes "1" unit
         ys[1::2] += 1
     interp_xs = np.array(range(0, last_idx+1))
     out = np.interp(interp_xs, xs, ys)

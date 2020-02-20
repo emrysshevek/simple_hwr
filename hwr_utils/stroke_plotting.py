@@ -28,7 +28,7 @@ def plot_stroke_points(x,y, start_points, square=False):
             continue
         xdiff = (x2 - x1)
         ydiff = (y2 - y1)
-        dx = min(xdiff / 2, max_y*.1) # arrow scaled according to distance, with max length
+        dx = min(xdiff / 2, max_y*.1) # arrow scaled according to distance, with max desired_num_of_strokes
         dy = min(ydiff / 2, max_y*.1)
         plt.arrow(x1, y1, dx, dy, color="blue", length_includes_head = True, head_length = head_length, head_width=head_width) # head_width = 1.4,
 
@@ -333,11 +333,21 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
 
     img = Image.new("L", (width, height), 255)
     draw = ImageDraw.Draw(img)
+    color = 0
+    linewidth = 2
 
     for line in raw:
         coords = zip((np.array(line["x"]) * height), (np.array(line["y"]) * height))
-        coords = list(coords)
-        draw.line(coords, fill=0, width=1, joint='curve')
+        line = list(coords)
+
+        if line.size > 2:
+            line = [tuple(x) for x in line.flatten().reshape(-1, 2).tolist()]
+            draw.line(line, fill=color, width=linewidth, joint='curve')
+        elif line.size == 2:
+            line1 = line - linewidth / 2
+            line2 = line + linewidth / 2
+            line = np.r_[line1, line2].flatten().tolist()
+            draw.ellipse(line, fill='black', outline='black')
 
     data = np.array(img)[::-1]  # invert the y-axis
 
@@ -349,7 +359,7 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
     return data
 
 def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
-                 right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=True):
+                 right_padding="random", linewidth=None, max_width=5, color=0, alpha=False, use_stroke_number=None):
     """ RETURNS DATA IN "LOWER" origin format!!!
         GT is a WIDTH x VOCAB size numpy array
         Start strokes are inferred by [:,2], which should be 1 when the point starts a new stroke
@@ -365,7 +375,8 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
 
     """
     ### HACK
-    use_stroke_number = True if np.any(gt[:,2] > 3) else False
+    if use_stroke_number is None:
+        use_stroke_number = True if np.any(gt[:,2] > 3) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()
@@ -406,9 +417,14 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
     draw = ImageDraw.Draw(img)
 
     for line in pil_format:
-        if line.size:
-            line = [tuple(x) for x in line.flatten().reshape(-1,2).tolist()]
+        if line.size > 2:
+            line = [tuple(x) for x in line.flatten().reshape(-1, 2).tolist()]
             draw.line(line, fill=color, width=linewidth, joint='curve')
+        elif line.size == 2:
+            line1 = line - linewidth / 2
+            line2 = line + linewidth / 2
+            line = np.r_[line1, line2].flatten().tolist()
+            draw.ellipse(line, fill='black', outline='black')
 
     data = np.array(img)[::-1]  # invert the y-axis, to upper origin
 

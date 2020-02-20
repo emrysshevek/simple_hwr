@@ -1,4 +1,4 @@
-from online_coordinate_parser import *
+from .online_coordinate_parser import *
 from pathlib import Path
 import json
 import cv2
@@ -48,7 +48,7 @@ class CreateDataset:
                 "dataset": str training/test,
                 "x": list of x coordinates, rescaled to be square with Y
                 "y": list of y coordinates, normalized to 0-1
-                "t": list of t coordinates, normalized to stroke length
+                "t": list of t coordinates, normalized to stroke desired_num_of_strokes
                 "start_times": start_times,
                 "start_strokes": start_strokes,
                 "x_to_y": ratio of x len to y len
@@ -159,7 +159,7 @@ class CreateDataset:
         # image, but different strokes within that image.
         stroke_list, _ = read_stroke_xml(xml_path)
         stroke_dict = prep_stroke_dict(stroke_list, time_interval=0, scale_time_distance=True) # list of dictionaries, 1 per file
-        all_substrokes = get_all_substrokes(stroke_dict, length=self.max_strokes) # subdivide file into smaller sets
+        all_substrokes = get_all_substrokes(stroke_dict, desired_num_of_strokes=self.max_strokes) # subdivide file into smaller sets
 
         if item["dataset"] in ["test", "val1", "val2"]:
             dataset = "test"

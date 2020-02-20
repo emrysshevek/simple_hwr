@@ -36,7 +36,7 @@ scheduler_gamma: .95          # LR decay rate
 
 ## Loss options:
   # Based on width of image, determine how many outputs there should be
-    # batches make predictions square, ONLY evaluate based on the expected GT length
+    # batches make predictions square, ONLY evaluate based on the expected GT desired_num_of_strokes
   # DTW - have as many GTs as you want; bound alignments somehow?
   # (Old option: resample the GTs after the prediction is known)
   # (Future option: with attention, have the GTs to be just be sampled regularly)

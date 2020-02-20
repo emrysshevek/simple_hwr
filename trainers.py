@@ -289,11 +289,19 @@ class TrainerStrokeRecovery(Trainer):
         preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make absolute preds from relative preds - must be done before truncation
+        # if relative_indices:
+        #     if not train or convolve is None:
+        #         preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
+        #     else:
+        #         preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
         if relative_indices:
             if not train or convolve is None:
                 preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
             else:
                 preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
+
+
+
         if activation:
             preds[:,:,activation] = SIGMOID(preds[:,:,activation])
 
@@ -348,7 +356,7 @@ class TrainerStartPoints(Trainer):
                           device=self.config.device, train=train, relative_indices=self.relative_indices,
                           activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-	# Shorten pred to be the length of the ground truth
+	# Shorten pred to be the desired_num_of_strokes of the ground truth
         pred_list = []
         for i, pred in enumerate(preds):
             pred_list.append(pred[:len(gt[i])])
@@ -372,11 +380,10 @@ class TrainerStartPoints(Trainer):
 
         if relative_indices:
             preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
+
         if activation:
             preds[:, :, activation] = SIGMOID(preds[:, :, activation])
         return preds
-
-
 
 class TrainerStartEndStroke(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
@@ -410,7 +417,7 @@ class TrainerStartEndStroke(Trainer):
                           device=self.config.device, train=train, relative_indices=self.relative_indices,
                           activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-	# Shorten pred to be the length of the ground truth
+	# Shorten pred to be the desired_num_of_strokes of the ground truth
         pred_list = []
         for i, pred in enumerate(preds):
             pred_list.append(pred[:len(gt[i])])

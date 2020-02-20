@@ -114,7 +114,7 @@ class AutoStat(Stat):
             new_step = self.x_counter.__dict__[self.x_weight]
             weight = (new_step - self.last_weight_step)
             self.last_weight_step = new_step
-        else: # if not training, the length is constant;
+        else: # if not training, the desired_num_of_strokes is constant;
             assert "test" in self.x_weight # make sure the key is appropriate
             weight = self.x_counter.__dict__[self.x_weight]
         if weight == 0:

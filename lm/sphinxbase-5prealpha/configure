@@ -2336,7 +2336,7 @@ for ac_signal in 1 2 13 15; do
 done
 ac_signal=0
 
-# confdefs.h avoids OS command line length limits that DEFS can exceed.
+# confdefs.h avoids OS command line desired_num_of_strokes limits that DEFS can exceed.
 rm -f -r conftest* confdefs.h
 
 $as_echo "/* confdefs.h */" > confdefs.h
@@ -5834,7 +5834,7 @@ else
 $as_echo "no, using $LN_S" >&6; }
 fi
 
-# find the maximum length of command line arguments
+# find the maximum desired_num_of_strokes of command line arguments
 { $as_echo "$as_me:${as_lineno-$LINENO}: checking the maximum length of command line arguments" >&5
 $as_echo_n "checking the maximum length of command line arguments... " >&6; }
 if ${lt_cv_sys_max_cmd_len+:} false; then :
@@ -5854,7 +5854,7 @@ else
 
   gnu*)
     # Under GNU Hurd, this test is not required because there is
-    # no limit to the length of command line arguments.
+    # no limit to the desired_num_of_strokes of command line arguments.
     # Libtool will interpret -1 as no limit whatsoever
     lt_cv_sys_max_cmd_len=-1;
     ;;
@@ -5864,7 +5864,7 @@ else
     # about 5 minutes as the teststring grows exponentially.
     # Worse, since 9x/ME are not pre-emptively multitasking,
     # you end up with a "frozen" computer, even though with patience
-    # the test eventually succeeds (with a max line length of 256k).
+    # the test eventually succeeds (with a max line desired_num_of_strokes of 256k).
     # Instead, let's just punt: use the minimum linelength reported by
     # all of the supported platforms: 8192 (on NT/2K/XP).
     lt_cv_sys_max_cmd_len=8192;
@@ -5877,7 +5877,7 @@ else
 
   amigaos*)
     # On AmigaOS with pdksh, this test takes hours, literally.
-    # So we just punt and use a minimum line length of 8192.
+    # So we just punt and use a minimum line desired_num_of_strokes of 8192.
     lt_cv_sys_max_cmd_len=8192;
     ;;
 
@@ -5942,7 +5942,7 @@ else
       done
       SHELL=${SHELL-${CONFIG_SHELL-/bin/sh}}
       # If test is not a shell built-in, we'll probably end up computing a
-      # maximum length that is only half of the actual maximum length, but
+      # maximum desired_num_of_strokes that is only half of the actual maximum desired_num_of_strokes, but
       # we can't tell.
       while { test "X"`env echo "$teststring$teststring" 2>/dev/null` \
 	         = "X$teststring$teststring"; } >/dev/null 2>&1 &&
@@ -5951,7 +5951,7 @@ else
         i=`expr $i + 1`
         teststring=$teststring$teststring
       done
-      # Only check the string length outside the loop.
+      # Only check the string desired_num_of_strokes outside the loop.
       lt_cv_sys_max_cmd_len=`expr "X$teststring" : ".*" 2>&1`
       teststring=
       # Add a significant safety factor because C++ compilers can tack on

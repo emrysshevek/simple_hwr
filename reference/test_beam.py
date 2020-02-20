@@ -7,7 +7,7 @@ labels = ["|", "c", "c"]
 my_decoder = CTCBeamDecoder(labels=labels, blank_id=0, beam_width=5, num_processes=1, log_probs_input=False)
 softmax = torch.nn.Softmax(dim=2)
 
-output = np.array([[5,10,5],[100,5,5],[5,100,5],[5,100,5],[5,100,5]]) # batch x seq x label_size; each row is the label probabilities; columns are sequence length
+output = np.array([[5,10,5],[100,5,5],[5,100,5],[5,100,5],[5,100,5]]) # batch x seq x label_size; each row is the label probabilities; columns are sequence desired_num_of_strokes
 output = softmax(torch.tensor(output[None, :,:]).float())
 
 def beam(out):

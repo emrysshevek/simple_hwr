@@ -184,11 +184,6 @@ class StrokeRecoveryDataset(Dataset):
                         number_of_samples=item["number_of_samples"],
                         noise=self.noise,
                         gt_format=self.gt_format)
-        # try:
-        #     assert not any(np.isnan(gt))
-        # except:
-        #     print(gt, starts)
-        #     pass
 
         item["gt"] = gt  # {"x":x, "y":y, "is_start_time":is_start_stroke, "full": gt}
         item["x_func"] = x_func
@@ -288,7 +283,7 @@ class StrokeRecoveryDataset(Dataset):
         image_path = self.root / item['image_path']
 
         ## DEFAULT GT ARRAY
-        # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x length
+        # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x desired_num_of_strokes
         if self.image_prep.startswith("pil") and not ("no_warp" in self.image_prep):
             gt = item["gt"].copy() # LENGTH, VOCAB
             gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
@@ -638,7 +633,7 @@ def collate_stroke(batch, device="cpu"):
         l = batch[i]['gt']
         #all_labels.append(l)
         label_lengths.append(len(l))
-        ## ALL LABELS - list of length batch size; arrays LENGTH, VOCAB SIZE
+        ## ALL LABELS - list of desired_num_of_strokes batch size; arrays LENGTH, VOCAB SIZE
         labels[i,:len(l), :] = l
         all_labels.append(torch.from_numpy(l.astype(TYPE)).to(device))
         start_points.append(torch.from_numpy(batch[i]['start_points'].astype(TYPE)).to(device))

@@ -2,9 +2,9 @@ from sdtw import SoftDTW
 from sdtw.distance import SquaredEuclidean
 import numpy as np
 
-# Time series 1: numpy array, shape = [m, d] where m = length and d = dim
+# Time series 1: numpy array, shape = [m, d] where m = desired_num_of_strokes and d = dim
 X = np.array(range(0,9)).reshape(3,3)
-# Time series 2: numpy array, shape = [n, d] where n = length and d = dim
+# Time series 2: numpy array, shape = [n, d] where n = desired_num_of_strokes and d = dim
 Y = np.array(range(0,9)).reshape(3,3)[::-1]
 
 # D can also be an arbitrary distance matrix: numpy array, shape [m, n]
