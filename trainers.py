@@ -4,6 +4,7 @@ from torch.autograd import Variable
 from hwr_utils import utils
 from hwr_utils.stroke_recovery import relativefy_batch_torch, conv_weight, conv_window, PredConvolver
 import logging
+from loss_module import loss_metrics
 
 logger = logging.getLogger("root."+__name__)
 
@@ -320,8 +321,9 @@ class TrainerStrokeRecovery(Trainer):
         #     self.config.stats["l1"+suffix].accumulate(l1_loss)
 
         # Don't do the nearest neighbor search by default
-        if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) :
-            self.config.stats["nn"+suffix].accumulate(self.loss_criterion.calculate_nn_distance(item, preds))
+        if (self.config.training_nn_loss and train) or (self.config.test_nn_loss and not train) \
+                and self.config.counter.epochs % self.config.test_nn_loss_freq==0:
+            self.config.stats["nn"+suffix].accumulate(loss_metrics.calculate_nn_distance(item, preds))
 
 
 class TrainerStartPoints(Trainer):

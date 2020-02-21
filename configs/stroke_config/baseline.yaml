@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: true # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -128,7 +128,7 @@ cumsum_window_size: 21 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
-test_nn_loss: false # calculate nearest neighbor loss on every test instance
+# test_nn_loss: true # calculate nearest neighbor loss on every test instance
 
 ## CNN
 cnn_type: default64 # default64; CNN output width similar to input width; default: CNN output is like 1/4 the input width

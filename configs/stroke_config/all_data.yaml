@@ -41,7 +41,7 @@ loss_fn: l1, ssl
 loss_fn2: dtw, ssl
 first_loss_epochs: 5
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
-test_nn_loss: false # calculate nearest neighbor loss on every test instance
+# test_nn_loss: true # calculate nearest neighbor loss on every test instance
 
 # CoordConv
   # x-scaled from -1 to 1

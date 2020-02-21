@@ -205,7 +205,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "data_root_fsl": "../hw_data/strokes",
                    "data_root_local":".",
                    "training_nn_loss": False,
-                   "test_nn_loss": False,
+                   "test_nn_loss": True,
+                   "test_nn_loss_freq": 10,
                    "visdom_port": 9001,
                    "gpu_if_available": True,
                     "start_of_stroke_method":"normal",
@@ -215,7 +216,6 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "model_name":"normal",
                     "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1}
                     }
-
 
 def debugger(func):
     def wrapper(*args, **kwargs):
@@ -368,6 +368,7 @@ def make_config_consistent_stroke(config):
         config.update_freq = 1
         config.save_freq = 1
         config.first_loss_epochs = 1 # switch to other loss fast
+        config.test_nn_loss_freq = 3
         if not config.gpu_if_available:
             config.batch_size = 2
             config.train_size = 2
