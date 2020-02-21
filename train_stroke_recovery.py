@@ -126,7 +126,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
             coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
 
         # Remove lonely points
-        coords = post_process_remove_strays(coords)
+        # coords = post_process_remove_strays(coords)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
         save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None

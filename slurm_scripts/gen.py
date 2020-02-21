@@ -28,7 +28,7 @@ sh_root = proj_dir / "slurm_scripts/scripts/stroke_config"              # the .s
 env = '/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr4_env'
 
 hardware_dict = {
-    "default":{"threads":6, "time":"36:00:00", "gpu":"pascal"},
+    "default":{"threads":6, "time":"48:00:00", "gpu":"pascal"},
     }
 
 def get_sh(path, ext=".sh"):
