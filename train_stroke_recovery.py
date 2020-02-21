@@ -105,6 +105,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
             #print("after round", coords[2])
 
             suffix=""
+
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
@@ -123,6 +124,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
         if "stroke_number" in config.gt_format:
             idx = config.gt_format.index("stroke_number")
             coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
+
+        # Remove lonely points
+        coords = post_process_remove_strays(coords)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
         save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None

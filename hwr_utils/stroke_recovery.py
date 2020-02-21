@@ -609,8 +609,6 @@ def test_gt_stroke_length_generator():
     print(final)
     assert np.allclose(final, np.array([0.,0.,1.41421356,2.82842712]))
 
-
-
 def to_numpy(array_string):
     from ast import literal_eval
     import numpy as np
@@ -618,6 +616,39 @@ def to_numpy(array_string):
     array_string = re.sub('[\s,]+', ',', array_string)
     array_string = np.array(literal_eval(array_string))
     return array_string
+
+def post_process_remove_strays(gt, max_dist=.2):
+    """ Must have already unrelatified start of strokes
+
+    Args:
+        gt:
+        max_dist:
+
+    Returns:
+
+    """
+
+    distances = distance_metric(gt[:, 0], gt[:, 1])
+
+    # Where are the distances big AND not a start point
+    idx = np.argwhere(distances > max_dist).reshape(-1)
+    not_first_stroke = np.argwhere(gt[:, 2] == 0).flatten()
+    bad_points = idx[np.where(np.diff(idx) == 1)]
+    bad_points = np.intersect1d(not_first_stroke, bad_points)
+
+    if bad_points:
+        # Delete them
+        gt = np.delete(gt, bad_points, axis=0)
+
+        # Add new start point
+        gt[bad_points, 2] = 1
+    return gt
+
+## KD TREE MOVE POINTS? TEST THIS
+## DELETE POINTS THAT AREN'T CLOSE TO A STROKE
+## ANY SUFFICIENTLY LARGE JUMP -> MAKE A START STROKE
+## DTW -> PAIR POINTS TOGETHER, EVALUATE HOW ACCURATE ON STROKE BY STROKE LEVEL
+
 
 if __name__=="__main__":
     test_gt_stroke_length_generator()

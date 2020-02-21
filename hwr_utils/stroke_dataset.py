@@ -261,10 +261,10 @@ class StrokeRecoveryDataset(Dataset):
         image_width = gts_to_image_size(len(gt))
         # Returns image in upper origin format
         padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
-        # padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
+        padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
         # padded_gt = StrokeRecoveryDataset.enlarge_gt(padded_gt, width=image_width)  # enlarge to fit - needs to be at least as big as GTs
 
-        img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=image_width+2, height=img_height, right_padding="random", linewidth=None, max_width=10)
+        img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=None, height=img_height, right_padding="random", linewidth=None, max_width=10)
         # img = img[::-1] # convert to lower origin format
         if add_distortion:
             img = add_unormalized_distortion(img)
