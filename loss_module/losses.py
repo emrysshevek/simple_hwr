@@ -6,7 +6,8 @@ import torch.nn as nn
 from pydtw import dtw
 from scipy.spatial import KDTree
 from torch import Tensor
-
+from robust_loss_pytorch import AdaptiveLossFunction
+import logging
 from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
 
@@ -15,6 +16,9 @@ BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss()
 SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False
+
+logger = logging.getLogger("root."+__name__)
+
 
 class CustomLoss(nn.Module):
     def __init__(self, loss_indices, device="cuda", **kwargs):
@@ -48,6 +52,10 @@ class DTWLoss(CustomLoss):
         super().__init__(loss_indices, **kwargs)
         self.dtw_mapping_basis = loss_indices if dtw_mapping_basis is None else dtw_mapping_basis
         self.lossfun = self.dtw
+        self.abs = abs
+        if "barron" in kwargs and kwargs["barron"]:
+            logger.info("USING BARRON + DTW!!!")
+            self.abs = AdaptiveLossFunction(num_dims=len(loss_indices), float_dtype=np.float32, device='cpu').lossfun
 
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
@@ -70,7 +78,7 @@ class DTWLoss(CustomLoss):
             # LEN X VOCAB
             pred = preds[i][a, :][:, self.loss_indices]
             targ = targs[i][b, :][:, self.loss_indices]
-            loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            loss += (self.abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
         return loss  # , to_value(loss)
 
     def dtw_single(self, _input):

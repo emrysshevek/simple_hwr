@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -98,12 +98,11 @@ loss_fns:
 loss_fns2:
   - name: softdtw
     coef: .4
-    gamma: 1
+    gamma: 0.01
     reverse: false
     gts:
       - x
       - y
-    subcoef: 1,1
   - name: cross_entropy
     coef: .01
     gts:

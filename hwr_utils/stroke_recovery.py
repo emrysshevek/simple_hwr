@@ -18,7 +18,7 @@ from scipy import interpolate
 from pathlib import Path
 import json
 from easydict import EasyDict as edict
-
+import logging
 from hwr_utils.stroke_plotting import *
 from torch.nn import functional
 from torch import Tensor, tensor
@@ -38,6 +38,7 @@ from torch import Tensor, tensor
 
 # Add more instances -- otherwise make it so the first instance is at the start of the letter
 
+logger = logging.getLogger("root."+__name__)
 
 EPSILON = 1e-8
 def distance_metric(x,y):
@@ -230,7 +231,7 @@ class PredConvolver:
             self.kwargs = {"kernel": kernel_window, "kernel_length": kernel_length}
         elif convolve_type=="cumsum": # NOT BEING USED PRESENTLY
             self.kwargs = {"reverse":True}
-        print("Convolve Options", self.__dict__)
+        logger.info("Convolve Options", self.__dict__)
 
     def convolve(self, pred_rel, indices, gt):
         return self.convolve_func(pred_rel=pred_rel, gt_abs=gt, indices=indices, **self.kwargs)

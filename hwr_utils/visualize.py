@@ -196,9 +196,10 @@ def load_all(path, key=None, clear=True, keywords=""):
                     print(f"Problem with {name, key}")
 
 if __name__=="__main__":
-    # python -m visdom.server -p 8081
+    # python -m visdom.server -p 9001
     path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver2/"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2"
+    path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
-    load_all(path, keywords="2020") #, key="validation_cer")
+    load_all(path, keywords="") #, key="validation_cer")

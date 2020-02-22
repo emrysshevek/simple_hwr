@@ -15,6 +15,7 @@ dependencies:
   - cython
   - nose
   - jupyter
+  - numba
   #- scikit-learn
   #- scikit-image
   - pip:

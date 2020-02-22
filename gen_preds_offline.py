@@ -54,7 +54,8 @@ def main(config_path):
     folder = Path(config.dataset_folder)
 
     # OVERLOAD
-    folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/lines/")
+    folder = Path("data/prepare_IAM_Lines/lines/")
+    gt_path = Path("./data/prepare_IAM_Lines/gts/lines/txt")
     #folder = Path(r"fish:////taylor@localhost:2222/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/")
     #folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/words")
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
@@ -91,27 +92,61 @@ def main(config_path):
     config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
     config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
 
+    # Load the GTs
+    load_all_gts(gt_path)
+    print("Number of images: {}".format(len(eval_loader.dataset)))
+    print("Number of GTs: {}".format(len(GT_DATA)))
+
     ## LOAD THE WEIGHTS
     utils.load_model(config) # should be load_model_strokes??????
     model = model.to(device)
     model.eval()
-
     eval_only(eval_loader, model)
+    globals().update(locals())
 
 def eval_only(dataloader, model):
+    final_out = []
     for i, item in enumerate(dataloader):
         preds = TrainerStrokeRecovery.eval(item["line_imgs"], model,
                                            label_lengths=item["label_lengths"],
                                            relative_indices=config.pred_relativefy)
 
         preds_to_graph = [p.permute([1, 0]) for p in preds]
-        graph(item, preds=preds_to_graph, _type="eval", epoch="current", config=config)
 
-        if config.counter.updates % config.update_freq == 0 and i > 0:
-            utils.reset_all_stats(config, keyword="_train")
-            logger.info(("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last()))
+        # Get GTs, save to file
+        if i==0:
+            # Save a sample
+            save_folder = graph(item, preds=preds_to_graph, _type="eval", epoch="current", config=config)
+            output_path = (save_folder / "data")
+            output_path.mkdir(exist_ok=True, parents=True)
 
+        names = [Path(p).stem.lower() for p in item["paths"]]
+        output = []
+        for ii, name in enumerate(names):
+            if name in GT_DATA:
+                output.append({"stroke": preds[ii].detach().numpy(), "text":GT_DATA[name]})
+            else:
+                print(f"{name} not found")
+        utils.pickle_it(output, output_path / f"{i}.pickle")
+        np.save(output_path / f"{i}.npy", output)
+        final_out += output
+    utils.pickle_it(final_out, output_path / f"all_data.pickle")
+    np.save(output_path / f"all_data.npy", final_out)
+
+def load_all_gts(gt_path):
+    global GT_DATA
+    from hwr_utils.hw_dataset import HwDataset
+    data = HwDataset.load_data(data_paths=gt_path.glob("*.json"))
+    #{'gt': 'He rose from his breakfast-nook bench', 'image_path': 'prepare_IAM_Lines/lines/m01/m01-049/m01-049-00.png',
+    GT_DATA = {}
+    for i in data:
+        key = Path(i["image_path"]).stem.lower()
+        assert not key in GT_DATA
+        GT_DATA[key] = i["gt"]
+    return GT_DATA
 
 if __name__=="__main__":
     opts = parse_args()
     main(config_path=opts.config)
+    # gt_path = Path("./data/prepare_IAM_Lines/gts/lines/txt")
+    # load_all_gts(gt_path)

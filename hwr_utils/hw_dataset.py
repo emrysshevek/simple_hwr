@@ -1,6 +1,6 @@
 import re
 import json
-
+from pathlib import Path
 import torch
 from torch.utils.data import Dataset
 
@@ -147,7 +147,7 @@ class HwDataset(Dataset):
                  elastic_distortion=True, elastic_alpha=2.5, elastic_sigma=1.1,
                  logger=None):
 
-        data = self.load_data(root, max_images_to_load, data_paths)
+        data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
         ## Read in all writer IDs
         writer_id_dict = self.join_writer_ids(root, writer_id_paths)
@@ -187,11 +187,23 @@ class HwDataset(Dataset):
     #                                           occlusion_size=config["occlusion_size"],
     #                                           max_intensity=config["max_intensity"])
 
+    @staticmethod
+    def load_data(data_paths, root="", images_to_load=None):
+        """
 
-    def load_data(self, root, images_to_load, data_paths):
+        Args:
+            root (str):
+            data_paths (list): list of str etc.
+            images_to_load (int): how many to load
+
+        Returns:
+
+        """
         data = []
+        root = Path(root)
         for data_path in data_paths:
-            with open(os.path.join(root, data_path)) as fp:
+            print(data_path)
+            with (root / data_path).open(mode="r") as fp:
                 new_data = json.load(fp)
                 if isinstance(new_data, dict):
                     new_data = [item for key, item in new_data.items()]

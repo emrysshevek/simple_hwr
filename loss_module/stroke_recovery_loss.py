@@ -14,8 +14,8 @@ from hwr_utils.stroke_dataset import pad, create_gts
 from scipy.spatial import KDTree
 import time
 from loss_module.losses import *
+from loss_module.soft_dtw import SoftDTW
 import logging
-
 logger = logging.getLogger("root."+__name__)
 
 class StrokeLoss:
@@ -72,6 +72,8 @@ class StrokeLoss:
             loss_fn = SSL(**loss, device=self.device).lossfun
         elif loss["name"].lower().startswith("cross_entropy"):
             loss_fn = CrossEntropy(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("softdtw"):
+            loss_fn = SoftDTW(**loss).lossfun
         else:
             raise Exception(f"Unknown loss: {loss['name']}")
         return loss_fn
@@ -127,7 +129,12 @@ class StrokeLoss:
             loss_fn = self.master_loss_defintion[loss_name]["fn"]
             loss_tensor = loss_fn(preds, targs, label_lengths)
             loss = to_value(loss_tensor)
-            assert loss > 0
+            try:
+                if loss_name.lower() != "softdtw":
+                    assert loss > 0
+            except:
+                logger.error(f"LOSS WAS SMALLER THAN 0 {loss_fn}, {loss}")
+
 
             if not self.master_loss_defintion[loss_name]["monitor_only"]:
                 losses[i] = loss_tensor
