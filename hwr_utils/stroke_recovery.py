@@ -22,6 +22,7 @@ import logging
 from hwr_utils.stroke_plotting import *
 from torch.nn import functional
 from torch import Tensor, tensor
+from scipy.spatial import KDTree
 
 ## Other loss functions and variations
 # Distance from actual point
@@ -53,7 +54,7 @@ def distance_metric(x,y):
 
     output = np.zeros(x.size)
     output[1:] = ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
-    #output[0] = 1e-8
+    output[0] = EPSILON
     return output
 
 def read_stroke_xml(path, start_stroke=None, end_stroke=None):
@@ -360,6 +361,14 @@ def relativefy(x, reverse=False):
         raise Exception(f"Unexpected type {type(x)}")
 
 def convert_stroke_numbers_to_start_strokes(x):
+    """ Count start strokes from "stroke_numbers" as the moment the stroke number exceeds .5 (e.g. 2.51 = 3rd stroke point)
+
+    Args:
+        x:
+
+    Returns:
+
+    """
     start_strokes = np.zeros(x.shape)
     # Where the stroke number crosses the threshold
     next_number_indices = np.argwhere(np.round(x[1:]) != np.round(x[:-1])) + 1
@@ -644,6 +653,55 @@ def post_process_remove_strays(gt, max_dist=.2):
         # Add new start point
         gt[bad_points, 2] = 1
     return gt
+
+def make_more_start_points(gt, max_dist=.2):
+    """ Must have already unrelatified start of strokes
+
+    Args:
+        gt:
+        max_dist:
+
+    Returns:
+
+    """
+    distances = distance_metric(gt[:, 0], gt[:, 1])
+    idx = np.argwhere(distances > max_dist).reshape(-1)
+    gt[idx, 2] = 1
+    return gt
+
+def remove_bad_points(gt, max_dist=.2):
+    """ Must have already unrelatified start of strokes
+
+    Args:
+        gt:
+        max_dist:
+
+    Returns:
+
+    """
+    distances = distance_metric(gt[:, 0], gt[:, 1])
+    idx = np.argwhere(distances > max_dist).reshape(-1)
+    gt[idx, 2] = 1
+    return gt
+
+def get_nearest(preds, gt, is_image=False):
+    """
+
+    Args:
+        preds:
+        gt:
+        is_image:
+
+    Returns:
+
+    """
+    kd = KDTree(preds[:, :2].data)
+    distances, neighbor_indices = kd.query(gt[:, :2])[0]  # How far do we have to move the GT's to match the predictions?
+    return neighbor_indices, distances
+
+def move_bad_points():
+    pass
+
 
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE

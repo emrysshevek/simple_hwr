@@ -82,7 +82,7 @@ class AddCoords(nn.Module):
         return ret
 
 class CoordConv(nn.Module):
-    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, rectangle_x=False, both_x=False, with_sin=True, **kwargs):
+    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, rectangle_x=False, both_x=False, with_sin=False, **kwargs):
         super().__init__()
         self.addcoords = AddCoords(with_r=with_r, zero_center=zero_center, rectangle_x=rectangle_x, both_x=both_x, with_sin=with_sin)
         self.verbose = verbose

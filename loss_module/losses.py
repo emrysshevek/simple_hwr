@@ -12,7 +12,7 @@ from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
 
 BCELoss = torch.nn.BCELoss()
-BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss()
+BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*20)
 SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False
@@ -55,7 +55,9 @@ class DTWLoss(CustomLoss):
         self.abs = abs
         if "barron" in kwargs and kwargs["barron"]:
             logger.info("USING BARRON + DTW!!!")
-            self.abs = AdaptiveLossFunction(num_dims=len(loss_indices), float_dtype=np.float32, device='cpu').lossfun
+            self.barron = AdaptiveLossFunction(num_dims=len(loss_indices), float_dtype=np.float32, device='cpu').lossfun
+        else:
+            self.barron = None
 
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
@@ -78,7 +80,14 @@ class DTWLoss(CustomLoss):
             # LEN X VOCAB
             pred = preds[i][a, :][:, self.loss_indices]
             targ = targs[i][b, :][:, self.loss_indices]
-            loss += (self.abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            else:
+                # ONLY WHEN USING SOS!!!
+                start_strokes_factor = (targs[i][b, 2] * 4 + 1).unsqueeze(1).repeat(1, len(self.loss_indices))
+                loss += (start_strokes_factor * abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
         return loss  # , to_value(loss)
 
     def dtw_single(self, _input):

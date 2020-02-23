@@ -100,6 +100,14 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
             coords = utils.to_numpy(coords[i])
             #print("before round", coords[2])
 
+            # Remove lonely points - only works with stroke numbers
+            # coords = post_process_remove_strays(coords)
+
+            if "stroke_number" in config.gt_format:
+                idx = config.gt_format.index("stroke_number")
+                # coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
+                coords[idx] = relativefy_numpy(coords[idx], reverse=False)
+
             # Round the SOS, EOS etc. items
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH
             #print("after round", coords[2])
@@ -109,6 +117,11 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
+
+            if "stroke_number" in config.gt_format:
+                idx = config.gt_format.index("stroke_number")
+                coords[idx] = relativefy_numpy(coords[idx], reverse=False)
+
 
         # Flip everything for PIL
         # gt_img = torch.flip(gt_img, (0,))
@@ -120,13 +133,6 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
         ## Undo relative positions for X for graphing
         ## In normal mode, the cumulative sum has already been taken
-        # if config.pred_relativefy:
-        if "stroke_number" in config.gt_format:
-            idx = config.gt_format.index("stroke_number")
-            coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
-
-        # Remove lonely points
-        # coords = post_process_remove_strays(coords)
 
         #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
         save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None
