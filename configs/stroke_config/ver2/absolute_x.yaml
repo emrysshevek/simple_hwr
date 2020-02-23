@@ -71,10 +71,11 @@ gt_opts:
 
 # stroke_number is the cumsum of sos; gt_format, gt_opts, pred_opts: "sos", "cumsum", "cumsum" = "start_stroke", "null", "cumsum"
 # E.g. cumsum will predict RELATIVE positions; if "null" is specified for gt, it will compare to absolute values
+# Could specify activation here, SIGMOID, RELU etc.
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - null
   - null
-  - cumsum
+  - cumsum # RElu IMPLIED HERE
   - null
 
 ## Loss function
@@ -125,8 +126,8 @@ loss_fns2:
 #      - x
 #      - y
 
-convolve_func: conv_window # or conv_weight, conv_window, cumsum
-cumsum_window_size: 11 # only for the conv_window and conv_weight
+convolve_func: cumsum # or conv_weight, conv_window, cumsum
+cumsum_window_size: 21 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.

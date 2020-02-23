@@ -74,7 +74,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - null
   - null
-  - cumsum
+  - cumsum # CUMSUM IMPLIES RELU here
   - null
 
 ## Loss function
@@ -125,8 +125,8 @@ loss_fns2:
 #      - x
 #      - y
 
-convolve_func: conv_window # or conv_weight, conv_window, cumsum
-cumsum_window_size: 11 # only for the conv_window and conv_weight
+convolve_func: cumsum # or conv_weight, conv_window, cumsum
+cumsum_window_size: 21 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.

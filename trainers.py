@@ -10,6 +10,8 @@ logger = logging.getLogger("root."+__name__)
 
 MAX_LENGTH=60
 
+RELU = nn.ReLU()
+
 def to_value(loss_tensor):
     return torch.sum(loss_tensor.cpu(), 0, keepdim=False).item()
 
@@ -161,8 +163,10 @@ class Trainer:
         self.optimizer = optimizer
         self.config = config
         self.loss_criterion = loss_criterion
-        self.relative_indices = self.get_relative_indices(config.pred_opts)
-        self.sigmoid_indices = self.get_sigmoid_indices(config.pred_opts)
+        self.relative_indices = self.get_indices(config.pred_opts, "cumsum")
+        self.sigmoid_indices = self.get_indices(config.pred_opts, "sigmoid")
+        self.relu_indices = self.get_indices(config.pred_opts, "relu")
+        self.convolve_indices = self.get_indices(config.pred_opts, "convolve")
         SIGMOID = torch.nn.Sigmoid().to(config.device)
         if config is None:
             self.logger = utils.setup_logging()
@@ -195,13 +199,8 @@ class Trainer:
         raise NotImplemented
     
     @staticmethod
-    def get_sigmoid_indices(pred_opts):
-        return [i for i,x in enumerate(pred_opts) if x=="sigmoid"]
-
-    @staticmethod
-    def get_relative_indices(pred_opts):
-        return [i for i,x in enumerate(pred_opts) if x=="cumsum"]
-
+    def get_indices(pred_opts, keyword):
+        return [i for i,x in enumerate(pred_opts) if x==keyword]
 
 class TrainerStrokeRecovery(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
@@ -287,7 +286,14 @@ class TrainerStrokeRecovery(Trainer):
         """
         line_imgs = line_imgs.to(device)
         pred_logits = model(line_imgs).cpu()
-        preds = pred_logits.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
+
+        # DO A RELU IF NOT DOING sigmoid later!!!
+        if 2 in relative_indices:
+            new_preds = pred_logits.clone()
+            new_preds[:,:, 2] = RELU(pred_logits[:,:, 2])
+        else:
+            new_preds = pred_logits
+        preds = new_preds.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
         ## Make absolute preds from relative preds - must be done before truncation
         # if relative_indices:

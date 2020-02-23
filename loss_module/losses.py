@@ -84,6 +84,8 @@ class DTWLoss(CustomLoss):
             ## !!! DELETE THIS
             if self.barron:
                 loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            elif True:
+                loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
             else:
                 # ONLY WHEN USING SOS!!!
                 start_strokes_factor = (targs[i][b, 2] * 4 + 1).unsqueeze(1).repeat(1, len(self.loss_indices))
