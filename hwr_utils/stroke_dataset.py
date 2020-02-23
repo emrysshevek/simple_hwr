@@ -167,14 +167,6 @@ class StrokeRecoveryDataset(Dataset):
         """
         output = stroke_recovery.prep_stroke_dict(item["raw"])  # returns dict with {x,y,t,start_times,x_to_y (aspect ratio), start_strokes (binary list), raw strokes}
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output, parameter=parameter) # can be d if the function should be a function of distance
-        # x_funct, y_funct = stroke_recovery.create_functions_from_strokes(output, parameter="t")
-        #
-        # for i,t in enumerate(output.t):
-        #     print(x_funct(t), x_func(output.d[i]))
-        # STop
-        # print(x_func(1))
-        # print(output.x, output.d, output.t)
-        # stop
         if "number_of_samples" not in item:
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
             print("UNK NUMBER OF SAMPLES!!!")

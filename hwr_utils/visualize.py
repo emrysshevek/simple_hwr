@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import warnings
 import json
-from hwr_utils.stattrack import Stat
+from stattrack import Stat
 import traceback
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
@@ -20,7 +20,6 @@ class Plot(object):
         self.windows = {}
         self.title = title
         self.config = config
-
 
     def register_plot(self, name, xlabel, ylabel, plot_type="line", ymax=None):
         self.windows[name] = {"xlabel":xlabel, "ylabel":ylabel, "title":name, "plot_type":plot_type}
@@ -195,11 +194,28 @@ def load_all(path, key=None, clear=True, keywords=""):
                     traceback.print_exc()
                     print(f"Problem with {name, key}")
 
+def prep_path(foreign_path):
+    from base_utils import increment_path
+    import shutil
+    """ If path is not local, copy them to the TEMP path
+
+    Returns:
+
+    """
+    new_path = increment_path(base_path=Path("../RESULTS/COMPARISON"))
+    def ignore(root, files):
+        print(files)
+        return [f for f in files if f.name != "all_data.json"]
+
+    shutil.copytree(foreign_path, new_path, ignore=ignore)
+    return new_path
+
 if __name__=="__main__":
     # python -m visdom.server -p 9001
     path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver2/"
     path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2"
     path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
+    path = prep_path(path)
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
     load_all(path, keywords="") #, key="validation_cer")
