@@ -186,7 +186,7 @@ class CNN(nn.Module):
 
         def convRelu(i, batchNormalization=False):
             kwargs = {}
-            if i==0:
+            if i==0 and self.first_conv_op:
                 conv_op = self.first_conv_op
                 if self.first_conv_op.__name__ == 'CoordConv' and self.first_conv_opts:
                     kwargs = self.first_conv_opts
@@ -240,7 +240,7 @@ class CNN(nn.Module):
 
         def convRelu(i, batchNormalization=False):
             kwargs = {}
-            if i==0:
+            if i==0 and self.first_conv_op:
                 conv_op = self.first_conv_op
                 if self.first_conv_op.__name__ == 'CoordConv' and self.first_conv_opts:
                     kwargs = self.first_conv_opts

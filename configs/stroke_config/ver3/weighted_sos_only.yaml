@@ -87,30 +87,28 @@ loss_fns:
     gts:
       - x
       - y
-      - sos
-    subcoef: 1,1,.1
+    subcoef: 1, 1
   - name: cross_entropy
-    coef: 1
+    subcoef: 0.5, 0.01
     gts:
+      - sos
       - eos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
     coef: 1
-    gamma: 1
-    reverse: false
     gts:
       - x
       - y
-      - sos
     dtw_mapping_basis:
       - x
       - y
-    subcoef: 1,1,.1
+    subcoef: 1, 1
   - name: cross_entropy
-    coef: .01
+    subcoef: 0.5, 0.01
     gts:
+      - sos
       - eos
     activation: sigmoid
 
