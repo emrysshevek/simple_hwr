@@ -516,9 +516,15 @@ def write_out(folder, fname, text):
         f.writelines(text+"\n\n")
 
 def validate_and_prep_loss(config):
+    if not "pred_format" in config:
+        config.pred_format = config.gt_format
+
     # Each should be the same desired_num_of_strokes
-    assert len(config.gt_format) == len(config.gt_opts) == len(config.pred_opts) or config.model_name != "normal"
-    config.vocab_size = len(config.gt_format) # vocab size is the desired_num_of_strokes of the GT format
+    assert len(config.gt_format) == len(config.gt_opts) or config.model_name != "normal"
+    if len(config.gt_format) != len(config.pred_opts):
+        warnings.warn("GT format does not match pred_opts")
+
+    config.vocab_size = len(config.pred_format) # vocab size is the desired_num_of_strokes of the GT format
 
     # Process loss functions
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]

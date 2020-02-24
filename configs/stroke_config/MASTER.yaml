@@ -101,6 +101,7 @@ loss_fns2:
     coef: 1
     gamma: 1       # soft DTW
     reverse: false # soft DTW
+    barron: true # use Barron
     gts:
       - x
       - y

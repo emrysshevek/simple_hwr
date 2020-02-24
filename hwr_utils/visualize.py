@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import warnings
 import json
-from stattrack import Stat
+from .stattrack import Stat
 import traceback
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
@@ -212,16 +212,36 @@ def prep_path(foreign_path):
 
     return new_path.absolute()
 
+def load_bashrc():
+    import os
+    import pprint
+    import shlex
+    import subprocess
+
+    command = shlex.split("env -i bash -c 'source init_env && env'")
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+    for line in proc.stdout:
+        (key, _, value) = line.partition("=")
+        os.environ[key] = value
+    proc.communicate()
+
+
 if __name__=="__main__":
     # python -m visdom.server -p 9001
+    from subprocess import Popen
+    import time
+    # load_bashrc()
+    # p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
+    # p = Popen(f'conda activate hwr && python -m visdom.server -p 9001', shell=True, close_fds=True)
+    # time.sleep(2)
     if False:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3"
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
         path = prep_path(path)
-
-    path = Path("/media/taylor/Data/Linux/Github/simple_hwr/RESULTS/COMPARISON/07_")
+    else:
+        path = Path("/media/taylor/Data/Linux/Github/simple_hwr/RESULTS/COMPARISON/10_")
 
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"

@@ -99,7 +99,6 @@ loss_fns2:
       - x
       - y
     subcoef: 1, 1
-    barron: true
 
 # Always report these, but don't include in backpropagation
 #loss_fns_to_report:

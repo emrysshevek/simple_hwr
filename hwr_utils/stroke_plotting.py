@@ -259,7 +259,7 @@ def gt_to_raw(instance):
     return output
 
 
-def gt_to_pil_format(instance, stroke_number=True):
+def gt_to_pil_format(instance, stroke_number=True, has_start_points=True):
     """
 
     Args:
@@ -269,8 +269,9 @@ def gt_to_pil_format(instance, stroke_number=True):
         Pil format; list of strokes Length X (x,y)
     """
 
-    # If start points are had
-    if instance.shape[-1] > 1:
+    has_start_points = False if instance.shape[-1] <= 2 else True
+
+    if has_start_points:
         # if start points are sequential 000011112222...
         start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
 
@@ -279,7 +280,6 @@ def gt_to_pil_format(instance, stroke_number=True):
         return l
     else:
         return instance
-
 
 def get_x_y_min_max_from_gt(instance):
     x_max = np.max(instance[:, 0])
@@ -377,7 +377,7 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
     """
     ### HACK
     if use_stroke_number is None:
-        use_stroke_number = True if np.any(gt[:,2] > 3) else False
+        use_stroke_number = True if gt.shape[-1] > 2 and np.any(gt[:,2] > 3) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()
