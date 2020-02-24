@@ -202,20 +202,27 @@ def prep_path(foreign_path):
     Returns:
 
     """
-    new_path = increment_path(base_path=Path("../RESULTS/COMPARISON"))
-    def ignore(root, files):
-        print(files)
-        return [f for f in files if f.name != "all_data.json"]
+    new_path = increment_path(base_path=Path("../RESULTS/COMPARISON"), make_directory=False)
+    for i in os.listdir(foreign_path):
+        new_sub = Path(new_path) / i
+        new_sub.mkdir(parents=True)
+        stats = (Path(foreign_path) / i / "all_stats.json")
+        if stats.exists():
+            shutil.copy(stats, new_sub)
 
-    shutil.copytree(foreign_path, new_path, ignore=ignore)
-    return new_path
+    return new_path.absolute()
 
 if __name__=="__main__":
     # python -m visdom.server -p 9001
-    path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver2/"
-    path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2"
-    path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
-    path = prep_path(path)
+    if False:
+        path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
+        #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
+        #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3"
+        #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
+        path = prep_path(path)
+
+    path = Path("/media/taylor/Data/Linux/Github/simple_hwr/RESULTS/COMPARISON/07_")
+
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
     load_all(path, keywords="") #, key="validation_cer")

@@ -97,7 +97,7 @@ loss_fns:
 
 loss_fns2:
   - name: dtw
-    method: align_to_gt
+    method: align_to_pred
     coef: 1
     gts:
       - x

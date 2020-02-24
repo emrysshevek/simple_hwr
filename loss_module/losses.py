@@ -53,6 +53,7 @@ class DTWLoss(CustomLoss):
         self.dtw_mapping_basis = loss_indices if dtw_mapping_basis is None else dtw_mapping_basis
         self.lossfun = self.dtw
         self.abs = abs
+        self.method = "normal" if not "method" in kwargs else kwargs["method"]
         if "barron" in kwargs and kwargs["barron"]:
             logger.info("USING BARRON + DTW!!!")
             self.barron = AdaptiveLossFunction(num_dims=len(loss_indices), float_dtype=np.float32, device='cpu').lossfun
@@ -77,9 +78,22 @@ class DTWLoss(CustomLoss):
         loss = 0
         for i in range(len(preds)):  # loop through BATCH
             a, b = self.dtw_single((preds[i], targs[i]))
+
             # LEN X VOCAB
-            pred = preds[i][a, :][:, self.loss_indices]
-            targ = targs[i][b, :][:, self.loss_indices]
+            if self.method=="normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = targs[i][b, :][:, self.loss_indices]
+            # elif self.method=="align_to_gt":
+            #     pred = preds[i][a, :][:, self.loss_indices]
+            #     targ = targs[i][:, self.loss_indices]
+            # elif self.method=="align_to_pred":
+            #     pred = preds[i][:, self.loss_indices]
+            #     targ = targs[i][b, :][:, self.loss_indices]
+            # elif self.method=="both":
+            #     pred = torch.cat(preds[i][:, self.loss_indices], preds[i][a, :][:, self.loss_indices])
+            #     targ = torch.cat(targs[i][b, :][:, self.loss_indices], targs[i][:, self.loss_indices])
+            else:
+                raise NotImplemented
 
             ## !!! DELETE THIS
             if self.barron:
@@ -95,7 +109,7 @@ class DTWLoss(CustomLoss):
     def dtw_single(self, _input):
         """ THIS DOES NOT USE SUBCOEF
         Args:
-            _input (tuple): targ, pred, label_length
+            _input (tuple): pred, targ, label_length
 
         Returns:
 
