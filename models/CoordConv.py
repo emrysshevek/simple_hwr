@@ -11,7 +11,7 @@ An alternative implementation for PyTorch with auto-infering the x-y dimensions.
 
 class AddCoords(nn.Module):
 
-    def __init__(self, with_r=False, zero_center=True, rectangle_x=False, both_x=False, with_sin=True):
+    def __init__(self, with_r=False, zero_center=True, rectangle_x=False, both_x=False, with_sin=True, y_only=False):
         """ Include a rectangle and non-rectangle x
 
         Args:
@@ -26,6 +26,7 @@ class AddCoords(nn.Module):
         self.zero_center = zero_center
         self.both = both_x
         self.with_sin = with_sin
+        self.y_only = y_only
 
     def forward(self, input_tensor):
         """
@@ -46,7 +47,14 @@ class AddCoords(nn.Module):
             width_channel = width_channel * 2 - 1
             height_channel = height_channel * 2 - 1
 
-        if self.both: # Create default CoordConv, and one scaled to be same scale as y CoordConv
+        if self.y_only:
+            height_channel = height_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
+
+            ret = torch.cat([
+                input_tensor,
+                height_channel.type_as(input_tensor)], dim=1)
+
+        elif self.both: # Create default CoordConv, and one scaled to be same scale as y CoordConv
             xx_rec_channel = width_channel * width / height
 
             height_channel = height_channel.repeat(batch_size, 1, 1, 1).transpose(2, 3)
@@ -75,6 +83,7 @@ class AddCoords(nn.Module):
                 height_channel.type_as(input_tensor),
                 width_channel.type_as(input_tensor)], dim=1)
 
+
         if self.with_r:
             rr = torch.sqrt(torch.pow(height_channel.type_as(input_tensor) - 0.5, 2) + torch.pow(width_channel.type_as(input_tensor) - 0.5, 2))
             ret = torch.cat([ret, rr], dim=1)
@@ -82,15 +91,40 @@ class AddCoords(nn.Module):
         return ret
 
 class CoordConv(nn.Module):
-    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, rectangle_x=False, both_x=False, with_sin=False, **kwargs):
+    def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, method="y_rel", with_sin=False, **kwargs):
         super().__init__()
-        self.addcoords = AddCoords(with_r=with_r, zero_center=zero_center, rectangle_x=rectangle_x, both_x=both_x, with_sin=with_sin)
-        self.verbose = verbose
-        in_size = in_channels+2
-        if with_r or both_x:
-            in_size += 1
+        in_size = in_channels
+
+        if method=="y_rel":
+            rectangle_x = False
+            both_x = False
+            y_only = True
+            out_channels = in_size+1
+        elif "y_rel" in method:
+            if "x_abs" in method and "x_rel" in method:
+                rectangle_x = True
+                both_x = True
+                y_only = False
+                out_channels = in_size + 3
+            elif "x_rel" in method:
+                rectangle_x = False
+                both_x = False
+                y_only = False
+                out_channels = in_size + 2
+            elif "x_abs" in method:
+                rectangle_x = True
+                both_x = False
+                y_only = False
+                out_channels = in_size + 2
+
         if with_sin:
             in_size += 1
+
+        self.addcoords = AddCoords(with_r=with_r, zero_center=zero_center, rectangle_x=rectangle_x, both_x=both_x, with_sin=with_sin, y_only=y_only)
+        self.verbose = verbose
+        if with_r:
+            in_size += in_channels+3
+
         self.conv = nn.Conv2d(in_size, out_channels, **kwargs)
         logger.info(f"Zero center {zero_center}")
         logger.info(f"RECT X Coord: {rectangle_x or both_x}")

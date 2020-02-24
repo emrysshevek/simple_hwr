@@ -289,11 +289,7 @@ def make_config_consistent_stroke(config):
     config.image_dir = Path(config.image_dir)
 
     config.coordconv_opts = {"zero_center":config.coordconv_0_center,
-                             "rectangle_x":not config.coordconv_default,
-                             "both_x": config.coordconv_default and config.coordconv_abs}
-
-    if not config.coordconv_default and not config.coordconv_abs and config.coordconv:
-        raise Exception("Must choose CoordConv option in X dimension")
+                             "method":config.coordconv_method}
 
     config.data_root = config.data_root_fsl if is_fsl() else config.data_root_local
 

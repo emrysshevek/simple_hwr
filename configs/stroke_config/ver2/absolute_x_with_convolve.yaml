@@ -139,9 +139,8 @@ cnn_type: default64 # default64; CNN output width similar to input width; defaul
   # x-scaled from -1 to 1
   # x-scaled to be same scale as y
 coordconv: true
-coordconv_abs: true # scale x-coordconv to be on the same scale as y
-coordconv_default: true # x-coordinates on -1 to 1 range
-coordconv_0_center: true # 0 center
+coordconv_method: y_abs
+coordconv_0_center: false
 
 # Visdom
 visdom_port: 9001
