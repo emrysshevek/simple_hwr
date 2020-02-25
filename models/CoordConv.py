@@ -96,27 +96,29 @@ class CoordConv(nn.Module):
         in_size = in_channels
         if method=="y_abs":
             method = "y_rel"
+
+
         if method=="y_rel":
             rectangle_x = False
             both_x = False
             y_only = True
-            out_channels = in_size+1
+            in_size = in_channels+1
         elif "y_rel" in method:
             if "x_abs" in method and "x_rel" in method:
                 rectangle_x = True
                 both_x = True
                 y_only = False
-                out_channels = in_size + 3
+                in_size = in_channels + 3
             elif "x_rel" in method:
                 rectangle_x = False
                 both_x = False
                 y_only = False
-                out_channels = in_size + 2
+                in_size = in_channels+2
             elif "x_abs" in method:
                 rectangle_x = True
                 both_x = False
                 y_only = False
-                out_channels = in_size + 2
+                in_size = in_channels + 2
         logger.info(f"COORD CONV: {method}")
         if with_sin:
             in_size += 1
