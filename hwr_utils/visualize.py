@@ -230,14 +230,15 @@ if __name__=="__main__":
     # python -m visdom.server -p 9001
     from subprocess import Popen
     import time
-    # load_bashrc()
-    # p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
-    # p = Popen(f'conda activate hwr && python -m visdom.server -p 9001', shell=True, close_fds=True)
-    # time.sleep(2)
-    if False:
+    load_bashrc()
+    p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
+    visdom_command = "/home/taylor/anaconda3/envs/hwr5/bin/python -m visdom.server -p 9001 &>/dev/null &"
+    p = Popen(visdom_command, shell=True, close_fds=True)
+    time.sleep(2)
+    if True:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
-        #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3"
+        path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3"
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
         path = prep_path(path)
     else:

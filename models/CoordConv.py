@@ -94,7 +94,8 @@ class CoordConv(nn.Module):
     def __init__(self, in_channels, out_channels, with_r=False, verbose=False, zero_center=True, method="y_rel", with_sin=False, **kwargs):
         super().__init__()
         in_size = in_channels
-
+        if method=="y_abs":
+            method = "y_rel"
         if method=="y_rel":
             rectangle_x = False
             both_x = False
@@ -116,7 +117,7 @@ class CoordConv(nn.Module):
                 both_x = False
                 y_only = False
                 out_channels = in_size + 2
-
+        logger.info(f"COORD CONV: {method}")
         if with_sin:
             in_size += 1
 

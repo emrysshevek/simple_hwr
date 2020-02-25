@@ -547,6 +547,8 @@ def validate_and_prep_loss(config):
                 subcoef = loss["subcoef"]
                 if isinstance(loss["subcoef"], str):
                     subcoef = [float(s) for s in loss["subcoef"].split(",")]
+                elif isinstance(loss["subcoef"], float):
+                    subcoef = [subcoef]
                 loss["subcoef"] = subcoef
                 assert len(subcoef) == len(loss["gts"])
 

@@ -54,6 +54,13 @@ class DTWLoss(CustomLoss):
         self.lossfun = self.dtw
         self.abs = abs
         self.method = "normal" if not "method" in kwargs else kwargs["method"]
+
+
+        if "cross_entropy_indices" in kwargs and kwargs["cross_entropy_indices"]:
+            self.cross_entropy_indices = kwargs["cross_entropy_indices"]
+        else:
+            self.cross_entropy_indices = None
+
         if "barron" in kwargs and kwargs["barron"]:
             logger.info("USING BARRON + DTW!!!")
             self.barron = AdaptiveLossFunction(num_dims=len(loss_indices), float_dtype=np.float32, device='cpu').lossfun
@@ -104,6 +111,11 @@ class DTWLoss(CustomLoss):
                 # ONLY WHEN USING SOS!!!
                 start_strokes_factor = (targs[i][b, 2] * 4 + 1).unsqueeze(1).repeat(1, len(self.loss_indices))
                 loss += (start_strokes_factor * abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            if self.cross_entropy_indices:
+                pred = preds[i][a, :][:, self.cross_entropy_indices]
+                targ = targs[i][b, :][:, self.cross_entropy_indices]
+                loss += BCEWithLogitsLoss(pred, targ).sum()  # AVERAGE pointwise loss for 1 image
+
         return loss  # , to_value(loss)
 
     def dtw_single(self, _input):

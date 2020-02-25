@@ -107,7 +107,7 @@ loss_fns2:
     cross_entropy_indices:
       - sos
   - name: cross_entropy
-    subcoef: 0.01
+    subcoef: 0.5, 0.01
     gts:
       - eos
     activation: sigmoid

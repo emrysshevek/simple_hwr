@@ -279,7 +279,8 @@ def gt_to_pil_format(instance, stroke_number=True, has_start_points=True):
         l = np.split(instance[:, 0:2], start_indices)
         return l
     else:
-        return instance
+        one_liner = [instance.flatten()]
+        return one_liner
 
 def get_x_y_min_max_from_gt(instance):
     x_max = np.max(instance[:, 0])
@@ -421,7 +422,7 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
         if line.size > 2:
             line = [tuple(x) for x in line.flatten().reshape(-1, 2).tolist()]
             draw.line(line, fill=color, width=linewidth, joint='curve')
-        elif line.size == 2:
+        elif line.size == 2: # only have a single coordinate, make it big!
             line1 = line - linewidth / 2
             line2 = line + linewidth / 2
             line = np.r_[line1, line2].flatten().tolist()
