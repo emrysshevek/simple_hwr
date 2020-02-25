@@ -12,7 +12,7 @@ from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
 
 BCELoss = torch.nn.BCELoss()
-BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*20)
+BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*18)
 SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False

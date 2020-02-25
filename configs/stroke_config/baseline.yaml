@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: true # this is for debugging, do it on a small dataset
+TESTING: false # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -74,7 +74,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - null
+  - sigmoid
   - null
 
 ## Loss function
@@ -87,11 +87,12 @@ loss_fns:
     gts:
       - x
       - y
+    cross_entropy_indices:
+      - sos
     subcoef: 1, 1
   - name: cross_entropy
-    subcoef: 0.5, 0.01
+    subcoef: 0.5
     gts:
-      - sos
       - eos
     activation: sigmoid
 
@@ -104,7 +105,7 @@ loss_fns2:
     dtw_mapping_basis:
       - x
       - y
-    cross_entropy_indices:
+    cross_entropy_indices: # SIGMOID TAKEN DURING LOSS
       - sos
   - name: cross_entropy
     subcoef: 0.01

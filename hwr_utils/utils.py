@@ -536,12 +536,13 @@ def validate_and_prep_loss(config):
             # Convert to a slice?? no
             loss["loss_indices"] = indices
 
-            if "dtw_mapping_basis" in loss.keys():
-                # Convert the strings to indexes in the GT list, only if config has them as strings
-                # e.g. gts=[x,y], dtw_mapping_basis=[x,y], =>
-                if isinstance(loss["dtw_mapping_basis"][0], str):
-                    loss["dtw_mapping_basis"] = [config.gt_format.index(k) for k in
-                                                                     loss["dtw_mapping_basis"]]
+
+            for subindex in "dtw_mapping_basis", "cross_entropy_indices":
+                if subindex in loss.keys():
+                    # Convert the strings to indexes in the GT list, only if config has them as strings
+                    # e.g. gts=[x,y], dtw_mapping_basis=[x,y], =>
+                    if isinstance(loss[subindex][0], str):
+                        loss[subindex] = [config.gt_format.index(k) for k in loss[subindex]]
 
             if "subcoef" in loss.keys():
                 subcoef = loss["subcoef"]
@@ -554,6 +555,9 @@ def validate_and_prep_loss(config):
 
             if not "coef" in loss.keys():
                 loss["coef"] = 1
+            else:
+                # COEF should be a number, subcoef a comma-separated list
+                assert isinstance(loss["coef"], (int, float, complex))
 
             # Whether to include metric in backprop
             if loss_fn_group=="loss_fns_to_report":

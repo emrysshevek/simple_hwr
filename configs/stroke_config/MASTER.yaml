@@ -74,8 +74,8 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - null
   - null
-  - cumsum # CUMSUM IMPLIES RELU here
-  - null
+  - cumsum # CUMSUM IMPLIES RELU here BEFORE LOSS!!!!!!!!!
+  - sigmoid # DO A SIGMOID AFTER THE LOSS; BEFORE THE LOSS NEEDS TO BE SPECIFIED IN THE LOSS FUNCTION! NOT SUPPORTED EVERYWHERE
 
 ## Loss function
 # l1, dtw, ssl, cross_entropy
@@ -109,7 +109,9 @@ loss_fns2:
     dtw_mapping_basis:
       - x
       - y
-    subcoef: 1,1,.1
+    cross_entropy_indices: # BCEWITHLOGITS TAKEN DURING LOSS, NO SUBCOEF
+      - sos
+    subcoef: 1,1,.1 # ONLY APPLIES TO GT-index list
   - name: cross_entropy
     coef: .01
     gts:

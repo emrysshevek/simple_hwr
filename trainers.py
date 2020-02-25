@@ -273,6 +273,11 @@ class TrainerStrokeRecovery(Trainer):
             self.optimizer.zero_grad()
             loss_tensor.backward()
             self.optimizer.step()
+
+        if self.sigmoid_indices:
+            # PREDS ARE A LIST
+            for i, p in enumerate(preds):
+                preds[i][:, self.sigmoid_indices] = SIGMOID(p[:, self.sigmoid_indices])
         return loss, preds, None
 
     # def sos(self):
@@ -309,11 +314,6 @@ class TrainerStrokeRecovery(Trainer):
                 preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
             else:
                 preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
-
-
-
-        if activation:
-            preds[:,:,activation] = SIGMOID(preds[:,:,activation])
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
