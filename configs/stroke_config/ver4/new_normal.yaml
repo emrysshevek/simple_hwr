@@ -32,7 +32,7 @@ warp: true
 
 # LR schedule
 learning_rate: 5e-4          # LR
-scheduler_step: 25         # Every X steps, multiply LR by gamma
+scheduler_step: 5           # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
 ## Loss options:
