@@ -597,7 +597,7 @@ def synthetic():
     RENDER = True
     variant="FullSynthetic100k"
     json_path = "synthetic_online/train_synth_full.json"
-    #json_path = "synthetic_online/train_synth_sample.json"
+    json_path = "synthetic_online/train_synth_sample.json"
     if square:
         variant += "Square"
     if instances is None:

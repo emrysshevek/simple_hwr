@@ -138,7 +138,8 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
         if isinstance(stroke_dict, dict):
             x_coords = stroke_dict["x"]
             y_coords = stroke_dict["y"]
-            time = stroke_dict["t"]
+            key = "time" if "time" in stroke_dict else "t"
+            time = stroke_dict[key]
         else: # numpy input - TIME x (X,Y)
             _arr = np.asarray(stroke_dict)
             if not len(_arr):

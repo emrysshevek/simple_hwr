@@ -160,9 +160,10 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
 def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     ## LOAD DATASET
-    train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json",
-                                         "online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k.json",
-                                         "online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k-100k.json"],
+    bonus = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k.json",
+              "online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k-100k.json"]
+    test = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords.json"]
+    train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json", *bonus],
                             root=config.data_root,
                             max_images_to_load = train_size,
                             cnn=cnn,
