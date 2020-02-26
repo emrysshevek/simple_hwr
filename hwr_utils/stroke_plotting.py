@@ -428,7 +428,7 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
             line1 = line - linewidth / 2
             line2 = line + linewidth / 2
             line = np.r_[line1, line2].flatten().tolist()
-            draw.ellipse(line, fill='black', outline='black')
+            draw.ellipse(line, fill=color, outline=color)
 
     if plot_points:
         image_type = "RGB"
