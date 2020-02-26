@@ -1,4 +1,4 @@
-from .online_coordinate_parser import *
+from online_coordinate_parser import *
 from pathlib import Path
 import json
 import cv2
@@ -9,6 +9,7 @@ from easydict import EasyDict as edict
 from collections import defaultdict
 
 sys.path.insert(0, "../../")
+from copy import deepcopy
 from hwr_utils.stroke_recovery import *
 from hwr_utils.stroke_plotting import *
 from tqdm import tqdm
@@ -62,7 +63,11 @@ class CreateDataset:
                  json_path="prepare_online_data/online_augmentation.json",
                  img_folder="prepare_online_data/lineImages",
                  data_folder="../../data",
-                 render_images=True, train_set_size=None, test_set_size=None, combine_images=False):
+                 render_images=True,
+                 train_set_size=None,
+                 test_set_size=None,
+                 combine_images=False,
+                 synthetic=False):
 
         # Specify data folder:
             # xml, json, and default images relative to the data folder
@@ -92,7 +97,13 @@ class CreateDataset:
         self.test_set_size = test_set_size
         self.train_set_size = train_set_size
         self.combine_images = combine_images
-        self.process_fn = self.process_multiple if self.combine_images else self.process_one
+        self.synthetic = synthetic
+        if self.combine_images:
+            self.process_fn = self.process_multiple
+        elif self.synthetic:
+            self.process_fn = self.process_synthetic
+        else:
+            self.process_fn = self.process_one
 
     #@error_handler
     #@staticmethod
@@ -148,8 +159,8 @@ class CreateDataset:
             return new_list
 
     @staticmethod
-    def process_one(item):
-        self = item
+    def process_one(item, hyperparams):
+        self = hyperparams
         file_name = Path(item["image_path"]).stem
         rel_path = Path(item["image_path"]).relative_to(self.original_img_folder).with_suffix(".xml")
         xml_path = self.xml_folder / rel_path
@@ -194,11 +205,77 @@ class CreateDataset:
 
         ## Add shapes -- the system needs some time to actually perform the writing op before reading it back
         for item in new_items:
-            new_img_path = self.absolute_data_folder / item["image_path"]
-            shape = cv2.imread(new_img_path.as_posix()).shape
-            item["shape"] = shape
-            #ratio = item["x_to_y"]
-            #print(shape, 61*ratio)
+            new_img_path = hyperparams.absolute_data_folder / item["image_path"]
+            img = cv2.imread(new_img_path.as_posix())
+            if img is None:
+                print("Image file not found; is render off?")
+            item["shape"] = deepcopy(img.shape)
+            del img
+        return new_items
+
+    @staticmethod
+    def process_synthetic(item, max_strokes, square, new_img_folder, absolute_data_folder, render_images, **kwargs):
+        """ An item from the master dictionary {"stroke":[[x,y,eos],...], "text":"This is the GT"
+
+        Args:
+            item:
+            max_strokes
+            square
+            new_img_folder
+            absolute_data_folder
+            render_images
+
+        Returns:
+
+        """
+        s = np.array(item["stroke"])
+        s[-1,2] = 0 # replace last EOS with nothing
+        file_name = "".join([c for c in item["text"] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+
+        # Synthetic generator has EOS tokens
+        eos = np.argwhere(s[:, 2]).reshape(-1) + 1
+        new_format = np.split(s[:, :2], eos)
+
+        # Create RAW format
+        raw_format = []
+        for stroke in new_format:
+            t = stroke[:,2] if stroke.shape[-1]>2 else np.array(range(len(stroke)))
+            raw_format += [{"x":stroke[:,0], "y":stroke[:,1], "time":t}]
+
+        stroke_dict = prep_stroke_dict(new_format, time_interval=0, scale_time_distance=True)  # list of dictionaries, 1 per file
+        all_substrokes = get_all_substrokes(stroke_dict, desired_num_of_strokes=max_strokes)  # subdivide file into smaller sets
+        stroke_dict.raw = raw_format
+        dataset = "train"
+        new_items = []
+
+        for i, sub_stroke_dict in enumerate(all_substrokes):
+            x_to_y = sub_stroke_dict.x_to_y
+
+            # Don't warp images too much
+            if square and (x_to_y < .5 or x_to_y > 2):
+                continue
+
+            new_img_path = (new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
+
+            new_item = {
+                "image_path": new_img_path.relative_to(absolute_data_folder).as_posix(),
+                "dataset": dataset
+            }
+            new_item.update(sub_stroke_dict)  # added to what's already in the substroke dictionary
+
+            # Create images
+            ratio = 1 if square else x_to_y
+
+            if render_images:
+                draw_strokes(normalize_stroke_list(sub_stroke_dict.raw), ratio, save_path=new_img_path, line_width=.8)
+            new_items.append(new_item)
+
+        ## Add shapes -- the system needs some time to actually perform the writing op before reading it back
+        for it in new_items:
+            new_img_path = absolute_data_folder / it["image_path"]
+            img = cv2.imread(new_img_path.as_posix())
+            it["shape"] = deepcopy(img.shape)
+            del img
         return new_items
 
     @staticmethod
@@ -258,7 +335,7 @@ class CreateDataset:
 
 
     @staticmethod
-    def process_multiple(items):
+    def process_multiple(items, hyperparams):
         """ Process multiple images to append together; no substrokes though
 
         Args:
@@ -272,7 +349,6 @@ class CreateDataset:
         xml_paths = []
         meta_stroke_list = []
         file_names = []
-        hyperparams = items
 
         ## Combine stroke files
         for i, item in enumerate(items["data"]):
@@ -321,9 +397,8 @@ class CreateDataset:
             img = cv2.imread(new_img_path.as_posix())
             if img is None:
                 print("Image file not found; is render off?")
-            item["shape"] = img.shape
-            #ratio = item["x_to_y"]
-            #print(shape, 61*ratio)
+            item["shape"] = deepcopy(img.shape)
+            del img
 
         return new_items
 
@@ -347,17 +422,18 @@ class CreateDataset:
                 print("error", result)
                 no_errors = False
             else:
-                all_results.append(result)
+                all_results.extend(result)
         return all_results
 
     def final_process(self, all_results):
-        for d in all_results:
-            for item in d:
-                # If test set is specified to be smaller, add to training set after a certain size
-                if item["dataset"] in ["train", "val1", "val2"] or (self.test_set_size and len(self.output_dict["test"]) > self.test_set_size):
-                    self.output_dict["train"].append(item)
-                elif item["dataset"] == "test":
-                    self.output_dict["test"].append(item)
+        for item in all_results:
+
+            # If test set is specified to be smaller, add to training set after a certain size
+            if item["dataset"] in ["train", "val1", "val2"] or (self.test_set_size and len(self.output_dict["test"]) > self.test_set_size):
+                self.output_dict["train"].append(item)
+            elif item["dataset"] == "test":
+                self.output_dict["test"].append(item)
+            ## This could mix training/test sets for partial stroke things -- nbd
             if self.train_set_size and self.test_set_size and len(self.output_dict["test"]) > self.test_set_size and len(self.output_dict["train"]) > self.train_set_size:
                 break
 
@@ -375,7 +451,13 @@ class CreateDataset:
 
         return self.output_dict
 
+    @staticmethod
+    def worker_wrapper(arg):
+        #args, kwargs = arg
+        return process_fn(arg, **hyper_param_dict)
+
     def parallel(self, max_iter=None, parallel=True):
+        import time
         data_dict = self.data_dict
         if max_iter:
             data_dict = data_dict[:max_iter]
@@ -388,21 +470,48 @@ class CreateDataset:
             data_dict = new_data_dict
 
         ### Add all the hyperparameters to the item instead of keeping them in a class, seems to be faster
-        hyper_param_dict = self.__dict__
+        # hyper_param_dict = {"max_strokes":self.max_strokes, "square":self.square, self.new_img_folder:"new_img_folder",
+        #                     "absolute_data_folder":self.absolute_data_folder, "render_images":self.absolute_data_folder,
+        #                     "xml_folder": self.xml_folder, "original_img_folder":self.original_img_folder}
+        global hyper_param_dict, process_fn
+        hyper_param_dict = edict(self.__dict__)
+        process_fn = self.process_fn
+
         del hyper_param_dict["data_dict"]
-        for i, item in enumerate(data_dict):
-            item.update(hyper_param_dict)
-            data_dict[i] = edict(item)
 
         if parallel:
             poolcount = multiprocessing.cpu_count()-1
+            poolcount = 22
             pool = multiprocessing.Pool(processes=poolcount)
-            all_results = pool.imap_unordered(self.process_fn, tqdm(data_dict))  # iterates through everything all at once
+
+            if not self.synthetic:
+                all_results = pool.imap_unordered(self.worker_wrapper, tqdm(data_dict))  # iterates through everything all at once
+                pool.close()
+            else:
+                all_results = []
+
+                # for i in range(10):
+                #     data_dict2 = data_dict
+                count = len(data_dict)
+                count = min(50000, count)
+                r = range(len(data_dict)) if len(data_dict) < 1000 else range(count, 2*count)
+                for i in r:
+                    pool.apply_async(func=self.worker_wrapper, args=(data_dict[i],), callback=all_results.extend)
+
+                pool.close()
+                previous = 0
+                with tqdm(total=count) as pbar:
+                    while previous < count - 80:
+                        time.sleep(1)
+                        new = len(all_results)
+                        pbar.update(new-previous)
+                        previous = new
+
+                pool.join()
             #all_results = pool.starmap(self.process_one, zip(tqdm(data_dict), hyper_param_dict))  # iterates through everything all at once
 
-            pool.close()
         else:
-            all_results = self.loop(tqdm(data_dict), func=self.process_fn)
+            all_results = self.loop(tqdm(data_dict), func=self.worker_wrapper)
         return self.final_process(all_results)
 
     def prep_for_json(self, iterable):
@@ -478,5 +587,49 @@ def new():
                              )
     data_set.parallel(max_iter=instances, parallel=True)
 
+def synthetic():
+    strokes = None      # None=MAX stroke
+    square = False      # Don't require square images
+    instances = None    # None=Use all available instances
+    test_set_size = 30 # use leftover test images in Training
+    train_set_size = 60
+    combine_images = False # combine images to make them longer
+    RENDER = True
+    variant="FullSynthetic100k"
+    json_path = "synthetic_online/train_synth_full.json"
+    #json_path = "synthetic_online/train_synth_sample.json"
+    if square:
+        variant += "Square"
+    if instances is None:
+        variant += "Full"
+    else:
+        variant += f"Small_{instances}"
+
+    number_of_strokes = str(strokes) if isinstance(strokes, int) else "MAX"
+    data_set = CreateDataset(max_strokes=strokes,
+                             square=square,
+                             output_folder_name=f"./{number_of_strokes}_stroke_v{variant}",
+                             render_images=RENDER,
+                             test_set_size=test_set_size,
+                             train_set_size=train_set_size,
+                             combine_images=combine_images,
+                             #img_folder="prepare_online_data/lineImages",
+                             json_path=json_path,
+                             synthetic=True
+                             )
+    data_set.parallel(max_iter=instances, parallel=True)
+
 if __name__ == "__main__":
-    new()
+    #new()
+    synthetic()
+
+
+# import cProfile
+#
+# pr = cProfile.Profile()
+# pr.enable()
+# your_function_call()
+# pr.disable()
+# # after your program ends
+# pr.print_stats(sort="calls")
+

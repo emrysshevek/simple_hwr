@@ -109,7 +109,6 @@ def get_eos_from_sos(sos):
     eos[:-1] = sos[1:]
     return eos
 
-
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     """ Takes in a "raw" stroke list for one image
         Each element of stroke_list is a dict with keys x,y,time
@@ -136,22 +135,37 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 
     # Loop through each stroke
     for i, stroke_dict in enumerate(strokes):
-        xs = np.asarray(stroke_dict["x"])
-        ys = np.asarray(stroke_dict["y"])
+        if isinstance(stroke_dict, dict):
+            x_coords = stroke_dict["x"]
+            y_coords = stroke_dict["y"]
+            time = stroke_dict["t"]
+        else: # numpy input - TIME x (X,Y)
+            _arr = np.asarray(stroke_dict)
+            if not len(_arr):
+                continue
+            x_coords = _arr[:,0].tolist()
+            y_coords = _arr[:,1].tolist()
+            if _arr.shape[-1] > 2:
+                time = _arr[:,2].tolist()
+            else:
+                time = np.zeros(_arr.shape[0]).tolist()
+
+        xs = np.asarray(x_coords)
+        ys = np.asarray(y_coords)
         distance += np.sum(distance_metric(xs, ys)) # total stroke distance
 
-        x_list += stroke_dict["x"]
-        y_list += stroke_dict["y"]
-        start_strokes += [1] + [0] * (len(stroke_dict["x"])-1)
+        x_list += x_coords
+        y_list += y_coords
+        start_strokes += [1] + [0] * (len(x_coords)-1)
 
         # Set duration for "upstroke" events
         if not time_interval is None and i > 0:
-            next_start_time = stroke_dict["time"][0]
+            next_start_time = time[0]
             last_end_time = t_list[-1]
             t_offset = time_interval + last_end_time - next_start_time
-            t_list_add = [t + t_offset for t in stroke_dict["time"]]
+            t_list_add = [t + t_offset for t in time]
         else:
-            t_list_add = stroke_dict["time"]
+            t_list_add = time
 
         t_list += t_list_add
         start_times += [t_list_add[0]]

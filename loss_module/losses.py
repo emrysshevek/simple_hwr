@@ -12,7 +12,7 @@ from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
 
 BCELoss = torch.nn.BCELoss()
-BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*18)
+BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*10)
 SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False
@@ -127,14 +127,19 @@ class DTWLoss(CustomLoss):
 
         """
         pred, targ = _input
-        pred, targ = to_numpy(pred, astype="float64"), to_numpy(targ, astype="float64")  # *self.subcoef
-        x1 = np.ascontiguousarray(pred[:, self.dtw_mapping_basis])  # time step, batch, (x,y)
-        x2 = np.ascontiguousarray(targ[:, self.dtw_mapping_basis])
-        dist, cost, a, b = dtw.dtw2d(x1, x2)
+        pred, targ = to_numpy(pred[:, self.dtw_mapping_basis], astype="float64"), \
+                     to_numpy(targ[:, self.dtw_mapping_basis], astype="float64")
+        dist, cost, a, b = self._dtw(pred, targ)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a, b
 
+    @staticmethod
+    def _dtw(pred, targ):
+        # Cost is weighted by how many GT stroke points, i.e. how long it is
+        x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ)
+        return dtw.dtw2d(x1, x2) # dist, cost, a, b
 
 class L1(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)

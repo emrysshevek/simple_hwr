@@ -194,21 +194,26 @@ def load_all(path, key=None, clear=True, keywords=""):
                     traceback.print_exc()
                     print(f"Problem with {name, key}")
 
-def prep_path(foreign_path):
-    from base_utils import increment_path
+def prep_path(foreign_paths):
+    from hwr_utils.base_utils import increment_path, is_iterable
     import shutil
     """ If path is not local, copy them to the TEMP path
 
     Returns:
 
     """
+
     new_path = increment_path(base_path=Path("../RESULTS/COMPARISON"), make_directory=False)
-    for i in os.listdir(foreign_path):
-        new_sub = Path(new_path) / i
-        new_sub.mkdir(parents=True)
-        stats = (Path(foreign_path) / i / "all_stats.json")
-        if stats.exists():
-            shutil.copy(stats, new_sub)
+    if not is_iterable(foreign_paths):
+        foreign_paths = [foreign_paths]
+
+    for foreign_path in foreign_paths:
+        for i in os.listdir(foreign_path):
+            new_sub = Path(new_path) / i
+            new_sub.mkdir(parents=True)
+            stats = (Path(foreign_path) / i / "all_stats.json")
+            if stats.exists():
+                shutil.copy(stats, new_sub)
 
     return new_path.absolute()
 
@@ -234,13 +239,13 @@ if __name__=="__main__":
     p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
     visdom_command = "/home/taylor/anaconda3/envs/hwr5/bin/python -m visdom.server -p 9001 &>/dev/null &"
     p = Popen(visdom_command, shell=True, close_fds=True)
-    time.sleep(2)
+    time.sleep(1)
     if True:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
-        path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3"
+        paths = [r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3", "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver3/"]
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
-        path = prep_path(path)
+        path = prep_path(paths)
     else:
         path = Path("/media/taylor/Data/Linux/Github/simple_hwr/RESULTS/COMPARISON/10_")
 

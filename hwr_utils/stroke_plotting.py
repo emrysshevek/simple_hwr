@@ -152,10 +152,11 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         for stroke in stroke_list:
             stroke["x"] = [item * x_to_y for item in stroke["x"]]
 
-    y_min = min([min(x["y"]) for x in stroke_list])
-    y_max = max([max(x["y"]) for x in stroke_list])
-    x_min = min([min(x["x"]) for x in stroke_list])
-    x_max = max([max(x["x"]) for x in stroke_list])
+    # Add tiny amount of padding
+    y_min = min([min(x["y"]) for x in stroke_list])-.1
+    y_max = max([max(x["y"]) for x in stroke_list])+.1
+    x_min = min([min(x["x"]) for x in stroke_list])-.1
+    x_max = max([max(x["x"]) for x in stroke_list])+.1
 
     if x_to_y:
         size = (ceil(x_to_y),1)
@@ -174,6 +175,7 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
         plt.close()
+    plt.close('all')
 
 def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_path=""):
     # plt.NullFormatter()
