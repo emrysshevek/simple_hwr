@@ -35,7 +35,7 @@ data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 #dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 
-# Distortions
+# WARP
 warp: true
 
 # LR schedule

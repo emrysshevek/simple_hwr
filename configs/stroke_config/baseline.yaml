@@ -13,7 +13,7 @@ gpu_if_available: true
 # General
 output_folder: ./results
 epochs_to_run: 1000
-update_freq: 200 # print out updates, update graphs etc. after this many updates
+update_freq: 100 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
@@ -27,12 +27,19 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 
-# Distortions
+dataset:
+  img_height: 61
+  include_synthetic: false
+  num_of_channels: 1
+  image_prep: pil_with_distortion
+
+
+# WARP
 warp: true
 
 # LR schedule
 learning_rate: 5e-4          # LR
-scheduler_step: 25         # Every X steps, multiply LR by gamma
+scheduler_step: 10         # Every X steps, multiply LR by gamma
 scheduler_gamma: .95          # LR decay rate
 
 ## Loss options:
@@ -59,7 +66,7 @@ batch_size: 32
 gt_format: # if relative etc., specify that here; e.g., opts:rel
   - x
   - y
-  - sos
+  - stroke_number
   - eos
 
 # NOT IMPLEMENTED
@@ -74,7 +81,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - sigmoid
+  - cumsum
   - null
 
 ## Loss function
@@ -83,49 +90,48 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
   - name: l1_with_stroke_numbers
-    coef: 1
+    coef: .2
     gts:
       - x
       - y
-    cross_entropy_indices:
-      - sos
-    subcoef: 1, 1
+      - stroke_number
+    subcoef: 1,1,.1
   - name: cross_entropy
-    subcoef: 0.5
+    coef: .1
     gts:
       - eos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
-    coef: 1
+    coef: .2
     gts:
       - x
       - y
+      - stroke_number
+    subcoef: 1,1,.05
     dtw_mapping_basis:
       - x
       - y
-    cross_entropy_indices: # SIGMOID TAKEN DURING LOSS
-      - sos
   - name: cross_entropy
-    subcoef: 0.01
+    coef: .1
     gts:
       - eos
     activation: sigmoid
 
 # Always report these, but don't include in backpropagation
-#loss_fns_to_report:
+loss_fns_to_report:
 #  - name: l2_coords
 #    gts:
 #      - x
 #      - y
-#  - name: l1_coords
-#    gts:
-#      - x
-#      - y
+  - name: l1_coords
+    gts:
+      - x
+      - y
 
-convolve_func: cumsum # or conv_weight, conv_window, cumsum
-cumsum_window_size: 21 # only for the conv_window and conv_weight
+convolve_func: conv_window # or conv_weight, conv_window, cumsum
+cumsum_window_size: 11 # only for the conv_window and conv_weight
 
 first_loss_epochs: 2
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
@@ -140,6 +146,10 @@ cnn_type: default64 # default64; CNN output width similar to input width; defaul
 coordconv: true
 coordconv_method: y_abs
 coordconv_0_center: false
+
+# Relative X coordinates - NOT IMPLEMENTED ON CONFIG SIDE YET!
+x_relative_positions: false # The GT data should be converted to relative positions, rather than absolute
+relative_x_pred_abs_eval: true # predict relative coordinates, loss and GTs based on absolute ones
 
 # Visdom
 visdom_port: 9001

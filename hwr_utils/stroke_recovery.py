@@ -247,7 +247,7 @@ class PredConvolver:
             self.kwargs = {"kernel": kernel_window, "kernel_length": kernel_length}
         elif convolve_type=="cumsum": # NOT BEING USED PRESENTLY
             self.kwargs = {"reverse":True}
-        logger.info("Convolve Options", self.__dict__)
+        logger.info(("Convolve Options", self.__dict__))
 
     def convolve(self, pred_rel, indices, gt):
         return self.convolve_func(pred_rel=pred_rel, gt_abs=gt, indices=indices, **self.kwargs)
@@ -305,6 +305,8 @@ KERNEL_WINDOW = torch.ones(KERNEL_LENGTH).unsqueeze(1).repeat(1, 1, 1, 1)
 def conv_window(gt_abs, pred_rel, indices=slice(0,None), kernel_window=KERNEL_WINDOW, kernel_length=KERNEL_LENGTH, **kwargs):
     """ BATCH, WIDTH (GT LENGTH), HEIGHT (VOCAB SIZE)
         INDICES MUST BE SLICE/LIST
+
+        THIS EXPECTS RELATIVE AND RETURNS RELATIVE!!!
     """
     width = gt_abs.shape[1]
     pred_rel = pred_rel[:,:width] # truncate any extra preds due to white space
@@ -317,6 +319,8 @@ def conv_window(gt_abs, pred_rel, indices=slice(0,None), kernel_window=KERNEL_WI
 
     # Functionary way
     pred_rel[:,:,indices] = functional.conv2d(pred_rel_exp, kernel_window, padding=[kernel_length - 1, 0]).squeeze(1)[:,:width] + cumsum[:,:,indices]
+
+
     return pred_rel
 
 def test_conv_weight():

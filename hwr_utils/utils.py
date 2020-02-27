@@ -150,7 +150,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "cumsum_window_size": 30,
                     "convolve_func": "conv_weight", # or conv_window
                     "model_name":"normal",
-                    "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1}
+                    "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1, "include_synthetic": True},
+                    "coordconv_method": "y_abs"
                     }
 
 def debugger(func):
@@ -327,8 +328,18 @@ def make_config_consistent_stroke(config):
     # Update dataset params
     config.dataset.gt_format = config.gt_format
     config.dataset.batch_size = config.batch_size
-
     config.dataset.image_prep = config.dataset.image_prep.lower()
+
+    # Include synthetic data
+    if config.dataset.include_synthetic:
+        if config.TESTING:
+            config.dataset.extra_dataset = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords_sample.json"]
+        else:
+            config.dataset.extra_dataset = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k.json",
+              "online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k-100k.json"]
+    else:
+        config.dataset.extra_dataset = []
+
     if "loaded" in config.dataset.image_prep:
         config.dataset.img_height = 60
 

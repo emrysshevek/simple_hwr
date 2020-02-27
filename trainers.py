@@ -214,6 +214,7 @@ class TrainerStrokeRecovery(Trainer):
         else:
             self.logger = config.logger
         self.opts = None
+        logger.info(("Relative Idices", self.relative_indices))
         if config.convolve_func == "cumsum":
             self.convolve = None # use relativefy
         else:
@@ -314,6 +315,7 @@ class TrainerStrokeRecovery(Trainer):
                 preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
             else:
                 preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
+                preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:

@@ -135,11 +135,23 @@ class DTWLoss(CustomLoss):
         return a, b
 
     @staticmethod
+    # ORIGINAL
     def _dtw(pred, targ):
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
         x2 = np.ascontiguousarray(targ)
         return dtw.dtw2d(x1, x2) # dist, cost, a, b
+
+    # @staticmethod
+    # # FASTER
+    # def _dtw(pred, targ):
+    #     # Cost is weighted by how many GT stroke points, i.e. how long it is
+    #     x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
+    #     x2 = np.ascontiguousarray(targ)
+    #     return dtw.dtw2d(x1, x2) # dist, cost, a, b
+    #
+    # import dtaidistance.dtw
+    # from dtaidistance.dtw_ndim
 
 class L1(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
@@ -348,3 +360,8 @@ def to_value(loss_tensor):
 
 def tensor_sum(tensor):
     return torch.sum(tensor.cpu(), 0, keepdim=False).item()
+
+
+from dtw import dtw as dtw2
+dtw2
+dtw.dtw2d

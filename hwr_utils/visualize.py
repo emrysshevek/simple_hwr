@@ -243,7 +243,9 @@ if __name__=="__main__":
     if True:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
-        paths = [r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3", "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver3/"]
+        paths = [r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver3",
+                 "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver3/",
+                 "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/"]
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
         path = prep_path(paths)
     else:

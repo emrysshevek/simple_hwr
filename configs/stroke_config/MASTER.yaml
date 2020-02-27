@@ -27,7 +27,15 @@ dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 
-# Distortions
+dataset:
+  img_height: 61
+  include_synthetic: true
+  num_of_channels: 1
+  image_prep: pil_with_distortion
+  #gt_format - specified elsewhere
+  #batch_size - specified elsewhere
+
+# WARP
 warp: true
 
 # LR schedule
