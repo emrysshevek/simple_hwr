@@ -361,7 +361,3 @@ def to_value(loss_tensor):
 def tensor_sum(tensor):
     return torch.sum(tensor.cpu(), 0, keepdim=False).item()
 
-
-from dtw import dtw as dtw2
-dtw2
-dtw.dtw2d
