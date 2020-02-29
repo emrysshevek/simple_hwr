@@ -1,3 +1,4 @@
+import warnings
 import os
 import torch
 import xml.etree.ElementTree as ET
@@ -112,6 +113,8 @@ def get_eos_from_sos(sos):
 def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     """ Takes in a "raw" stroke list for one image
         Each element of stroke_list is a dict with keys x,y,time
+        OR
+        Each element is a list of array-like strokes of the form [L x (x,y),...]
 
         time_interval (float): duration of upstroke events; None=original duration
         Returns:
@@ -186,19 +189,31 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
 
     y_list, scale_param = normalize(y_list)
     x_list, scale_param = normalize(x_list, scale_param)
+    if scale_param <= 0:
+        return None
 
     distance = distance / scale_param # normalize the distance
 
     if scale_time_distance:
-        time_factor = distance / t_list[-1]
-        t_list = t_list * time_factor
-        start_times = start_times * time_factor
+        if t_list[-1]==0:
+            warnings.warn(f"Last time is 0 {t_list}")
+            return None
+        else:
+            time_factor = distance / (t_list[-1])
+            t_list = t_list * time_factor
+            start_times = start_times * time_factor
 
     # Have interpolation not move after last point
     x_list = np.append(x_list, x_list[-1])
     y_list = np.append(y_list, y_list[-1])
     t_list = np.append(t_list, t_list[-1] + 10)
-    x_to_y = np.max(x_list) / np.max(y_list)
+
+    if np.max(y_list) == 0: # perfectly horizontal line
+        warnings.warn(f"Max y is 0 {y_list}")
+        x_to_y = 1
+        return None
+    else:
+        x_to_y = np.max(x_list) / np.max(y_list)
 
     # Start strokes (binary list) will now be 1 short!
     d_list = reparameterize_as_func_of_distance(x_list, y_list, start_strokes)
@@ -459,6 +474,9 @@ def get_all_substrokes(stroke_dict, desired_num_of_strokes=3):
 
         y, scale_param = normalize(y)
         x, scale_param = normalize(x, scale_param)
+        if scale_param <= 0: # don't deal with this!
+            continue
+
         x_to_y = np.max(x) / np.max(y)
 
         start_time = t[0]
@@ -481,7 +499,10 @@ def normalize(x_list, scale_param=None):
     if scale_param is None:
         scale_param = np.max(x_list)
 
-    x_list = x_list / scale_param
+    if scale_param > 0:
+        x_list = x_list / scale_param
+    else:
+        warnings.warn(f"Scale parameter is {scale_param}, {x_list}")
     return x_list, scale_param
 
 def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plot=False):

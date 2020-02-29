@@ -10,6 +10,8 @@ from collections import defaultdict
 
 sys.path.insert(0, "../../")
 from copy import deepcopy
+import warnings
+import time
 from hwr_utils.stroke_recovery import *
 from hwr_utils.stroke_plotting import *
 from tqdm import tqdm
@@ -89,7 +91,12 @@ class CreateDataset:
         print("Output:", self.output_folder.resolve())
         self.new_img_folder = (self.output_folder / "images").resolve()
         self.new_img_folder.mkdir(exist_ok=True, parents=True)
-        self.data_dict = json.load(self.json_path.open("r"))
+
+        if self.json_path.suffix == ".json":
+            self.data_dict = json.load(self.json_path.open("r"))
+        else:
+            self.data_dict = np.load(self.json_path, allow_pickle=True)
+
         self.output_dict = {"train": [], "test": []}
         self.max_strokes=max_strokes
         self.square=square
@@ -228,24 +235,38 @@ class CreateDataset:
         Returns:
 
         """
-        s = np.array(item["stroke"])
-        s[-1,2] = 0 # replace last EOS with nothing
-        file_name = "".join([c for c in item["text"] if c.isalpha() or c.isdigit() or c==' ']).rstrip()
+        text_key = "text" if "text" in item else "name"
+        synthetic_format = isinstance(item["stroke"][0], list) # Synthetic format is a dict-list-list
+        if synthetic_format:
+            s = np.array(item["stroke"])
+            s[-1,2] = 0 # replace last EOS with nothing
+            file_name = "".join([c for c in item[text_key] if (c.isalpha() or c.isdigit() or c in [' ', "_"])]).rstrip()
 
-        # Synthetic generator has EOS tokens
-        eos = np.argwhere(s[:, 2]).reshape(-1) + 1
-        new_format = np.split(s[:, :2], eos)
+            if s[0:2]==1:
+                warnings.warn("Stroke shouldn't usually start with end stroke!")
+            # Synthetic generator has EOS tokens - NOT SOS TOKENS!!!
+            eos = np.argwhere(s[:, 2]).reshape(-1) + 1
+            new_format = np.split(s[:, :2], eos)
 
-        # Create RAW format
-        raw_format = []
-        for stroke in new_format:
-            t = stroke[:,2] if stroke.shape[-1]>2 else np.array(range(len(stroke)))
-            raw_format += [{"x":stroke[:,0], "y":stroke[:,1], "time":t}]
+            # Create RAW format
+            raw_format = []
+            for stroke in new_format:
+                t = stroke[:,3] if stroke.shape[-1]>2 else np.array(range(len(stroke))) # put time on col 4
+                raw_format += [{"x":stroke[:,0], "y":stroke[:,1], "time":t}]
+        else: # assume already in raw (item["stroke"] = list of dicts)
+            # THIS IS THE INDIC ONE -- exclude strokes longer than 1!
+            new_format = raw_format = item["stroke"]
+            # if len(item["stroke"])>1:
+            #     return None
+            file_name = item["name"]
 
         stroke_dict = prep_stroke_dict(new_format, time_interval=0, scale_time_distance=True)  # list of dictionaries, 1 per file
+        if stroke_dict is None:
+            warnings.warn(f"{item['name']} failed")
+            return None
         all_substrokes = get_all_substrokes(stroke_dict, desired_num_of_strokes=max_strokes)  # subdivide file into smaller sets
         stroke_dict.raw = raw_format
-        dataset = "train"
+        dataset = "train" if not "dataset" in item else item["dataset"]
         new_items = []
 
         for i, sub_stroke_dict in enumerate(all_substrokes):
@@ -427,7 +448,8 @@ class CreateDataset:
 
     def final_process(self, all_results):
         for item in all_results:
-
+            if item is None:
+                continue
             # If test set is specified to be smaller, add to training set after a certain size
             if item["dataset"] in ["train", "val1", "val2"] or (self.test_set_size and len(self.output_dict["test"]) > self.test_set_size):
                 self.output_dict["train"].append(item)
@@ -456,11 +478,10 @@ class CreateDataset:
         #args, kwargs = arg
         return process_fn(arg, **hyper_param_dict)
 
-    def parallel(self, max_iter=None, parallel=True):
-        import time
+    def parallel(self, max_iter=None, start_iter=0, parallel=True):
         data_dict = self.data_dict
         if max_iter:
-            data_dict = data_dict[:max_iter]
+            data_dict = data_dict[start_iter:max_iter]
 
         if self.combine_images:
             # for every item in the data dict, pick another item and combine them
@@ -479,40 +500,51 @@ class CreateDataset:
 
         del hyper_param_dict["data_dict"]
 
-        if parallel:
-            poolcount = multiprocessing.cpu_count()-1
-            poolcount = 22
-            pool = multiprocessing.Pool(processes=poolcount)
-
-            if not self.synthetic:
-                all_results = pool.imap_unordered(self.worker_wrapper, tqdm(data_dict))  # iterates through everything all at once
-                pool.close()
+        all_results = []
+        start = 0
+        step = 20000
+        print(f"Total items: {len(data_dict)}, using batches of 20k")
+        while start < len(data_dict):
+            subdict = data_dict[start:start+step]
+            if parallel:
+                 all_results.extend(self._parallel(subdict))
             else:
-                all_results = []
-
-                # for i in range(10):
-                #     data_dict2 = data_dict
-                count = len(data_dict)
-                count = min(50000, count)
-                r = range(len(data_dict)) if len(data_dict) < 1000 else range(count, 2*count)
-                for i in r:
-                    pool.apply_async(func=self.worker_wrapper, args=(data_dict[i],), callback=all_results.extend)
-
-                pool.close()
-                previous = 0
-                with tqdm(total=count) as pbar:
-                    while previous < count - 80:
-                        time.sleep(1)
-                        new = len(all_results)
-                        pbar.update(new-previous)
-                        previous = new
-
-                pool.join()
-            #all_results = pool.starmap(self.process_one, zip(tqdm(data_dict), hyper_param_dict))  # iterates through everything all at once
-
-        else:
-            all_results = self.loop(tqdm(data_dict), func=self.worker_wrapper)
+                all_results.extend(self.loop(tqdm(subdict), func=self.worker_wrapper))
+            start += step
         return self.final_process(all_results)
+
+    def _parallel(self, data_dict):
+        poolcount = multiprocessing.cpu_count() - 3
+        pool = multiprocessing.Pool(processes=poolcount)
+
+        if not self.synthetic:
+            all_results = pool.imap_unordered(self.worker_wrapper,
+                                              tqdm(data_dict))  # iterates through everything all at once
+            pool.close()
+        else:
+            all_results = []
+
+            # for i in range(10):
+            #     data_dict2 = data_dict
+            count = len(data_dict)
+            # count = min(50000, count)
+            # r = range(len(data_dict)) if len(data_dict) < 1000 else range(count, 2*count)
+            r = range(count)
+            callback = lambda x: all_results.extend(x) if not x is None else None
+            for i in r:
+                pool.apply_async(func=self.worker_wrapper, args=(data_dict[i],), callback=callback)
+
+            pool.close()
+            previous = 0
+            with tqdm(total=count) as pbar:
+                while previous < count - 80:
+                    time.sleep(1)
+                    new = len(all_results)
+                    pbar.update(new - previous)
+                    previous = new
+
+            pool.join()
+        return all_results
 
     def prep_for_json(self, iterable):
         if isinstance(iterable, list):
@@ -591,13 +623,13 @@ def synthetic():
     strokes = None      # None=MAX stroke
     square = False      # Don't require square images
     instances = None    # None=Use all available instances
-    test_set_size = 30 # use leftover test images in Training
+    test_set_size = 30  # use leftover test images in Training
     train_set_size = 60
     combine_images = False # combine images to make them longer
     RENDER = True
     variant="FullSynthetic100k"
     json_path = "synthetic_online/train_synth_full.json"
-    json_path = "synthetic_online/train_synth_sample.json"
+    #json_path = "synthetic_online/train_synth_sample.json"
     if square:
         variant += "Square"
     if instances is None:
@@ -617,12 +649,49 @@ def synthetic():
                              json_path=json_path,
                              synthetic=True
                              )
+
     data_set.parallel(max_iter=instances, parallel=True)
+
+def indic():
+    """
+    /media/data/GitHub/simple_hwr/data/indic/devnagari_test.json
+    /media/data/GitHub/simple_hwr/data/indic/devnagari_train.json
+    /media/data/GitHub/simple_hwr/data/indic/tamil_test.json
+    /media/data/GitHub/simple_hwr/data/indic/tamil_train.json
+    /media/data/GitHub/simple_hwr/data/indic/telug_test.json
+    /media/data/GitHub/simple_hwr/data/indic/telug_train.json
+    Returns:
+
+    """
+    root = Path("/media/data/GitHub/simple_hwr/data/indic/")
+    for language in "devnagari", "tamil", "telug":
+        strokes = None      # None=MAX stroke
+        square = False      # Don't require square images
+        instances = None    # None=Use all available instances
+        test_set_size = 30 # use leftover test images in Training
+        train_set_size = 60
+        combine_images = False # combine images to make them longer
+        RENDER = True
+        variant=f"{language}"
+        load_path = root / ((variant) + "_raw.json")
+
+        data_set = CreateDataset(max_strokes=strokes,
+                                 square=square,
+                                 output_folder_name=f"./{variant}",
+                                 render_images=RENDER,
+                                 test_set_size=test_set_size,
+                                 train_set_size=train_set_size,
+                                 combine_images=combine_images,
+                                 json_path=load_path,
+                                 synthetic=True
+                                 )
+        data_set.parallel(max_iter=instances, parallel=True)
+
 
 if __name__ == "__main__":
     #new()
-    synthetic()
-
+    #synthetic()
+    indic()
 
 # import cProfile
 #

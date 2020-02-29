@@ -14,6 +14,9 @@ from hwr_utils.stroke_dataset import pad, create_gts
 from scipy.spatial import KDTree
 import time
 
+def start_point_is_correct():
+    pass
+
 def juncture_is_correct(gts, preds):
     # Algorithm: make segments along the function, then O(n^2) check
     # the segments against each other for intersection.  If an intersection is
