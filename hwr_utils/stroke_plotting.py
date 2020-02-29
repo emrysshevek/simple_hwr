@@ -141,9 +141,10 @@ def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
 
 def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     def prep_figure(figsize=(5, 1), dpi=71):
-        plt.figure(figsize=figsize, dpi=dpi)
+        f = plt.figure(figsize=figsize, dpi=dpi)
         plt.axis('off')
         plt.axis('square')
+        return f
 
     # plt.NullFormatter()
     if line_width is None:
@@ -164,7 +165,7 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
         size = (ceil((x_max-x_min)/(y_max-y_min)), 1)
 
     if save_path:
-        prep_figure(figsize=size, dpi=pad_dpi["dpi"])
+        f = prep_figure(figsize=size, dpi=pad_dpi["dpi"])
 
     plt.ylim([y_min, y_max])
     plt.xlim([x_min, x_max])
@@ -174,8 +175,9 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
 
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
-        plt.close()
-    plt.close('all')
+        f.clear()
+        plt.close(f)
+
 
 def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_path=""):
     def prep_figure(figsize=(5, 1), dpi=71):

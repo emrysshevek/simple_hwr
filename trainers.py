@@ -241,9 +241,10 @@ class TrainerStrokeRecovery(Trainer):
 
     def train(self,  item, train=True, **kwargs):
         try:
-            self.train(item, train=train, **kwargs)
+            self._train(item, train=train, **kwargs)
         except Exception as e:
             logger.error(e)
+        return None, None, None
 
     def _train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader

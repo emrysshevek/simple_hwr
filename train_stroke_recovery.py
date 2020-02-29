@@ -48,7 +48,8 @@ def run_epoch(dataloader, report_freq=500):
         instances += current_batch_size
         #print(item["gt"].shape, item["label_lengths"])
         loss, preds, *_ = trainer.train(item, train=True)
-
+        if loss is None:
+            continue
         loss_list += [loss]
         config.stats["Actual_Loss_Function_train"].accumulate(loss)
 
@@ -60,12 +61,13 @@ def run_epoch(dataloader, report_freq=500):
     logger.info(("Epoch duration:", end_time-start_time))
 
     #preds_to_graph = preds.permute([0, 2, 1])
-    preds_to_graph = [p.permute([1, 0]) for p in preds]
-    save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
-    utils.write_out(save_folder, "example_data", f"GT {str(item['gt_list'][0])}"
-                                                 f"\nPREDS\n{str(preds_to_graph[0].transpose(1,0))}"
-                                                 f"\nStartPoints\n{str(item['start_points'][0])}")
-    utils.pickle_it({"item":item, "preds":[p.detach().numpy() for p in preds_to_graph]}, Path(save_folder) / "example_data.pickle")
+    if not preds is None:
+        preds_to_graph = [p.permute([1, 0]) for p in preds]
+        save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
+        utils.write_out(save_folder, "example_data", f"GT {str(item['gt_list'][0])}"
+                                                     f"\nPREDS\n{str(preds_to_graph[0].transpose(1,0))}"
+                                                     f"\nStartPoints\n{str(item['start_points'][0])}")
+        utils.pickle_it({"item":item, "preds":[p.detach().numpy() for p in preds_to_graph]}, Path(save_folder) / "example_data.pickle")
 
     config.scheduler.step()
     return np.sum(loss_list) / config.n_train_instances
@@ -73,9 +75,12 @@ def run_epoch(dataloader, report_freq=500):
 def test(dataloader):
     for i, item in enumerate(dataloader):
         loss, preds, *_ = trainer.test(item)
+        if loss is None:
+            continue
         config.stats["Actual_Loss_Function_test"].accumulate(loss)
-    preds_to_graph = [p.permute([1, 0]) for p in preds]
-    save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
+    if not preds is None:
+        preds_to_graph = [p.permute([1, 0]) for p in preds]
+        save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
     return config.stats["Actual_Loss_Function_test"].get_last()
@@ -186,7 +191,7 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
 
     test_dataloader = DataLoader(test_dataset,
                                   batch_size=batch_size,
-                                  shuffle=False,
+                                  shuffle=True,
                                   num_workers=3,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
