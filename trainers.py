@@ -239,7 +239,13 @@ class TrainerStrokeRecovery(Trainer):
         #targs = [targs[i][:label_lengths[i], :] for i in range(0, len(label_lengths))]
         return preds
 
-    def train(self, item, train=True, **kwargs):
+    def train(self,  item, train=True, **kwargs):
+        try:
+            self.train(item, train=train, **kwargs)
+        except Exception as e:
+            logger.error(e)
+
+    def _train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader
 
         Args:

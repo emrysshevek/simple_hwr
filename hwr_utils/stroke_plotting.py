@@ -139,12 +139,12 @@ def render_points_on_strokes(gts, strokes, save_path=None, x_to_y=None):
     else:
         plt.show()
 
-def prep_figure(figsize=(5, 1), dpi=71):
-    plt.figure(figsize=figsize, dpi=dpi)
-    plt.axis('off')
-    plt.axis('square')
-
 def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
+    def prep_figure(figsize=(5, 1), dpi=71):
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.axis('off')
+        plt.axis('square')
+
     # plt.NullFormatter()
     if line_width is None:
         line_width = max(random.gauss(1, .5), .4)
@@ -178,6 +178,11 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
     plt.close('all')
 
 def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_path=""):
+    def prep_figure(figsize=(5, 1), dpi=71):
+        plt.figure(figsize=figsize, dpi=dpi)
+        plt.axis('off')
+        plt.axis('square')
+
     # plt.NullFormatter()
     if line_width is None:
         line_width = max(random.gauss(1, .5), .4)

@@ -242,8 +242,8 @@ class CreateDataset:
             s[-1,2] = 0 # replace last EOS with nothing
             file_name = "".join([c for c in item[text_key] if (c.isalpha() or c.isdigit() or c in [' ', "_"])]).rstrip()
 
-            if s[0:2]==1:
-                warnings.warn("Stroke shouldn't usually start with end stroke!")
+            # if s[0,2]==1:
+            #     warnings.warn(f"Stroke shouldn't usually start with end stroke! {file_name}")
             # Synthetic generator has EOS tokens - NOT SOS TOKENS!!!
             eos = np.argwhere(s[:, 2]).reshape(-1) + 1
             new_format = np.split(s[:, :2], eos)
@@ -690,8 +690,8 @@ def indic():
 
 if __name__ == "__main__":
     #new()
-    #synthetic()
-    indic()
+    synthetic()
+    #indic()
 
 # import cProfile
 #
