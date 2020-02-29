@@ -166,7 +166,7 @@ class Trainer:
         self.relative_indices = self.get_indices(config.pred_opts, "cumsum")
         self.sigmoid_indices = self.get_indices(config.pred_opts, "sigmoid")
         self.relu_indices = self.get_indices(config.pred_opts, "relu")
-        self.convolve_indices = self.get_indices(config.pred_opts, "convolve")
+        self.convolve_indices = self.get_indices(config.pred_opts, "convolve") # NOT IMPLEMENTED
         SIGMOID = torch.nn.Sigmoid().to(config.device)
         if config is None:
             self.logger = utils.setup_logging()
@@ -200,7 +200,7 @@ class Trainer:
     
     @staticmethod
     def get_indices(pred_opts, keyword):
-        return [i for i,x in enumerate(pred_opts) if x==keyword]
+        return [i for i,x in enumerate(pred_opts) if x and keyword.lower() in x.lower()]
 
 class TrainerStrokeRecovery(Trainer):
     def __init__(self, model, optimizer, config, loss_criterion=None):
@@ -270,8 +270,7 @@ class TrainerStrokeRecovery(Trainer):
             #print(self.config.stats[])
 
         preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative_indices=self.relative_indices,
-                          device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve,
-                          activation=self.sigmoid_indices)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
+                          device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
         loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
 
@@ -283,10 +282,13 @@ class TrainerStrokeRecovery(Trainer):
             loss_tensor.backward()
             self.optimizer.step()
 
-        if self.sigmoid_indices:
-            # PREDS ARE A LIST
-            for i, p in enumerate(preds):
-                preds[i][:, self.sigmoid_indices] = SIGMOID(p[:, self.sigmoid_indices])
+        ## Take post activations
+        # DO A RELU IF NOT DOING sigmoid later!!!
+        for i in self.relu_indices:
+            preds[:, :, i] = RELU(preds[:, :, i])
+        for i in self.sigmoid_indices:
+            preds[:, :, i] = SIGMOID(preds[:, :, i])
+
         return loss, preds, None
 
     # def sos(self):
@@ -298,32 +300,28 @@ class TrainerStrokeRecovery(Trainer):
 
     @staticmethod
     def eval(line_imgs, model, label_lengths=None, relative_indices=None, device="cuda",
-             gt=None, train=False, convolve=None, activation=None):
+             gt=None, train=False, convolve=None, sigmoid_activations=None, relu_activations=None):
         """ For offline data, that doesn't have ground truths
         """
         line_imgs = line_imgs.to(device)
         pred_logits = model(line_imgs).cpu()
 
-        # DO A RELU IF NOT DOING sigmoid later!!!
-        if 2 in relative_indices:
-            new_preds = pred_logits.clone()
-            new_preds[:,:, 2] = RELU(pred_logits[:,:, 2])
-        else:
-            new_preds = pred_logits
+        new_preds = pred_logits
+        # new_preds = pred_logits.clone()
+        # # DO A RELU IF NOT DOING sigmoid later!!!
+        # for i in relu_activations:
+        #     new_preds[:, :, i] = RELU(new_preds[:, :, i])
+        # for i in sigmoid_activations:
+        #     new_preds[:, :, i] = SIGMOID(new_preds[:, :, i])
+
         preds = new_preds.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
-        ## Make absolute preds from relative preds - must be done before truncation
-        # if relative_indices:
-        #     if not train or convolve is None:
-        #         preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
-        #     else:
-        #         preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
+
         if relative_indices:
             if not train or convolve is None:
                 preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)  # assume they were in relative positions, convert to absolute
             else:
                 preds = convolve(pred_rel=preds, indices=relative_indices, gt=gt)
-                preds = relativefy_batch_torch(preds, reverse=True, indices=relative_indices)
 
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:

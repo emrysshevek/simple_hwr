@@ -321,7 +321,7 @@ def conv_window(gt_abs, pred_rel, indices=slice(0,None), kernel_window=KERNEL_WI
     """ BATCH, WIDTH (GT LENGTH), HEIGHT (VOCAB SIZE)
         INDICES MUST BE SLICE/LIST
 
-        THIS EXPECTS RELATIVE AND RETURNS RELATIVE!!!
+        THIS EXPECTS RELATIVE AND RETURNS abs!!!
     """
     width = gt_abs.shape[1]
     pred_rel = pred_rel[:,:width] # truncate any extra preds due to white space
@@ -334,8 +334,6 @@ def conv_window(gt_abs, pred_rel, indices=slice(0,None), kernel_window=KERNEL_WI
 
     # Functionary way
     pred_rel[:,:,indices] = functional.conv2d(pred_rel_exp, kernel_window, padding=[kernel_length - 1, 0]).squeeze(1)[:,:width] + cumsum[:,:,indices]
-
-
     return pred_rel
 
 def test_conv_weight():
@@ -750,7 +748,8 @@ def move_bad_points():
 
 
 if __name__=="__main__":
-    test_gt_stroke_length_generator()
+    test_conv_weight()
+    #test_gt_stroke_length_generator()
     Stop
     os.chdir("../data")
     with open("online_coordinate_data/3_stroke_16_v2/train_online_coords.json") as f:

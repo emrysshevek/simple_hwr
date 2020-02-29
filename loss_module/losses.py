@@ -10,6 +10,7 @@ from robust_loss_pytorch import AdaptiveLossFunction
 import logging
 from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
+from stroke_recovery import relativefy_torch
 
 BCELoss = torch.nn.BCELoss()
 BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*10)
@@ -67,6 +68,13 @@ class DTWLoss(CustomLoss):
         else:
             self.barron = None
 
+        if "relativefy_cross_entropy_gt" in kwargs and kwargs["relativefy_cross_entropy_gt"]:
+            logger.info("Relativefying stroke number + BCE!!!")
+            self.relativefy = True
+        else:
+            self.barron = False
+
+
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
@@ -111,9 +119,14 @@ class DTWLoss(CustomLoss):
                 # ONLY WHEN USING SOS!!!
                 start_strokes_factor = (targs[i][b, 2] * 4 + 1).unsqueeze(1).repeat(1, len(self.loss_indices))
                 loss += (start_strokes_factor * abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
             if self.cross_entropy_indices:
                 pred = preds[i][a, :][:, self.cross_entropy_indices]
                 targ = targs[i][b, :][:, self.cross_entropy_indices]
+
+                if self.relativefy:
+                    targ = relativefy_torch(targ)
+
                 loss += BCEWithLogitsLoss(pred, targ).sum()  # AVERAGE pointwise loss for 1 image
 
         return loss  # , to_value(loss)
