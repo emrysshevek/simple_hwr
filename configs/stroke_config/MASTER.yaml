@@ -82,7 +82,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - null
   - null
-  - cumsum # THIS IS APPLIED AFTER THE LOSS
+  - cumsum sigmoid # THIS IS APPLIED AFTER THE LOSS
   - sigmoid # THIS IS APPLIED AFTER
 
 ## Loss function

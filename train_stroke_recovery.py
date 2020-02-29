@@ -58,6 +58,11 @@ def run_epoch(dataloader, report_freq=500):
             utils.reset_all_stats(config, keyword="_train")
             logger.info(("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last()))
 
+        if epoch==1 and i==0:
+            logger.info(("Preds", preds[0]))
+            logger.info(("GTs", item["gt_list"][0]))
+
+
     end_time = timer()
     logger.info(("Epoch duration:", end_time-start_time))
 
