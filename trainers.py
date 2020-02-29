@@ -168,6 +168,13 @@ class Trainer:
         self.relu_indices = self.get_indices(config.pred_opts, "relu")
         self.convolve_indices = self.get_indices(config.pred_opts, "convolve") # NOT IMPLEMENTED
         SIGMOID = torch.nn.Sigmoid().to(config.device)
+
+        self.activations = [None] * len(config.pred_opts)
+        for i in self.sigmoid_indices:
+            self.activations[i] = SIGMOID
+        for i in self.relu_indices:
+            self.activations[i] = RELU
+
         if config is None:
             self.logger = utils.setup_logging()
         else:
@@ -284,15 +291,14 @@ class TrainerStrokeRecovery(Trainer):
 
         ## Take post activations
         # DO A RELU IF NOT DOING sigmoid later!!!
-        for i in self.relu_indices:
-            preds[:, :, i] = RELU(preds[:, :, i])
-        for i in self.sigmoid_indices:
-            preds[:, :, i] = SIGMOID(preds[:, :, i])
+        if self.sigmoid_indices or self.relu_indices:
+            # PREDS ARE A LIST
+            for i, p in enumerate(preds):
+                preds[i][:, self.sigmoid_indices] = SIGMOID(p[:, self.sigmoid_indices])
+                if self.relu_indices:
+                    preds[i][:, self.relu_indices] = RELU(p[:, self.relu_indices])
 
         return loss, preds, None
-
-    # def sos(self):
-    #
 
     def test(self, item, **kwargs):
         self.model.eval()

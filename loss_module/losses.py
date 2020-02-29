@@ -10,7 +10,7 @@ from robust_loss_pytorch import AdaptiveLossFunction
 import logging
 from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
-from stroke_recovery import relativefy_torch
+from hwr_utils.stroke_recovery import relativefy_torch
 
 BCELoss = torch.nn.BCELoss()
 BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*10)
