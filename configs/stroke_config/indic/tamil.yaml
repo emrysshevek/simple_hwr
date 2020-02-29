@@ -32,7 +32,7 @@ dataset:
   img_height: 61
   include_synthetic: false
   num_of_channels: 1
-  image_prep: pil_with_distortion
+  image_prep: pil
   max_width: 200
 
 # WARP

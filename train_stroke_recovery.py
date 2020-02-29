@@ -99,6 +99,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
     print("saving", save_folder)
     def subgraph(coords, gt_img, name, is_gt=True):
+        ## PREDS
         if not is_gt:
             # Prep for other plot
             if coords is None:
@@ -111,8 +112,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
             if "stroke_number" in config.gt_format:
                 idx = config.gt_format.index("stroke_number")
-                # coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
-                coords[idx] = relativefy_numpy(coords[idx], reverse=False)
+                if config.pred_opts[idx]=="cumsum": # are the PREDS also CUMSUM?? or just the GTs
+                    # coords[idx] = convert_stroke_numbers_to_start_strokes(coords[idx])
+                    coords[idx] = relativefy_numpy(coords[idx], reverse=False)
 
             # Round the SOS, EOS etc. items
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH

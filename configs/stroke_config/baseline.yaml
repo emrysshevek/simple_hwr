@@ -3,7 +3,7 @@
 # RELATIVE COORDS CONFIG
 
 # Load model
-TESTING: false # this is for debugging, do it on a small dataset
+TESTING: true # this is for debugging, do it on a small dataset
 load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_arch_basic_encoder/baseline_model.pt # or false
 test_only: false # Do not train
 offline_pred: false
@@ -18,6 +18,12 @@ save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off
 
+dataset:
+  img_height: 61
+  include_synthetic: false
+  num_of_channels: 1
+  image_prep: pil_with_distortion
+
 # Training data
 #dataset_folder: online_coordinate_data/8_stroke_vSmall_16
 #dataset_folder: online_coordinate_data/8_stroke_vFull
@@ -26,14 +32,6 @@ data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vFull
 dataset_folder: online_coordinate_data/MAX_stroke_vTEST_AUGMENTFull
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
-dataset_folder: online_coordinate_data/devnagari
-
-dataset:
-  img_height: 61
-  include_synthetic: false
-  num_of_channels: 1
-  image_prep: pil_with_distortion
-  max_width: 200
 
 # WARP
 warp: true
@@ -52,7 +50,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 16
+batch_size: 32
 
 ## GTs
 # All options include:
@@ -82,7 +80,7 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - cumsum
+  - null # THIS WILL BE A LOGIT
   - null
 
 ## Loss function
@@ -91,45 +89,46 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
   - name: l1_with_stroke_numbers
-    coef: .2
+    coef: 1
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.1
+    subcoef: 1, 1
   - name: cross_entropy
-    coef: 1
+    subcoef: 0.5
     gts:
       - eos
     activation: sigmoid
 
 loss_fns2:
   - name: dtw
-    coef: .2
+    coef: 1
     gts:
       - x
       - y
-      - stroke_number
-    subcoef: 1,1,.05
     dtw_mapping_basis:
       - x
       - y
+    cross_entropy_indices: # SIGMOID TAKEN DURING LOSS
+      - stroke_number
+    relativefy_cross_entropy_gt: true #
+
   - name: cross_entropy
-    coef: 1
+    subcoef: 0.01
     gts:
       - eos
     activation: sigmoid
 
 # Always report these, but don't include in backpropagation
-loss_fns_to_report:
+#loss_fns_to_report:
 #  - name: l2_coords
 #    gts:
 #      - x
 #      - y
-  - name: l1_coords
-    gts:
-      - x
-      - y
+#  - name: l1_coords
+#    gts:
+#      - x
+#      - y
 
 convolve_func: cumsum # or conv_weight, conv_window, cumsum
 cumsum_window_size: 21 # only for the conv_window and conv_weight
