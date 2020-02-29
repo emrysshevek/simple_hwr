@@ -245,7 +245,7 @@ class StrokeRecoveryDataset(Dataset):
         return gt
 
     @staticmethod
-    def prep_image(gt, img_height=61, add_distortion=True):
+    def prep_image(gt, img_height=61, add_distortion=True, use_stroke_number=None):
         """ Important that this modifies the actual GT so that plotting afterward still works
 
         Args:
@@ -261,7 +261,8 @@ class StrokeRecoveryDataset(Dataset):
         padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
         # padded_gt = StrokeRecoveryDataset.enlarge_gt(padded_gt, width=image_width)  # enlarge to fit - needs to be at least as big as GTs
 
-        img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=None, height=img_height, right_padding="random", linewidth=None, max_width=10)
+        img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=None, height=img_height,
+                           right_padding="random", linewidth=None, max_width=10, use_stroke_number=use_stroke_number)
         # img = img[::-1] # convert to lower origin format
         if add_distortion:
             img = add_unormalized_distortion(img)
@@ -291,7 +292,7 @@ class StrokeRecoveryDataset(Dataset):
         # Render image
         add_distortion = "distortion" in self.image_prep.lower()
         if self.image_prep.lower().startswith("pil"):
-            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion)
+            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion, use_stroke_number="stroke_number" in self.gt_format)
         else:
             # Check if the image is already loaded
             if "line_img" in item and not add_distortion:
