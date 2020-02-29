@@ -44,6 +44,7 @@ def run_epoch(dataloader, report_freq=500):
     logger.info(("Epoch: ", epoch))
 
     for i, item in enumerate(dataloader):
+        #print(item["label_lengths"])
         current_batch_size = item["line_imgs"].shape[0]
         instances += current_batch_size
         #print(item["gt"].shape, item["label_lengths"])

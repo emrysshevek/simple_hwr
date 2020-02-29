@@ -240,11 +240,12 @@ class TrainerStrokeRecovery(Trainer):
         return preds
 
     def train(self,  item, train=True, **kwargs):
-        try:
-            self._train(item, train=train, **kwargs)
-        except Exception as e:
-            logger.error(e)
-        return None, None, None
+        return self._train(item, train=train, **kwargs)
+        # try:
+        #     return self._train(item, train=train, **kwargs)
+        # except Exception as e:
+        #     logger.error(e)
+        # return None, None, None
 
     def _train(self, item, train=True, **kwargs):
         """ Item is the whole thing from the dataloader

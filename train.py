@@ -195,7 +195,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0)
 
         labels = x['labels'].requires_grad_(False)  # numeric loss_indices version of ground truth
-        label_lengths = x['label_lengths'].requires_grad_(False)
+        label_lengths = x['label_lengths'].`requires_grad_`(False)
         gt = x['gt']  # actual string ground truth
 
         # Add online/offline binary flag

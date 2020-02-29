@@ -630,12 +630,8 @@ def synthetic():
     variant="FullSynthetic100k"
     json_path = "synthetic_online/train_synth_full.json"
     #json_path = "synthetic_online/train_synth_sample.json"
-    if square:
-        variant += "Square"
-    if instances is None:
-        variant += "Full"
-    else:
-        variant += f"Small_{instances}"
+    if "sample" in json_path:
+        variant += "_sample"
 
     number_of_strokes = str(strokes) if isinstance(strokes, int) else "MAX"
     data_set = CreateDataset(max_strokes=strokes,

@@ -335,8 +335,7 @@ def make_config_consistent_stroke(config):
         if config.TESTING:
             config.dataset.extra_dataset = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords_sample.json"]
         else:
-            config.dataset.extra_dataset = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k.json",
-              "online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords50k-100k.json"]
+            config.dataset.extra_dataset = ["online_coordinate_data/MAX_stroke_vFullSynthetic100kFull/train_online_coords.json"]
     else:
         config.dataset.extra_dataset = []
 

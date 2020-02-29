@@ -131,7 +131,8 @@ class StrokeRecoveryDataset(Dataset):
                  **kwargs):
 
         super().__init__()
-        self.__dict__.update(kwargs)
+        self.max_width = 2000
+
         # Make it an iterable
         if isinstance(data_paths, str) or isinstance(data_paths, Path):
             data_paths = [data_paths]
@@ -146,6 +147,10 @@ class StrokeRecoveryDataset(Dataset):
         self.config = config
         self.img_height = img_height
         self.image_prep = image_prep
+
+        # This will override defaults above
+        self.__dict__.update(kwargs)
+
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
@@ -208,7 +213,7 @@ class StrokeRecoveryDataset(Dataset):
         # Calculate how many points are needed
 
         if self.cnn:
-            add_output_size_to_data(data, self.cnn, root=self.root)
+            add_output_size_to_data(data, self.cnn, root=self.root, max_width=self.max_width)
             self.cnn=True # remove CUDA-object from class for multiprocessing to work!!
 
         #print(data[0].keys())
@@ -497,7 +502,7 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
         instance[key]=width_to_output_mapping[width]
     #cnn.to("cuda")
 
-def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_height=61):
+def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_height=61, max_width=2000):
     """ IMAGE SIZE TO NUMBER OF GTs
     """
     # If using default
@@ -511,7 +516,7 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
 
     bad_indicies = []
     for i, instance in enumerate(data):
-        if not "shape" in instance:
+        if not "shape" in instance: # HEIGHT, WIDTH, CHANNEL? 61x4037x3
             try:
                 image_path = root / instance['image_path']
                 img = read_img(image_path)
@@ -520,8 +525,9 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
                 print("Failed", image_path)
                 bad_indicies.append(i)
                 instance["shape"] = [0, 0]
-
         width = instance["shape"][1]
+        if width > max_width:
+            bad_indicies.append(i)
         instance[key] = width_to_output_mapping(width)
 
     for index in sorted(bad_indicies, reverse=True):

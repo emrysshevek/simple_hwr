@@ -33,6 +33,7 @@ dataset:
   include_synthetic: false
   num_of_channels: 1
   image_prep: pil_with_distortion
+  max_width: 200
 
 # WARP
 warp: true
@@ -51,7 +52,7 @@ scheduler_gamma: .95          # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 32
+batch_size: 16
 
 ## GTs
 # All options include:
