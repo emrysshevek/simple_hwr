@@ -127,7 +127,11 @@ class StrokeLoss:
         ## Loop through loss functions
         for i, loss_name in enumerate(self.master_loss_defintion):
             loss_fn = self.master_loss_defintion[loss_name]["fn"]
-            loss_tensor = loss_fn(preds, targs, label_lengths)
+            try:
+                loss_tensor = loss_fn(preds, targs, label_lengths)
+            except Exception as e:
+                logger.error(e)
+                continue
             loss = to_value(loss_tensor)
             try:
                 if loss_name.lower() != "softdtw":
