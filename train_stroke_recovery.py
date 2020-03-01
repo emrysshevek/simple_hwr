@@ -293,7 +293,6 @@ def main(config_path, testing=False):
     if config.load_path:
         utils.load_model_strokes(config)  # should be load_model_strokes??????
         print(config.counter.epochs)
-        Stpo
 
     check_epoch_build_loss(config, loss_exists=False)
     current_epoch = config.counter.epochs

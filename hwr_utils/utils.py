@@ -773,23 +773,8 @@ def load_model_strokes(config):
             warnings.warn("Unable to load from visdom.json; does the file exist?")
             ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
-    # Load Loss History
+    # Load Stats History
     stat_path = os.path.join(path, "all_stats.json")
-    loss_path = os.path.join(path, "losses.json")
-
-    if Path(loss_path).exists():
-        with open(loss_path, 'r') as fh:
-            losses = json.load(fh)
-    else:
-        print("losses.json not found in load_path folder")
-    try:
-        config["train_cer"] = losses["train_cer"]
-        config["test_cer"] = losses["test_cer"]
-        config["validation_cer"] = losses["validation_cer"]
-    except:
-        warnings.warn("Could not load from losses.json")
-        config["train_cer"]=[]
-        config["test_cer"] = []
 
     # Load stats
     try:
