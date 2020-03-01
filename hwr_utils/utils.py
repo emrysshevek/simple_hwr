@@ -196,7 +196,7 @@ def load_config(config_path, hwr=True, testing=False):
 
     # Main output folder
     if config["load_path"]:
-        _output = incrementer(Path(config_root), "new_experiment") # if it has a load path, create a new experiment in that same folder!
+        _output = incrementer(Path(config["load_path"]).parent, "new_experiment") # if it has a load path, create a new experiment in that same folder!
         experiment = _output.stem
         output_root = _output.as_posix()
     else:
