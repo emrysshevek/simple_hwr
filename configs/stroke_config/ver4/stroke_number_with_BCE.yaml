@@ -80,8 +80,8 @@ gt_opts:
 pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc.
   - cumsum
   - null
-  - null # THIS WILL BE A LOGIT
-  - sigmoid
+  - sigmoid # THIS WILL BE A LOGIT
+  - sigmoid # This is done last
 
 ## Loss function
 # l1, dtw, ssl, cross_entropy

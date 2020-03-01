@@ -300,9 +300,6 @@ class TrainerStrokeRecovery(Trainer):
 
         return loss, preds, None
 
-    # def sos(self):
-    #
-
     def test(self, item, **kwargs):
         self.model.eval()
         return self.train(item, train=False, **kwargs)

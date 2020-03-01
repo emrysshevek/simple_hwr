@@ -120,7 +120,7 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
-        losses = torch.empty(len(self.master_loss_defintion), requires_grad=False)
+        losses = torch.zeros(len(self.master_loss_defintion), requires_grad=False)
         batch_size = len(preds)
         total_points = tensor_sum(label_lengths)
 
