@@ -151,7 +151,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "convolve_func": "conv_weight", # or conv_window
                     "model_name":"normal",
                     "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1, "include_synthetic": True},
-                    "coordconv_method": "y_abs"
+                    "coordconv_method": "y_abs",
+                    "model": {"nHidden": 128, "num_layers": 2},
                     }
 
 def debugger(func):

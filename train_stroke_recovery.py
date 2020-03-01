@@ -247,7 +247,8 @@ def main(config_path, testing=False):
                     "device":device,
                     "cnn_type":config.cnn_type,
                     "first_conv_op":config.coordconv,
-                    "first_conv_opts":config.coordconv_opts}
+                    "first_conv_opts":config.coordconv_opts,
+                    **config.model}
 
     model_dict = {"start_point_lstm": start_points.StartPointModel,
               "start_point_lstm2":start_points.StartPointModel2,
