@@ -22,6 +22,7 @@ logger = logging.getLogger("root."+__name__)
 
 PADDING_CONSTANT = 1 # 1=WHITE, 0=BLACK
 MAX_LEN = 64
+PARAMETER = "d" # t or d for time/distance resampling
 
 script_path = Path(os.path.realpath(__file__))
 project_root = script_path.parent.parent
@@ -154,7 +155,7 @@ class StrokeRecoveryDataset(Dataset):
         ### LOAD THE DATA LAST!!
         self.data = self.load_data(root, max_images_to_load, data_paths)
 
-    def resample_one(self, item, parameter="d"):
+    def resample_one(self, item, parameter=PARAMETER):
         """ Resample will be based on time, unless the number of samples has been calculated;
                 this is only calculated if you supply a pickle file or a CNN! In this case the number
                 of stroke points corresponds to the image width in pixels. Otherwise:
@@ -162,8 +163,6 @@ class StrokeRecoveryDataset(Dataset):
                     OR
                     * If "scale_time_distance" was selected. the number of stroke points corresponds to how long
                     the strokes are
-                Importantly, there's no method right now to resample based on distance traveled; PARTIALLY IMPLEMENTED -- need to fix interpolation at end of stroke points!!
-                ALSO CHANGE INTERVAL!
         Args:
             item: Dictionary with a "raw" dictionary item
         Returns:
@@ -176,8 +175,13 @@ class StrokeRecoveryDataset(Dataset):
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
             print("UNK NUMBER OF SAMPLES!!!")
 
-        starts = output.start_times if parameter=="t" else output.start_distances
-        gt = create_gts(x_func, y_func, starts=starts,
+        if parameter == "t":
+            start_times = output.start_times
+        else:
+            start_times = output.start_distances
+            item["start_distances"] = output.start_distances
+
+        gt = create_gts(x_func, y_func, start_times=start_times,
                         number_of_samples=item["number_of_samples"],
                         noise=self.noise,
                         gt_format=self.gt_format)
@@ -197,7 +201,6 @@ class StrokeRecoveryDataset(Dataset):
             all_results = []
             for item in data_list:
                 all_results.append(self.resample_one(item))
-
         return all_results
 
     def load_data(self, root, images_to_load, data_paths):
@@ -277,13 +280,43 @@ class StrokeRecoveryDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        """ data[idx].keys() = 'full_img_path',
+                                'xml_path',
+                                'image_path',
+                                'dataset',
+                                'x', 'y', 't',
+                                'start_times',
+                                'start_strokes',
+                                'x_to_y', 'raw',
+                                'shape',
+                                'number_of_samples',
+                                'gt', 'x_func', 'y_func'])
+
+        Args:
+            idx:
+
+        Returns:
+
+        """
         item = self.data[idx]
         image_path = self.root / item['image_path']
 
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x desired_num_of_strokes
         if self.image_prep.startswith("pil") and not ("no_warp" in self.image_prep):
-            gt = item["gt"].copy() # LENGTH, VOCAB
+            if False:
+                gt = item["gt"].copy() # LENGTH, VOCAB
+            else:
+                start_times = item["start_times"] if PARAMETER == "t" else item["start_distances"]
+                gt = create_gts(item["x_func"], item["y_func"], start_times, item["number_of_samples"], self.gt_format, noise="random")
+                assert gt.shape[0] == item["gt"].shape[0]
+
+                # try:
+                #     assert np.allclose(gt,item["gt"])
+                # except:
+                #     print(gt[0:5], "\n", item["gt"][0:5])
+                #     stop
+
             gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
             gt = np.c_[gt,item["gt"][:,2:]]
         else:
@@ -364,13 +397,13 @@ def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
                       noise=noise,
                       gt_format=gt_format)
 
-def create_gts(x_func, y_func, starts, number_of_samples, gt_format, noise=None):
+def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=None):
     """ Return LENGTH X VOCAB
 
     Args:
         x_func:
         y_func:
-        starts: [1,0,0,0,...] where 1 is the start stroke point
+        start_times: [.1,1.2,3.6,...]
         number_of_samples: Number of GT points
         noise: Add some noise to the sampling
         start_of_stroke_method: "normal" - use 1's for starts
@@ -383,9 +416,8 @@ def create_gts(x_func, y_func, starts, number_of_samples, gt_format, noise=None)
     # [{'el': 'x', 'opts': None}, {'el': 'y', 'opts': None}, {'el': 'stroke_number', 'opts': None}, {'el': 'eos', 'opts': None}]
 
     # Sample from x/y functions
-    x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, starts,
+    x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, start_times,
                                                    number_of_samples=number_of_samples, noise=noise)
-    assert len(x) == len(y) == number_of_samples
 
     # Make coordinates relative to previous one
     # x = stroke_recovery.relativefy(x)

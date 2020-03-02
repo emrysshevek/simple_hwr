@@ -1,6 +1,6 @@
 
 class Stat:
-    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None):
+    def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None, **kwargs):
         """
 
         Args:
@@ -85,7 +85,7 @@ def is_primitive(thing):
     return isinstance(thing, primitive)
 
 class AutoStat(Stat):
-    def __init__(self, counter_obj, x_weight, x_plot, x_title="", y_title="", name="", plot=True, ymax=None, train=True):
+    def __init__(self, counter_obj, x_weight, x_plot, x_title="", y_title="", name="", plot=True, ymax=None, train=True, **kwargs):
         """ AutoStat - same as Stat, but don't need to specify the x-coords every time
             Specify the x_weight once, which should be an ADDRESS of some object (not an actual number) (e.g. number of instances, number of datapoints)
             Specify the x_plot once, which should be an ADDRESS of some object (not an actual number) (e.g. number of epochs -- this will be the x-axis)

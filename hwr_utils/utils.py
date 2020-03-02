@@ -774,25 +774,13 @@ def load_model_strokes(config):
             warnings.warn("Unable to load from visdom.json; does the file exist?")
             ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
 
+
     # Load Stats History
     stat_path = os.path.join(path, "all_stats.json")
 
     # Load stats
     try:
-        with open(stat_path, 'r') as fh:
-            stats = json.load(fh)
-        # Update the counter
-        counter = stats["counter"]
-        config.counter.__dict__.update(counter)
-
-        stats = stats["stats"]
-        for name, stat in config["stats"].items():
-            if isinstance(stat, Stat):
-                config["stats"][name].y = stats[name]["y"]
-            else:
-                for i in stats[name]: # so we don't mess up the reference etc.
-                    config["stats"][name].append(i)
-
+        load_stats_stroke(config, stat_path)
     except:
         warnings.warn("Could not load from all_stats.json")
 
@@ -846,6 +834,22 @@ def save_stats_stroke(config, bsf):
     with open(os.path.join(path, "all_stats.json"), 'w') as fh:
         json.dump(results, fh, cls=EnhancedJSONEncoder, indent=4)
 
+def load_stats_stroke(config, stat_path):
+    with open(stat_path, 'r') as fh:
+        loaded_stats = json.load(fh)
+
+    # Update the counter
+    counter = loaded_stats["counter"]
+    config.counter.__dict__.update(counter)
+
+    loaded_stats = loaded_stats["stats"]
+    for name, stat in config["stats"].items():
+        if isinstance(stat, Stat):
+            config["stats"][name].y = loaded_stats[name]["y"]
+            config["stats"][name].x = loaded_stats[name]["x"]
+        else:
+            for i in loaded_stats[name]:  # so we don't mess up the reference etc.
+                config["stats"][name].append(i)
 
 def save_model(config, bsf=False):
     # Can pickle everything in config except items below

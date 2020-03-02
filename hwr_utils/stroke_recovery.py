@@ -503,7 +503,7 @@ def normalize(x_list, scale_param=None):
         warnings.warn(f"Scale parameter is {scale_param}, {x_list}")
     return x_list, scale_param
 
-def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plot=False):
+def sample_OLD(function_x, function_y, starts, number_of_samples=64, noise=None, plot=False):
     """ Given some ipolate functions, return
 
     Args:
@@ -519,14 +519,14 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
     """
     last_time = starts[-1] # get the last start point - this should actually be the first start point of the next stroke!!
     interval = last_time / number_of_samples
-    std_dev = interval / 4
+    std_dev = interval / 3
     time = np.linspace(0, last_time, number_of_samples)
 
     if noise:
         momentum = .8
-        if noise == "random":
+        if noise == "random": # random noise over time/distance on each point
             noises = np.random.normal(0, std_dev, time.shape)
-        elif noise == "lagged":
+        elif noise == "lagged": # cumulative noise
             noises = []
             offset = 0
             noise = 0
@@ -562,6 +562,57 @@ def sample(function_x, function_y, starts, number_of_samples=64, noise=None, plo
 
     #print(time)
     return function_x(time), function_y(time), is_start_stroke
+
+def sample(function_x, function_y, start_times, number_of_samples=64, noise=None, plot=False):
+    """ Given some ipolate functions, return
+
+    Args:
+        function_x:
+        function_y:
+        start_times:
+        number_of_samples:
+        noise: "random" or "lagged"
+        plot:
+
+    Returns:
+        list of x_points, list of y_points, binary list of whether the corresponding point is a start stroke
+    """
+    adj_number_of_samples = number_of_samples - len(start_times) + 1 # EXCLUDE LAST TIME
+    last_time = start_times[-1] # get the last start point - this should actually be the first start point of the next stroke!!
+    interval = last_time / (adj_number_of_samples)
+    std_dev = interval / 3 # next point is ~3 std deviations away
+    time = np.linspace(0, last_time, adj_number_of_samples)
+    noise = "random" if noise == True else noise
+
+    if noise:
+        momentum = .8
+        if noise == "random": # random noise over time/distance on each point
+            noises = np.random.normal(0, std_dev, time.shape)
+        else:
+            raise NotImplemented(f"Noise type: {noise} not implemented")
+        if plot:
+            plt.plot(time, noises)
+            plt.show()
+        time[:-1] += noises[:-1]
+        time = np.maximum(time, EPSILON) # 0 start stroke will be added below
+        time = np.minimum(time, last_time)
+
+    time = np.r_[time, start_times[:-1]]  # add the start times back in; last start time is the same as the end time, don't double count
+
+    # Add start stroke IDs
+    is_start_stroke = np.zeros(len(time))
+    is_start_stroke[-len(start_times):] = 1
+    time = np.c_[time, is_start_stroke]
+
+    # Sort based on time, split back up
+    time = time[np.argsort(time[:, 0], kind='mergesort')]
+    is_start_stroke = time[:, 1]
+    is_start_stroke[-1] = 1 # make the last stroke be a start stroke time, in case resampled later and we need an end time
+    time = time[:, 0]
+
+    assert len(time) == number_of_samples
+    return function_x(time), function_y(time), is_start_stroke
+
 
 def calc_stroke_distances(x,y,start_strokes):
     """ Calculate total distance of strokes

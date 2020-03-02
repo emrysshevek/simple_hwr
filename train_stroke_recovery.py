@@ -184,7 +184,7 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=batch_size,
                                   shuffle=True,
-                                  num_workers=6,
+                                  num_workers=5,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
@@ -200,7 +200,7 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     test_dataloader = DataLoader(test_dataset,
                                   batch_size=batch_size,
                                   shuffle=True,
-                                  num_workers=3,
+                                  num_workers=5,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 

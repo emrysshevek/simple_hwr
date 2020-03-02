@@ -42,7 +42,15 @@ class Plot(object):
         # WHY WAS "Y" A NESTED LIST???
         #data = {"X": np.asarray(x), "Y": np.asarray([y])} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
 
-        data = {"X": np.asarray(x), "Y": np.asarray(y)} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
+        x = np.asarray(x)
+        if len(x) < len(y):
+            warnings.warn("X coords not found, interpolating")
+            if x[0] == 0 and len(x)>1:
+                x[0] = x[1]-.001
+            additional_x = np.linspace(0, x[0], len(y)-len(x))
+
+            x = np.r_[additional_x, np.asarray(x)]
+        data = {"X": x, "Y": np.asarray(y)} if plot_d["plot_type"] == "line" else {"X": np.asarray([x, y])}
 
         ## Update plot
         if "plot" in plot_d.keys():
@@ -208,12 +216,11 @@ def prep_path(foreign_paths):
         foreign_paths = [foreign_paths]
 
     for foreign_path in foreign_paths:
-        for i in os.listdir(foreign_path):
-            new_sub = Path(new_path) / i
+        for stats_file in Path(foreign_path).rglob("all_stats.json"):
+            experiment_folder_name = stats_file.parent.name
+            new_sub = Path(new_path) / experiment_folder_name
             new_sub.mkdir(parents=True)
-            stats = (Path(foreign_path) / i / "all_stats.json")
-            if stats.exists():
-                shutil.copy(stats, new_sub)
+            shutil.copy(stats_file, new_sub)
 
     return new_path.absolute()
 
@@ -247,9 +254,14 @@ if __name__=="__main__":
                  "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver3/",
                  "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/"]
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
+        paths = ["/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/indic/first_attempt"]
+        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/20200228_202620-new_normal",
+                 "/media/data/GitHub/simple_hwr/RESULTS/ver4",
+                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver4/20200301_221959-stroke_number_with_BCE_bigger_still"]
+
         path = prep_path(paths)
     else:
-        path = Path("/media/taylor/Data/Linux/Github/simple_hwr/RESULTS/COMPARISON/10_")
+        path = Path("/media/data/GitHub/simple_hwr/RESULTS/COMPARISON/11_")
 
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"

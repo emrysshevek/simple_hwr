@@ -439,17 +439,18 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
 
     if plot_points:
         image_type = "RGB"
-        linewidth=1
+        stroke_point_size=2
         background = Image.new(image_type, (width, height), (255, 255, 255))
         background.paste(img)  # 3 is the alpha channel
         draw = ImageDraw.Draw(background)
 
         for line in pil_format:
-            for point in line:
-                line1 = point - linewidth / 2
-                line2 = point + linewidth / 2
+            for i, point in enumerate(line):
+                color = 'blue' if i else 'orange'
+                line1 = point - stroke_point_size / 2
+                line2 = point + stroke_point_size / 2
                 point = np.r_[line1, line2].flatten().tolist()
-                draw.ellipse(point, fill='blue', outline='blue')
+                draw.ellipse(point, fill=color, outline=color)
         img = background
 
     data = np.array(img)[::-1]  # invert the y-axis, to upper origin
