@@ -1,12 +1,15 @@
-import pickle, json
-from pathlib import Path
-import os
-from visdom import Visdom
-import numpy as np
-import torch
-import warnings
-import json
-from hwr_utils.stattrack import Stat
+import sys 
+sys.path.append("..")
+sys.path.append(".")
+import pickle, json 
+from pathlib import Path 
+import os 
+from visdom import Visdom 
+import numpy as np 
+import torch 
+import warnings 
+import json 
+from hwr_utils.stattrack import Stat 
 import traceback
 
 ## Some functions stolen from https://github.com/theevann/visdom-save
@@ -255,7 +258,7 @@ if __name__=="__main__":
                  "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/"]
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
         paths = ["/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/indic/first_attempt"]
-        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/20200228_202620-new_normal",
+        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4",
                  "/media/data/GitHub/simple_hwr/RESULTS/ver4",
                  "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver4/20200301_221959-stroke_number_with_BCE_bigger_still"]
 

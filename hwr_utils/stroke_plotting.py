@@ -283,9 +283,10 @@ def gt_to_pil_format(instance, stroke_number=True, has_start_points=True):
     if has_start_points:
         # if start points are sequential 000011112222...
         start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
-
         start_indices = np.argwhere(np.round(start_points) == 1).astype(int).reshape(-1)
         l = np.split(instance[:, 0:2], start_indices)
+        if np.any(start_points < 0):
+            raise Exception("Start points are less than 0")
         return l
     else:
         one_liner = [instance.flatten()]
@@ -387,7 +388,7 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
     """
     ### HACK
     if use_stroke_number is None:
-        use_stroke_number = True if gt.shape[-1] > 2 and np.any(gt[:,2] > 3) else False
+        use_stroke_number = True if gt.shape[-1] > 2 and np.any(gt[:,2] >= 2) else False
 
     if isinstance(gt, Tensor):
         gt = gt.numpy()

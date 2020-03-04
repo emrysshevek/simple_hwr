@@ -43,8 +43,10 @@ from scipy.spatial import KDTree
 logger = logging.getLogger("root."+__name__)
 
 EPSILON = 1e-8
+
 def distance_metric(x,y):
-    """ Euclidean distance metric between x and x-1; first item in stroke has distance of epsilon
+    """ Returns same sized array with 0 the first distance
+        Euclidean distance metric between x and x-1; first item in stroke has distance of epsilon
     Args:
         x: array-like
         y: array-like
@@ -127,7 +129,7 @@ def prep_stroke_dict(strokes, time_interval=None, scale_time_distance=True):
     t_list = []
     start_strokes = []
     start_times = []
-    epsilon = 1e-8
+    epsilon = EPSILON
 
     # Epsilon is the amount of time before or after a stroke for the interpolation
     # Time between strokes must be greater than epsilon, or interpolated points between strokes will result
@@ -577,27 +579,27 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
     Returns:
         list of x_points, list of y_points, binary list of whether the corresponding point is a start stroke
     """
-    adj_number_of_samples = number_of_samples - len(start_times) + 1 # EXCLUDE LAST TIME
+    adj_number_of_samples = number_of_samples - len(start_times)
     last_time = start_times[-1] # get the last start point - this should actually be the first start point of the next stroke!!
     interval = last_time / (adj_number_of_samples)
     std_dev = interval / 3 # next point is ~3 std deviations away
-    time = np.linspace(0, last_time, adj_number_of_samples)
-    noise = "random" if noise == True else noise
+    time = np.linspace(interval, last_time-interval, adj_number_of_samples, dtype=np.float64)
 
+    noise = "random" if noise is True else noise
     if noise:
-        momentum = .8
         if noise == "random": # random noise over time/distance on each point
+            #np.random.seed(0)
             noises = np.random.normal(0, std_dev, time.shape)
         else:
             raise NotImplemented(f"Noise type: {noise} not implemented")
         if plot:
             plt.plot(time, noises)
             plt.show()
-        time[:-1] += noises[:-1]
-        time = np.maximum(time, EPSILON) # 0 start stroke will be added below
-        time = np.minimum(time, last_time)
+        time += noises
+        time = np.maximum(time, 3*EPSILON) # 0 start stroke will be added below
+        time = np.minimum(time, last_time-3*EPSILON)
 
-    time = np.r_[time, start_times[:-1]]  # add the start times back in; last start time is the same as the end time, don't double count
+    time = np.r_[time, start_times+EPSILON*2]  # add the start times back in; last start time is the same as the end time
 
     # Add start stroke IDs
     is_start_stroke = np.zeros(len(time))
@@ -607,9 +609,11 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
     # Sort based on time, split back up
     time = time[np.argsort(time[:, 0], kind='mergesort')]
     is_start_stroke = time[:, 1]
-    is_start_stroke[-1] = 1 # make the last stroke be a start stroke time, in case resampled later and we need an end time
     time = time[:, 0]
 
+    # Make sure the first/last strokes SOS
+    assert is_start_stroke[-1] == 1
+    assert is_start_stroke[0] == 1
     assert len(time) == number_of_samples
     return function_x(time), function_y(time), is_start_stroke
 
@@ -648,17 +652,16 @@ def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=Tru
     Returns:
         distance travelled for each complete stroke
     """
-    if isinstance(x, list):
-        x=np.array(x)
-    if isinstance(y, list):
-        y=np.array(y)
+    x=np.asarray(x)
+    y=np.asarray(y)
 
-    distances = distance_metric(x,y)
+    distances = distance_metric(x,y) # same sized array with 0 as first distance
     distances[start_strokes==1] = EPSILON # don't count pen up motion
-    distances[0] = 0
+    distances[0] = 0 # 0, not epsilon for first one
     cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps desired_num_of_strokes the same
 
     if has_repeated_end:
+        assert x[-1] == x[-2]
         cum_sum[-1] = cum_sum[-2]+10 # for interpolating later
 
     return cum_sum

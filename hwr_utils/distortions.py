@@ -204,8 +204,8 @@ def warp_points(points, random_state=None, **kwargs):
         l, r = math.ceil(pt[1]), math.floor(pt[1])
         return np.mean((map_y[t][l], map_y[t][r], map_y[b][l], map_y[b][r])), np.mean((map_x[t][l], map_x[t][r], map_x[b][l], map_x[b][r]))
 
-    warped = np.array([get_points(pt) for pt in points])
-    warped[:, :] -= np.min(warped)
+    warped = np.array([get_points(pt) for pt in points]) # WIDTH x 2
+    warped[:, 0:2] -= np.min(warped)
     warped[:, 0] *= bounds[0]/(np.max(warped[:, 0]) + 1)
     warped[:, 1] *= bounds[1]/(np.max(warped[:, 1]) + 1)
     return warped

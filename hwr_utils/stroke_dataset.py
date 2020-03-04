@@ -143,7 +143,7 @@ class StrokeRecoveryDataset(Dataset):
         self.root = Path(root)
         self.num_of_channels = num_of_channels
         self.interval = .05
-        self.noise = None
+        self.noise = True
         self.cnn = cnn
         self.config = config
         self.img_height = img_height
@@ -177,9 +177,11 @@ class StrokeRecoveryDataset(Dataset):
 
         if parameter == "t":
             start_times = output.start_times
-        else:
+        elif parameter == "d":
             start_times = output.start_distances
             item["start_distances"] = output.start_distances
+        else:
+            raise NotImplemented(f"Unknown {parameter}")
 
         gt = create_gts(x_func, y_func, start_times=start_times,
                         number_of_samples=item["number_of_samples"],
@@ -304,15 +306,16 @@ class StrokeRecoveryDataset(Dataset):
         ## DEFAULT GT ARRAY
         # X, Y, FLAG_BEGIN_STROKE, FLAG_END_STROKE, FLAG_EOS - VOCAB x desired_num_of_strokes
         if self.image_prep.startswith("pil") and not ("no_warp" in self.image_prep):
-            if False:
+            if True:
                 gt = item["gt"].copy() # LENGTH, VOCAB
-            else:
+            else: # WHAT THE HELL IS HAPPENING HERE?!??!
                 start_times = item["start_times"] if PARAMETER == "t" else item["start_distances"]
-                gt = create_gts(item["x_func"], item["y_func"], start_times, item["number_of_samples"], self.gt_format, noise="random")
-                assert gt.shape[0] == item["gt"].shape[0]
+                gt = create_gts(item["x_func"], item["y_func"], start_times, item["number_of_samples"], self.gt_format, noise=True).copy()
+
 
                 # try:
                 #     assert np.allclose(gt,item["gt"])
+                #     print("same")
                 # except:
                 #     print(gt[0:5], "\n", item["gt"][0:5])
                 #     stop
@@ -322,10 +325,12 @@ class StrokeRecoveryDataset(Dataset):
         else:
             gt = item["gt"]
 
+        assert gt.shape[0] == item["gt"].shape[0]
+
         # Render image
         add_distortion = "distortion" in self.image_prep.lower()
         if self.image_prep.lower().startswith("pil"):
-            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion, use_stroke_number="stroke_number" in self.gt_format)
+            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion, use_stroke_number=("stroke_number" in self.gt_format))
         else:
             # Check if the image is already loaded
             if "line_img" in item and not add_distortion:
@@ -339,8 +344,8 @@ class StrokeRecoveryDataset(Dataset):
         #img = read_img(image_path)
 
         # Assumes dimension 2 is start points, 3 is EOS
-        # start_points = np.delete(gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)], 2, -1)[:MAX_LEN]
-        if gt.shape[-1] > 3:
+        # START POINT MODEL
+        if False and gt.shape[-1] > 3:
             #start_points = gt[np.logical_or(gt[:, 2] > 0, gt[:, 3] > 0)][:MAX_LEN] # JUST LEAVE THE SOS's in
 
             # Logic to get parallel SOS and EOS
@@ -422,10 +427,6 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
     # Make coordinates relative to previous one
     # x = stroke_recovery.relativefy(x)
 
-    # Create GT matrix
-    end_of_sequence_flag = np.zeros(x.shape[0])
-    end_of_sequence_flag[-1] = 1
-
     # Put it together
     gt = []
 
@@ -437,6 +438,10 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
         elif el == "sos":
             gt.append(is_start_stroke)
         elif el == "eos":
+            # Create GT matrix
+            end_of_sequence_flag = np.zeros(x.shape[0])
+            end_of_sequence_flag[-1] = 1
+
             gt.append(end_of_sequence_flag)
         elif "sos_interp" in el:
             # Instead of using 1 to denote start of stroke, use 0, increment for each additional stroke based on distance of stroke
@@ -445,11 +450,14 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
         elif el == "stroke_number": # i.e. 1,1,1,1,1,2,2,2,2,2...
             stroke_number = np.cumsum(is_start_stroke)
             gt.append(stroke_number)
+        else:
+            raise Exception(f"Unkown GT format: {el}")
 
     gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
 
     # print(gt)
     # draw_from_gt(gt, show=True)
+    # input()
     # stop
     return gt
 
@@ -535,18 +543,19 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
         instance[key]=width_to_output_mapping[width]
     #cnn.to("cuda")
 
+def img_width_to_pred_mapping(width, cnn_type="default64"):
+    # If using default
+    if cnn_type=="default":
+        return int(width / 4) + 1
+    elif cnn_type in ("default64", "FAKE"):
+        return -(width % 2) + width + 4
+    else:
+        raise Exception(f"Unknown CNN type {cnn_type}")
+
+
 def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_height=61, max_width=2000):
     """ IMAGE SIZE TO NUMBER OF GTs
     """
-    # If using default
-    if cnn.cnn_type=="default":
-        width_to_output_mapping = lambda width: int(width / 4) + 1
-    elif cnn.cnn_type in ("default64", "FAKE"):
-        # If using default64 - go from image size
-        width_to_output_mapping = lambda width: -(width % 2) + width + 4
-    else:
-        raise Exception(f"Unknown CNN type {cnn.cnn_type}")
-
     bad_indicies = []
     for i, instance in enumerate(data):
         if not "shape" in instance: # HEIGHT, WIDTH, CHANNEL? 61x4037x3
@@ -561,7 +570,7 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
         width = instance["shape"][1]
         if width > max_width:
             bad_indicies.append(i)
-        instance[key] = width_to_output_mapping(width)
+        instance[key] = img_width_to_pred_mapping(width, cnn.cnn_type)
 
     for index in sorted(bad_indicies, reverse=True):
         print("Deleting bad files", index)
