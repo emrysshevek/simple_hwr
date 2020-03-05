@@ -313,13 +313,6 @@ class TrainerStrokeRecovery(Trainer):
         pred_logits = model(line_imgs).cpu()
 
         new_preds = pred_logits
-        # new_preds = pred_logits.clone()
-        # # DO A RELU IF NOT DOING sigmoid later!!!
-        # for i in relu_activations:
-        #     new_preds[:, :, i] = RELU(new_preds[:, :, i])
-        # for i in sigmoid_activations:
-        #     new_preds[:, :, i] = SIGMOID(new_preds[:, :, i])
-
         preds = new_preds.permute(1, 0, 2) # Width,Batch,Vocab -> Batch, Width, Vocab
 
 
@@ -332,6 +325,17 @@ class TrainerStrokeRecovery(Trainer):
         ## Shorten - label lengths currently = width of image after CNN
         if not label_lengths is None:
             preds = TrainerStrokeRecovery.truncate(preds, label_lengths) # Convert square torch object to a list, removing predictions related to padding
+
+
+        # THIS IS A "PRE" ACTIVATION, MUST NOT BE DONE DURING TRAINING!
+        if (sigmoid_activations or relu_activations) and not train:
+            # PREDS ARE A LIST
+            for i, p in enumerate(preds):
+                preds[i][:, sigmoid_activations] = SIGMOID(p[:, sigmoid_activations])
+                if relu_activations:
+                    preds[i][:, relu_activations] = RELU(p[:, relu_activations])
+
+
         return preds
 
     def update_stats(self, item, preds, train=True):

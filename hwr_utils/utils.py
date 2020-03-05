@@ -1191,7 +1191,7 @@ def kill_gpu_hogs(force=False):
             x = check_output([find_processes_command], shell=True)
             all_python_processes = x.decode().split("\n")[:-1]
             for process in all_python_processes:
-                if not any([ew in process for ew in exclusion_words]):
+                if not any([ew in process.lower() for ew in exclusion_words]):
                     hwr_logger.logger.info(f"killing {process}")
                     try:
                         os.kill(int(process.split()[2]), signal.SIGTERM)

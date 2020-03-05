@@ -802,7 +802,7 @@ def get_nearest_point(reference, moving_component, reference_is_image=False, **k
     if reference_is_image:
         height = reference.shape[0]
         if len(reference.shape)==3:
-            reference = np.squeeze(reference, 2)
+            reference = np.squeeze(reference)
         y_coords,x_coords = np.where(reference<150/127.5-1)
         reference = np.c_[x_coords, height-y_coords] / height
 
@@ -816,8 +816,9 @@ def get_nearest_point(reference, moving_component, reference_is_image=False, **k
     return nearest_points, distances
 
 def move_bad_points(reference, moving_component, reference_is_image=False, **kwargs):
-    get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
-
+    nearest_points, distances = get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
+    moving_component.detach().numpy()[:,0:2] = nearest_points
+    return moving_component
 
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE

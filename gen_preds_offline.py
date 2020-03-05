@@ -1,9 +1,9 @@
-from hwr_utils import visualize
-from torch.utils.data import DataLoader
 from models.basic import CNN, BidirectionalRNN
 from torch import nn
-from loss_module.stroke_recovery_loss import StrokeLoss
 from models.CoordConv import CoordConv
+from hwr_utils import visualize
+from torch.utils.data import DataLoader
+from loss_module.stroke_recovery_loss import StrokeLoss
 from trainers import TrainerStrokeRecovery
 from hwr_utils.stroke_dataset import BasicDataset
 from hwr_utils.stroke_recovery import *
@@ -13,23 +13,26 @@ from models.stroke_model import StrokeRecoveryModel
 from train_stroke_recovery import parse_args, graph
 from hwr_utils.hwr_logger import logger
 from pathlib import Path
-
 import os
 from subprocess import Popen
 
-
-utils.kill_gpu_hogs()
 pid = os.getpid()
-command=f"pgrep -fl python | awk '!/{pid}/{{print $1}}' | xargs kill"
-result = Popen(command, shell=True)
 
 #@debugger
 def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
 
-    config = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long/TEST.yaml"
-    config =     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
+    config_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long/TEST.yaml"
+    config_path =     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
+    config_path = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2.yaml"
+
+    load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/GOOD/baseline_model.pt"
+    load_path_override = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
+    load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
+    load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
+    load_path_override = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2_model_123_epochs.pt"
+
 
     # Make these the same as whereever the file is being loaded from; make the log_dir and results dir be a subset
     # main_model_path, log_dir, full_specs, results_dir, load_path
@@ -87,10 +90,9 @@ def main(config_path):
     trainer = TrainerStrokeRecovery(model, optimizer, config=config, loss_criterion=config.loss_obj)
 
     config.model = model
-    config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/GOOD/baseline_model.pt"
-    config.load_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
-    config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
-    config.load_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
+    config.load_path = load_path_override if ("load_path_override" in locals()) else config.load_path
+
+    config.sigmoid_indices = TrainerStrokeRecovery.get_indices(config.pred_opts, "sigmoid")
 
     # Load the GTs
     load_all_gts(gt_path)
@@ -98,23 +100,28 @@ def main(config_path):
     print("Number of GTs: {}".format(len(GT_DATA)))
 
     ## LOAD THE WEIGHTS
-    utils.load_model(config) # should be load_model_strokes??????
+    utils.load_model_strokes(config) # should be load_model_strokes??????
     model = model.to(device)
     model.eval()
     eval_only(eval_loader, model)
     globals().update(locals())
+
+def post_process(pred,gt):
+    return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
 
 def eval_only(dataloader, model):
     final_out = []
     for i, item in enumerate(dataloader):
         preds = TrainerStrokeRecovery.eval(item["line_imgs"], model,
                                            label_lengths=item["label_lengths"],
-                                           relative_indices=config.pred_relativefy)
+                                           relative_indices=config.pred_relativefy,
+                                           sigmoid_activations=config.sigmoid_indices)
 
-        preds_to_graph = [p.permute([1, 0]) for p in preds]
+        # Pred comes out of eval WIDTH x VOCAB
+        preds_to_graph = [post_process(p, item["line_imgs"][i]).permute([1, 0]) for i,p in enumerate(preds)]
 
         # Get GTs, save to file
-        if i==0:
+        if i<10:
             # Save a sample
             save_folder = graph(item, preds=preds_to_graph, _type="eval", epoch="current", config=config)
             output_path = (save_folder / "data")
