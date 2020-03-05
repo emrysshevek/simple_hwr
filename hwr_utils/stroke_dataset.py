@@ -60,11 +60,22 @@ def read_img(image_path, num_of_channels=1, target_height=61, resize=True, add_d
     return img
 
 def add_unormalized_distortion(img):
+    """ Converting image INT to image FLOAT. Image will be correct, but FLOATS need to be normalized or converted back to
+     np.uint8/16 for PIL to interpret correctly!!!
+
+    Args:
+        img:
+
+    Returns:
+
+    """
+
     return distortions.gaussian_noise(
         distortions.blur(
             distortions.random_distortions(img.astype(np.float32), noise_max=1.1), # this one can really mess it up, def no bigger than 2
             max_intensity=1.0),
         max_intensity=.1)
+    #return img.astype(np.float64) # this one can really mess it up, def no bigger than 2
 
 class BasicDataset(Dataset):
     """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
@@ -143,7 +154,7 @@ class StrokeRecoveryDataset(Dataset):
         self.root = Path(root)
         self.num_of_channels = num_of_channels
         self.interval = .05
-        self.noise = True
+        self.noise = False
         self.cnn = cnn
         self.config = config
         self.img_height = img_height
@@ -262,21 +273,27 @@ class StrokeRecoveryDataset(Dataset):
         """
         image_width = gts_to_image_size(len(gt))
         # Returns image in upper origin format
-        padded_gt = random_pad(gt,vpad=3, hpad=3) # pad top, left, bottom
+        padded_gt = random_pad(gt,vpad=3, hpad=5) # pad top, left, bottom
         padded_gt = StrokeRecoveryDataset.shrink_gt(padded_gt, width=image_width) # shrink to fit
         # padded_gt = StrokeRecoveryDataset.enlarge_gt(padded_gt, width=image_width)  # enlarge to fit - needs to be at least as big as GTs
 
         img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=None, height=img_height,
                            right_padding="random", linewidth=None, max_width=10, use_stroke_number=use_stroke_number)
+
         # img = img[::-1] # convert to lower origin format
         if add_distortion:
             img = add_unormalized_distortion(img)
+
+        #from PIL import Image, ImageDraw
+        #Image.fromarray(img.astype(np.uint8), 'L').show()
+
         # Normalize
         img = img / 127.5 - 1.0
 
         # Add trivial channel dimension
         img = img[:, :, np.newaxis]
-        return img
+
+        return img, padded_gt
 
     def __len__(self):
         return len(self.data)
@@ -300,6 +317,13 @@ class StrokeRecoveryDataset(Dataset):
         Returns:
 
         """
+        # for i in range(200):
+        #     if "a01-001z-04_2" in self.data[i]["image_path"]:
+        #         print(i)
+        #         break
+        _idx = idx
+        idx = 27
+
         item = self.data[idx]
         image_path = self.root / item['image_path']
 
@@ -309,12 +333,12 @@ class StrokeRecoveryDataset(Dataset):
             if True:
                 gt = item["gt"].copy() # LENGTH, VOCAB
             else: # WHAT THE HELL IS HAPPENING HERE?!??!
+                  # SOMETHING VERY STRANGE IS HAPPENING WHEN USING WARP + RANDOM RESAMPLE WITH RANDOM SEEDS
                 start_times = item["start_times"] if PARAMETER == "t" else item["start_distances"]
-                gt = create_gts(item["x_func"], item["y_func"], start_times, item["number_of_samples"], self.gt_format, noise=True).copy()
-
+                gt = create_gts(item["x_func"], item["y_func"], start_times, item["number_of_samples"], self.gt_format, noise=True)
 
                 # try:
-                #     assert np.allclose(gt,item["gt"])
+                #     np.testing.assert_allclose(gt,item["gt"])
                 #     print("same")
                 # except:
                 #     print(gt[0:5], "\n", item["gt"][0:5])
@@ -322,15 +346,16 @@ class StrokeRecoveryDataset(Dataset):
 
             gt = distortions.warp_points(gt * self.img_height) / self.img_height  # convert to pixel space
             gt = np.c_[gt,item["gt"][:,2:]]
+
         else:
-            gt = item["gt"]
+            gt = item["gt"].copy()
 
         assert gt.shape[0] == item["gt"].shape[0]
 
         # Render image
         add_distortion = "distortion" in self.image_prep.lower()
         if self.image_prep.lower().startswith("pil"):
-            img = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion, use_stroke_number=("stroke_number" in self.gt_format))
+            img, gt = self.prep_image(gt, img_height=self.img_height, add_distortion=add_distortion, use_stroke_number=("stroke_number" in self.gt_format))
         else:
             # Check if the image is already loaded
             if "line_img" in item and not add_distortion:
@@ -340,8 +365,6 @@ class StrokeRecoveryDataset(Dataset):
                 # The GTs will be the wrong size if the image isn't resized the same way as earlier
                 # Assuming e.g. we pass everything through the CNN every time etc.
                 img = read_img(image_path, add_distortion=add_distortion)
-
-        #img = read_img(image_path)
 
         # Assumes dimension 2 is start points, 3 is EOS
         # START POINT MODEL
