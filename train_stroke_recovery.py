@@ -173,7 +173,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
 def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     ## LOAD DATASET
-
+    NUM_WORKERS = 1
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json", *kwargs["extra_dataset"]],
                             root=config.data_root,
                             max_images_to_load = train_size,
@@ -184,7 +184,7 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=batch_size,
                                   shuffle=True,
-                                  num_workers=5,
+                                  num_workers=NUM_WORKERS,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
@@ -200,7 +200,7 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     test_dataloader = DataLoader(test_dataset,
                                   batch_size=batch_size,
                                   shuffle=True,
-                                  num_workers=5,
+                                  num_workers=NUM_WORKERS,
                                   collate_fn=train_dataset.collate,
                                   pin_memory=False)
 
