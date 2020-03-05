@@ -321,8 +321,6 @@ class StrokeRecoveryDataset(Dataset):
         #     if "a01-001z-04_2" in self.data[i]["image_path"]:
         #         print(i)
         #         break
-        _idx = idx
-        idx = 27
 
         item = self.data[idx]
         image_path = self.root / item['image_path']
