@@ -57,7 +57,7 @@ def distance_metric(x,y):
 
     output = np.zeros(x.size)
     output[1:] = ((x[:-1] - x[1:]) ** 2 + (y[:-1] - y[1:]) ** 2) ** (1 / 2)
-    output[0] = EPSILON
+    output[0] = 0
     return output
 
 def read_stroke_xml(path, start_stroke=None, end_stroke=None):
@@ -582,13 +582,13 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
     adj_number_of_samples = number_of_samples - len(start_times)
     last_time = start_times[-1] # get the last start point - this should actually be the first start point of the next stroke!!
     interval = last_time / (adj_number_of_samples)
-    std_dev = interval / 3 # next point is ~3 std deviations away
+    std_dev = interval / 4 # next point is ~3 std deviations away
     time = np.linspace(interval, last_time-interval, adj_number_of_samples, dtype=np.float64)
 
     noise = "random" if noise is True else noise
     if noise:
         if noise == "random": # random noise over time/distance on each point
-            #np.random.seed(0)
+            #np.random.seed(9) 9 with index 27
             noises = np.random.normal(0, std_dev, time.shape)
         else:
             raise NotImplemented(f"Noise type: {noise} not implemented")
@@ -599,7 +599,7 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
         time = np.maximum(time, 3*EPSILON) # 0 start stroke will be added below
         time = np.minimum(time, last_time-3*EPSILON)
 
-    time = np.r_[time, start_times+EPSILON*2]  # add the start times back in; last start time is the same as the end time
+    time = np.r_[time, start_times]  # add the start times back in; last start time is the same as the end time
 
     # Add start stroke IDs
     is_start_stroke = np.zeros(len(time))
@@ -608,6 +608,7 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
 
     # Sort based on time, split back up
     time = time[np.argsort(time[:, 0], kind='mergesort')]
+
     is_start_stroke = time[:, 1]
     time = time[:, 0]
 
@@ -615,7 +616,15 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
     assert is_start_stroke[-1] == 1
     assert is_start_stroke[0] == 1
     assert len(time) == number_of_samples
-    return function_x(time), function_y(time), is_start_stroke
+
+    # start_times2 = time[is_start_stroke.astype(np.int32) == 1]
+    # np.testing.assert_equal(start_times2,start_times)
+
+    # x = np.array(function_x(time).tolist())
+    # y = np.array(function_y(time).tolist())
+    x = function_x(time)
+    y = function_y(time)
+    return x, y, is_start_stroke
 
 
 def calc_stroke_distances(x,y,start_strokes):
@@ -656,7 +665,7 @@ def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=Tru
     y=np.asarray(y)
 
     distances = distance_metric(x,y) # same sized array with 0 as first distance
-    distances[start_strokes==1] = EPSILON # don't count pen up motion
+    distances[start_strokes==1] = 3*EPSILON # don't count pen up motion
     distances[0] = 0 # 0, not epsilon for first one
     cum_sum = np.cumsum(distances) # distance is 0 at first point; keeps desired_num_of_strokes the same
 
@@ -720,7 +729,9 @@ def to_numpy(array_string):
     return array_string
 
 def post_process_remove_strays(gt, max_dist=.2):
-    """ Must have already unrelatified start of strokes
+    """ Must have stardard SOS 0/1 form (already unrelatified start of strokes)
+        Removes points not near either neighbor point and not start strokes
+
 
     Args:
         gt:
@@ -746,8 +757,8 @@ def post_process_remove_strays(gt, max_dist=.2):
         gt[bad_points, 2] = 1
     return gt
 
-def make_more_start_points(gt, max_dist=.2):
-    """ Must have already unrelatified start of strokes
+def QC_start_points(gt, max_dist=.2):
+    """ Make more start points and delete superflouous ones
 
     Args:
         gt:
@@ -776,23 +787,36 @@ def remove_bad_points(gt, max_dist=.2):
     gt[idx, 2] = 1
     return gt
 
-def get_nearest(preds, gt, is_image=False):
-    """
+def get_nearest_point(reference, moving_component, reference_is_image=False, **kwargs):
+    """ For calculating error, reference should be GTs (how far do we need to move the GTs)
+        For post-process, reference should be pred (where should we move this pred to?)
 
     Args:
-        preds:
-        gt:
-        is_image:
+        reference:
+        moving_component:
+        reference_is_image:
 
     Returns:
 
     """
-    kd = KDTree(preds[:, :2].data)
-    distances, neighbor_indices = kd.query(gt[:, :2])[0]  # How far do we have to move the GT's to match the predictions?
-    return neighbor_indices, distances
+    if reference_is_image:
+        height = reference.shape[0]
+        if len(reference.shape)==3:
+            reference = np.squeeze(reference, 2)
+        y_coords,x_coords = np.where(reference<150/127.5-1)
+        reference = np.c_[x_coords, height-y_coords] / height
 
-def move_bad_points():
-    pass
+    if "kd" in kwargs:
+        kd = kwargs["kd"]
+    else:
+        kd = KDTree(reference[:, :2].data)
+
+    distances, neighbor_indices = kd.query(moving_component[:, :2])  # How far do we have to move the GT's to match the predictions?
+    nearest_points = reference[neighbor_indices]
+    return nearest_points, distances
+
+def move_bad_points(reference, moving_component, reference_is_image=False, **kwargs):
+    get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
 
 
 ## KD TREE MOVE POINTS? TEST THIS
