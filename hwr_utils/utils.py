@@ -165,7 +165,7 @@ def debugger(func):
             globals().update(locals())
     return wrapper
 
-def load_config(config_path, hwr=True, testing=False):
+def load_config(config_path, hwr=True, testing=False, results_dir_override=None):
     config_path = Path(config_path)
     project_path = Path(os.path.realpath(__file__)).parent.parent.absolute()
     config_root = project_path / "configs"
@@ -186,6 +186,9 @@ def load_config(config_path, hwr=True, testing=False):
     config["name"] = Path(config_path).stem  ## OVERRIDE NAME WITH THE NAME OF THE YAML FILE
     config["project_path"] = project_path
     config.counter = Counter()
+
+    if results_dir_override:
+        config.results_dir = results_dir_override
 
     if testing:
         config.TESTING = True

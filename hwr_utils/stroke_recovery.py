@@ -788,8 +788,8 @@ def remove_bad_points(gt, max_dist=.2):
     return gt
 
 def get_nearest_point(reference, moving_component, reference_is_image=False, **kwargs):
-    """ For calculating error, reference should be GTs (how far do we need to move the GTs)
-        For post-process, reference should be pred (where should we move this pred to?)
+    """ For calculating error, reference should be preds (how far do we need to move the GTs)
+        For post-process, reference should be GT image/pts (where should we move this pred to?)
 
     Args:
         reference:

@@ -114,7 +114,6 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
             # Remove lonely points - only works with stroke numbers
             # coords = post_process_remove_strays(coords)
-
             if "stroke_number" in config.gt_format:
                 idx = config.gt_format.index("stroke_number")
                 if config.pred_opts[idx]=="cumsum": # are the PREDS also CUMSUM?? or just the GTs
@@ -124,9 +123,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
             # Round the SOS, EOS etc. items
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH
             #print("after round", coords[2])
-
             suffix=""
-
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH
@@ -159,10 +156,10 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
     for i, el in enumerate(batch["paths"]):
         img_path = el
         # Flip back to upper origin format for PIL
-        gt_img = batch["line_imgs"][i][0] # BATCH, CHANNEL, H, W, FLIP IT
+        gt_img = np.squeeze(batch["line_imgs"][i]) # BATCH, CHANNEL, H, W, FLIP IT
         name=Path(batch["paths"][i]).stem
         if _type != "eval":
-            if config.model_name == "normal":
+            if config is None or config.model_name == "normal":
                 subgraph(batch["gt_list"][i], gt_img, name, is_gt=True)
             else:
                 subgraph(batch["start_points"][i], gt_img, name, is_gt=True)
