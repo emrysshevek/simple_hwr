@@ -817,7 +817,9 @@ def get_nearest_point(reference, moving_component, reference_is_image=False, **k
 
 def move_bad_points(reference, moving_component, reference_is_image=False, **kwargs):
     nearest_points, distances = get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
-    moving_component.detach().numpy()[:,0:2] = nearest_points
+    if isinstance(moving_component, Tensor):
+        moving_component = moving_component.detach().numpy()
+    moving_component[:,0:2] = nearest_points
     return moving_component
 
 ## KD TREE MOVE POINTS? TEST THIS
