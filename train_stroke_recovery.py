@@ -114,7 +114,6 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
             # Remove lonely points - only works with stroke numbers
             # coords = post_process_remove_strays(coords)
-
             if "stroke_number" in config.gt_format:
                 idx = config.gt_format.index("stroke_number")
                 if config.pred_opts[idx]=="cumsum": # are the PREDS also CUMSUM?? or just the GTs
@@ -124,9 +123,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
             # Round the SOS, EOS etc. items
             coords[2:, :] = np.round(coords[2:, :]) # VOCAB SIZE, LENGTH
             #print("after round", coords[2])
-
             suffix=""
-
         else:
             suffix="_gt"
             coords = utils.to_numpy(coords).transpose() # LENGTH, VOCAB => VOCAB SIZE, LENGTH

@@ -23,6 +23,7 @@ def main(config_path):
     global epoch, device, trainer, batch_size, output, loss_obj, x_relative_positions, config, LOGGER
     torch.cuda.empty_cache()
 
+    PROJ_ROOT = "/media/data/GitHub/simple_hwr/"
     config_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long/TEST.yaml"
     config_path =     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
     config_path = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2.yaml"
@@ -33,12 +34,16 @@ def main(config_path):
     load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
     load_path_override = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2_model_123_epochs.pt"
 
+    _load_path_override = Path(load_path_override)
+
+    OUTPUT = PROJ_ROOT / Path("RESULTS/OFFLINE_PREDS/") / _load_path_override.stem
+    OUTPUT.mkdir(parents=True, exist_ok=True)
 
     # Make these the same as whereever the file is being loaded from; make the log_dir and results dir be a subset
     # main_model_path, log_dir, full_specs, results_dir, load_path
 
 
-    config = utils.load_config(config_path, hwr=False)
+    config = utils.load_config(config_path, hwr=False, results_dir_override=OUTPUT.as_posix())
 
     # Free GPU memory if necessary
     if config.device == "cuda":
@@ -57,8 +62,8 @@ def main(config_path):
     folder = Path(config.dataset_folder)
 
     # OVERLOAD
-    folder = Path("data/prepare_IAM_Lines/lines/")
-    gt_path = Path("./data/prepare_IAM_Lines/gts/lines/txt")
+    folder = PROJ_ROOT / Path("data/prepare_IAM_Lines/lines/")
+    gt_path = PROJ_ROOT / Path("data/prepare_IAM_Lines/gts/lines/txt")
     #folder = Path(r"fish:////taylor@localhost:2222/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/")
     #folder = Path("/media/data/GitHub/simple_hwr/data/prepare_IAM_Lines/words")
     model = StrokeRecoveryModel(vocab_size=vocab_size, device=device, cnn_type=config.cnn_type, first_conv_op=config.coordconv, first_conv_opts=config.coordconv_opts).to(device)
@@ -95,7 +100,7 @@ def main(config_path):
     config.sigmoid_indices = TrainerStrokeRecovery.get_indices(config.pred_opts, "sigmoid")
 
     # Load the GTs
-    load_all_gts(gt_path)
+    GT_DATA = load_all_gts(gt_path)
     print("Number of images: {}".format(len(eval_loader.dataset)))
     print("Number of GTs: {}".format(len(GT_DATA)))
 
