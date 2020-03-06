@@ -221,6 +221,7 @@ def prep_path(foreign_paths):
     for foreign_path in foreign_paths:
         for stats_file in Path(foreign_path).rglob("all_stats.json"):
             experiment_folder_name = stats_file.parent.name
+            print(experiment_folder_name)
             new_sub = Path(new_path) / experiment_folder_name
             new_sub.mkdir(parents=True)
             shutil.copy(stats_file, new_sub)
@@ -249,7 +250,7 @@ if __name__=="__main__":
     p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
     visdom_command = "/home/taylor/anaconda3/envs/hwr5/bin/python -m visdom.server -p 9001 &>/dev/null &"
     p = Popen(visdom_command, shell=True, close_fds=True)
-    time.sleep(1)
+    time.sleep(2)
     if True:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
@@ -258,9 +259,10 @@ if __name__=="__main__":
                  "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/"]
         #path = r"/media/data/GitHub/simple_hwr/RESULTS/COMPARISON"
         paths = ["/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/indic/first_attempt"]
+        # "/media/data/GitHub/simple_hwr/RESULTS/ver4",
+        # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver4/20200305_072609-stroke_number_with_BCE_lil_bigger/"]
         paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4",
-                 "/media/data/GitHub/simple_hwr/RESULTS/ver4",
-                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver4/20200301_221959-stroke_number_with_BCE_bigger_still"]
+                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/20200301-PRETRAIN/"]
 
         path = prep_path(paths)
     else:

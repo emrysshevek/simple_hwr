@@ -13,7 +13,7 @@ from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_recovery import relativefy_torch
 
 BCELoss = torch.nn.BCELoss()
-BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*10)
+BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*5)
 SIGMOID = torch.nn.Sigmoid()
 # DEVICE???
 # x.requires_grad = False

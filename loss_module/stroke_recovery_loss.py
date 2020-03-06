@@ -127,22 +127,31 @@ class StrokeLoss:
         ## Loop through loss functions
         for i, loss_name in enumerate(self.master_loss_defintion):
             loss_fn = self.master_loss_defintion[loss_name]["fn"]
+
+            # Try calculating the loss
             try:
                 loss_tensor = loss_fn(preds, targs, label_lengths)
             except Exception as e:
                 losses[i] = torch.zeros(1, requires_grad=True)
                 logger.error(e)
+                logger.error(f"{loss_fn}")
                 continue
 
             loss = to_value(loss_tensor)
+
+            # Make sure the loss is not negative, NaN, etc.
             try:
-                if loss_name.lower() != "softdtw":
-                    assert loss > 0
+                assert loss < np.inf and loss >= 0
             except:
-                logger.error(f"LOSS WAS SMALLER THAN 0 {loss_fn}, {loss}")
+                losses[i] = torch.zeros(1, requires_grad=True)
+                logger.error(e)
+                logger.error(f"{loss} {loss_fn}")
+                continue
+
 
 
             if not self.master_loss_defintion[loss_name]["monitor_only"]:
+                # losses[i] = torch.max(loss_tensor, 5)
                 losses[i] = loss_tensor
 
             # Update loss stat

@@ -757,7 +757,7 @@ def post_process_remove_strays(gt, max_dist=.2):
         gt[bad_points, 2] = 1
     return gt
 
-def QC_start_points(gt, max_dist=.2):
+def make_more_starts(gt, max_dist=.1):
     """ Make more start points and delete superflouous ones
 
     Args:

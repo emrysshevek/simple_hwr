@@ -140,7 +140,9 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
         bg = overlay_images(background_img=gt_img.numpy(), foreground_gt=coords.transpose())
         if save_folder:
             bg.save(save_folder / f"overlay{suffix}_{i}_{name}.png")
-
+        else:
+            plt.figure(dpi=300)
+            plt.imshow(bg)
         ## Undo relative positions for X for graphing
         ## In normal mode, the cumulative sum has already been taken
 
