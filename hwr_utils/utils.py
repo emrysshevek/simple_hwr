@@ -284,7 +284,7 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
     config["stats"] = {}
     config = computer_defaults(config)
 
-    if not config.GPU:
+    if not config.gpu_if_available:
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
     #make_lower(config)

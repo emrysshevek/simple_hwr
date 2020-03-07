@@ -1,5 +1,5 @@
 #from torchvision.models import resnet
-from models.deprecated_crnn import *
+from models.deprecated.deprecated_crnn import *
 from torch.autograd import Variable
 from hwr_utils import utils
 from hwr_utils.stroke_recovery import relativefy_batch_torch, conv_weight, conv_window, PredConvolver
