@@ -174,19 +174,6 @@ class HwDataset(Dataset):
 
         self.logger = logger
 
-    # @staticmethod
-    # def basic_collate(x, device, ):
-    #     return collate(x, device=device)
-    #
-    # @staticmethod
-    # def batch_collate(x, device, n_warp_iterations, warp, occlusion_freq, occlusion_size, ):
-    # collate_fn = lambda x: hw_dataset.collate(x, device=device,
-    #                                           n_warp_iterations=config['n_warp_iterations'],
-    #                                           warp=config["testing_warp"],
-    #                                           occlusion_freq=config["occlusion_freq"],
-    #                                           occlusion_size=config["occlusion_size"],
-    #                                           max_intensity=config["max_intensity"])
-
     @staticmethod
     def load_data(data_paths, root="", images_to_load=None):
         """
@@ -322,10 +309,21 @@ class HwDataset(Dataset):
             "actual_writer_id": int(item['actual_writer_id']),
             "writer_id": int(item['writer_id']),
             "path": image_path,
-            "online": online
+            "online": online,
+            "strokes": None
         }
 
+def loadstrokes(file_path):
+    """
 
+    Args:
+        file_path:
+
+    Returns:
+            Lookup ID, return the strokes
+    """
+    # np.load("/media/data/GitHub/simple_hwr/RESULTS/OFFLINE_PREDS/all_data.npy")
+    # List of dicts with "text", "stroke", "id"
 
 if __name__=="__main__":
     pass

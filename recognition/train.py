@@ -1,10 +1,14 @@
 from __future__ import print_function
+
+import sys
+sys.path.append("..")
+
 from builtins import range
 import faulthandler
-
 from hwr_utils import hw_dataset, character_set
 from hwr_utils.hw_dataset import HwDataset
 import crnn
+import trainer
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from torch import tensor
@@ -195,7 +199,7 @@ def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_on
         config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0)
 
         labels = x['labels'].requires_grad_(False)  # numeric loss_indices version of ground truth
-        label_lengths = x['label_lengths'].`requires_grad_`(False)
+        label_lengths = x['label_lengths'].requires_grad_(False)
         gt = x['gt']  # actual string ground truth
 
         # Add online/offline binary flag
@@ -417,6 +421,7 @@ def check_gpu(config):
         log_print("No GPU found")
     elif not config["GPU"]:
         log_print("GPU available, but not using per config")
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
     return device, dtype
 
 def build_model(config_path):
@@ -467,12 +472,13 @@ def build_model(config_path):
     elif config["style_encoder"] == "2Stage":
         hw = crnn.create_2Stage(config)
         config["embedding_size"] = 0
-
     elif config["style_encoder"] == "2StageNudger":
         hw = crnn.create_CRNN(config)
         config["nudger"] = crnn.create_Nudger(config).to(device)
         config["embedding_size"] = 0
         config["nudger_optimizer"] = torch.optim.Adam(config["nudger"].parameters(), lr=config['learning_rate'])
+    elif config["style_encoder"] == "stroke":
+        hw = crnn.create_stroke_CRNN(config)
 
     else:  # basic HWR
         config["embedding_size"] = 0
@@ -533,7 +539,7 @@ def build_model(config_path):
         config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
                                                train_baseline=train_baseline)
     else:
-        config["trainer"] = crnn.TrainerBaseline(hw, optimizer, config, criterion)
+        config["trainer"] = trainer.TrainerBaseline(hw, optimizer, config, criterion)
 
     # Alternative Models
     if config["style_encoder"] == "basic_encoder":
@@ -623,6 +629,8 @@ def recreate():
 
 if __name__ == "__main__":
     #recreate()
+    main()
+    Stop
     try:
         main()
     except Exception as e:
