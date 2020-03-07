@@ -221,8 +221,9 @@ def prep_path(foreign_paths):
     for foreign_path in foreign_paths:
         for stats_file in Path(foreign_path).rglob("all_stats.json"):
             experiment_folder_name = stats_file.parent.name
+            experiment_folder_name2 = stats_file.parent.parent.name
             print(experiment_folder_name)
-            new_sub = Path(new_path) / experiment_folder_name
+            new_sub = Path(new_path) / (experiment_folder_name2+"_"+experiment_folder_name)
             new_sub.mkdir(parents=True)
             shutil.copy(stats_file, new_sub)
 
@@ -261,8 +262,11 @@ if __name__=="__main__":
         paths = ["/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/indic/first_attempt"]
         # "/media/data/GitHub/simple_hwr/RESULTS/ver4",
         # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver4/20200305_072609-stroke_number_with_BCE_lil_bigger/"]
-        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4",
-                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/20200301-PRETRAIN/"]
+        # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/20200301-PRETRAIN/"
+        # "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4"
+
+        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/20200229_223630-stroke_number_with_BCE_RESUME",
+                    "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver4/20200305_072609-stroke_number_with_BCE_lil_bigger"]
 
         path = prep_path(paths)
     else:
