@@ -74,7 +74,6 @@ class DTWLoss(CustomLoss):
         else:
             self.barron = False
 
-
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
@@ -127,7 +126,7 @@ class DTWLoss(CustomLoss):
                 if self.relativefy:
                     targ = relativefy_torch(targ)
 
-                loss += BCEWithLogitsLoss(pred, targ).sum()  # AVERAGE pointwise loss for 1 image
+                loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
 
         return loss  # , to_value(loss)
 
