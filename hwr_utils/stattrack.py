@@ -49,7 +49,7 @@ class Stat:
         return o.__dict__
 
     def accumulate(self, sum, weight):
-        assert self.current_sum > 0
+        assert self.current_sum >= 0
         self.current_sum += sum
         self.current_weight += weight
 
@@ -108,6 +108,7 @@ class AutoStat(Stat):
         self.x_weight = x_weight
         self.x_plot = x_plot
         self.train = train
+        self.current_sum = 0
 
     def get_weight(self):
         if self.train:

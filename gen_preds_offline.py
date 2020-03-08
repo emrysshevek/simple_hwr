@@ -32,7 +32,7 @@ def main(config_path):
     load_path_override = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
     load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
     load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
-    load_path_override = PROJ_ROOT + "RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2_model_123_epochs.pt"
+    load_path_override = PROJ_ROOT + "RESULTS/pretrained/new_best/good.pt"
 
     load_path_override = PROJ_ROOT + "RESULTS/OFFLINE_PREDS/all_data.npy"
     _load_path_override = Path(load_path_override)
@@ -113,7 +113,9 @@ def main(config_path):
     globals().update(locals())
 
 def post_process(pred,gt):
-    return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
+    # DON'T POST PROCESS FOR NOW
+    #return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
+    return pred
 
 def eval_only(dataloader, model):
     final_out = []

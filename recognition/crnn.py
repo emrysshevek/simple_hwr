@@ -7,6 +7,7 @@ from models.CoordConv import CoordConv
 from hwr_utils import utils
 from hwr_utils.stroke_recovery import relativefy_batch_torch
 import logging
+
 logger = logging.getLogger("root."+__name__)
 
 MAX_LENGTH=60
@@ -25,7 +26,7 @@ class basic_CRNN(nn.Module):
 
         first_conv_op = CoordConv if coord_conv else nn.Conv2d
 
-        if cnn_type in ["default", "intermediates"] or "resnet" in cnn_type:
+        if cnn_type in ["default", "intermediates", "default64"] or "resnet" in cnn_type:
             self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, cnn_type=cnn_type, first_conv_op=first_conv_op)
         elif cnn_type=="crcr":
             self.cnn = CRCR(cnnOutSize, nc, leakyRelu=leakyRelu, type=cnn_type)
@@ -145,7 +146,7 @@ class CRNN_with_strokes(nn.Module):
 
         first_conv_op = CoordConv if coord_conv else nn.Conv2d
 
-        if cnn_type in ["default", "intermediates"] or "resnet" in cnn_type:
+        if cnn_type in ["default", "intermediates", "default64"] or "resnet" in cnn_type:
             self.cnn = CNN(cnnOutSize, nc, leakyRelu=leakyRelu, cnn_type=cnn_type, first_conv_op=first_conv_op)
         else:
             raise Exception("Invalid CNN specified")
@@ -183,6 +184,6 @@ class CRNN_with_strokes(nn.Module):
         rnn_input = conv # [width/time, batch, feature_maps]
 
         if strokes is not None:
-            rnn_input = torch.cat([rnn_input, strokes], dim=2)
+            rnn_input = torch.cat([rnn_input, strokes.permute(1,0,2)], dim=2)
         recognizer_output = self.rnn(rnn_input)
         return recognizer_output, rnn_input

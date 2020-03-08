@@ -1,3 +1,6 @@
+import sys
+sys.path.append("..")
+
 import re
 import json
 from pathlib import Path
@@ -12,8 +15,10 @@ from hwr_utils import distortions, string_utils
 from hwr_utils.utils import unpickle_it
 
 ## FOR STROKE BUSINESS
-from hwr_utils.stroke_recovery import *
-from hwr_utils.stroke_dataset import *
+LOADSTROKES = True
+if LOADSTROKES:
+    from hwr_utils.stroke_recovery import *
+    from hwr_utils.stroke_dataset import *
 
 
 PADDING_CONSTANT = 0
@@ -35,12 +40,15 @@ def collate_basic(batch, device="cpu"):
     assert len(set([b['line_img'].shape[0] for b in batch])) == 1
     assert len(set([b['line_img'].shape[2] for b in batch])) == 1
 
-    dim0 = batch[0]['line_img'].shape[0]
-    dim1 = max([b['line_img'].shape[1] for b in batch])
-    dim2 = batch[0]['line_img'].shape[2]
+    dim0 = batch[0]['line_img'].shape[0] # HEIGHT
+    dim1 = max([b['line_img'].shape[1] for b in batch]) # WIDTH
+    dim2 = batch[0]['line_img'].shape[2] # CHANNEL
 
     all_labels = []
     label_lengths = []
+
+    # STROKE
+    stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3), PADDING_CONSTANT).astype(np.float32)
 
     input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
     for i in range(len(batch)):
@@ -50,6 +58,11 @@ def collate_basic(batch, device="cpu"):
         l = batch[i]['gt_label']
         all_labels.append(l)
         label_lengths.append(len(l))
+
+        # STROKE
+        b_strokes = batch[i]['strokes'] # W x 3
+        stroke_batch[i, :b_strokes.shape[0], :] = b_strokes
+
 
     all_labels = np.concatenate(all_labels)
     label_lengths = np.array(label_lengths)
@@ -68,10 +81,25 @@ def collate_basic(batch, device="cpu"):
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
         "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
         "paths": [b["path"] for b in batch],
-        "online": online
+        "online": online,
+        "strokes": torch.from_numpy(stroke_batch).to(device)
     }
 
 def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
+    """ Returns multiple versions of the same item for n_warping
+
+    Args:
+        batch:
+        device:
+        n_warp_iterations:
+        warp:
+        occlusion_freq:
+        occlusion_size:
+        occlusion_level:
+
+    Returns:
+
+    """
     batch = [b for b in batch if b is not None]
     batch_size = len(batch)
     occlude = occlusion_size and occlusion_freq
@@ -133,7 +161,8 @@ def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occ
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
         "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
         "paths": [b["path"] for b in batch],
-        "online": online
+        "online": online,
+        "strokes": [b["strokes"] for b in batch]
     }
 
 
@@ -155,6 +184,9 @@ class HwDataset(Dataset):
                  **kwargs):
 
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
+
+        if LOADSTROKES:
+            self.stroke_dict = self.load_strokes(file_path="/media/data/GitHub/simple_hwr/RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy")
 
         # Data
         # {'gt': 'A MOVE to stop Mr. Gaitskell from',
@@ -201,7 +233,7 @@ class HwDataset(Dataset):
         data = []
         root = Path(root)
         for data_path in data_paths:
-            print(data_path)
+            print("Loading JSON: ", data_path)
             with (root / data_path).open(mode="r") as fp:
                 new_data = json.load(fp)
                 if isinstance(new_data, dict):
@@ -265,9 +297,17 @@ class HwDataset(Dataset):
             img = cv2.imread(image_path, 0)
         else:
             raise Exception("Unexpected number of channels")
+
+        if img is not None:
+            percent = float(self.img_height) / img.shape[0]
+            #if random.randint(0, 1):
+            #    img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
+            #else:
+            img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+
         return img
 
-    def loadstrokes(self, file_path, data):
+    def load_strokes(self, file_path):
         """
 
         Args:
@@ -280,25 +320,34 @@ class HwDataset(Dataset):
         output_dict = {}
         for i in stroke_list:
             output_dict[i["id"]] = {"stroke": i["stroke"]}
-        self.stroke_dict = output_dict
-        return self.stroke_dict
+        return output_dict
 
     def process_stroke(self, img_id, img_width, cnn_type="default64"):
         cnn_embedding_width = img_width_to_pred_mapping(img_width, cnn_type)
+
         # output_dict[i["id"]] = {"stroke": i["stroke"]}
         if img_id in self.stroke_dict:
             item = self.stroke_dict[img_id]
             output_dict = edict()
-            output_dict.x = item["stroke"][:, 0]
-            output_dict.y = item["stroke"][:, 1]
-            output_dict.d = reparameterize_as_func_of_distance(output_dict.x, output_dict.y, item["stroke"][:, 2])
+            output_dict.x = np.r_[item["stroke"][:, 0],item["stroke"][-1:, 0]]  # repeat last element
+            output_dict.y = np.r_[item["stroke"][:, 1],item["stroke"][-1:, 1]]
+            sos =           np.r_[item["stroke"][:, 2],1]
+            output_dict.d = reparameterize_as_func_of_distance(output_dict.x, output_dict.y, sos)
+            sos[0] = 1 # first one must be a start stroke
+            start_times = output_dict.d[np.argwhere(np.round(sos))]
             x_func, y_func = stroke_recovery.create_functions_from_strokes(output_dict, parameter="d")
-            x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, output_dict.d,
+            x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, start_times,
                                                            number_of_samples=cnn_embedding_width, noise="random")
 
             gt = np.array([x, y, is_start_stroke]).transpose([1, 0])
         else:
             gt = np.zeros([cnn_embedding_width, 3])
+
+        # Relativefy and normalize
+        gt[:, 0] = stroke_recovery.relativefy(gt[:,0])
+        gt[:, 1] = stroke_recovery.relativefy(gt[:,1])
+        gt[:, :2] /= np.median(np.linalg.norm(gt[:,:2], axis=1))
+        gt[0, :2] = 0 # let first position be origin
         return gt
 
     def __getitem__(self, idx):
@@ -311,19 +360,14 @@ class HwDataset(Dataset):
                 print("Warning: image is None:", os.path.join(self.root, item['image_path']))
                 return None
             self.data[idx]["line_img"] = img
-        else:
-            img = self.data[idx]["line_img"]
 
-        if "stroke" not in self.data[idx]:
-            self.data[idx]["stroke"] = self.get_stroke(id, width)
+        img = self.data[idx]["line_img"].copy()
 
-        percent = float(self.img_height) / img.shape[0]
-
-        #if random.randint(0, 1):
-        #    img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
-        #else:
-
-        img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
+        if LOADSTROKES and "stroke" not in self.data[idx]:
+            img_id = Path(item['image_path']).stem
+            self.data[idx]["stroke"] = self.process_stroke(img_id, img.shape[1])
+        elif not LOADSTROKES:
+            self.data[idx]["stroke"] = None
 
         if self.warp:
             img = distortions.warp_image(img)
@@ -360,7 +404,7 @@ class HwDataset(Dataset):
         #online = item.get('online', False)
         # THIS IS A HACK, FIX THIS (below)
         online = int(item['actual_writer_id']) > 700
-        
+
         return {
             "line_img": img,
             "gt_label": gt_label,
@@ -369,21 +413,22 @@ class HwDataset(Dataset):
             "writer_id": int(item['writer_id']),
             "path": image_path,
             "online": online,
-            "strokes": None
+            "strokes": self.data[idx]["stroke"]
         }
-
-
 
 if __name__=="__main__":
     from torch.utils.data import DataLoader
     from hwr_utils import character_set
     import character_set
     from utils import dict_to_list
-    root = "../data"
-    json_path = 'prepare_IAM_Lines/lines/txt/gts/test.json'
+    
+    m = os.getcwd()
+    print(m)
+    root = r"../data/"
+    json_path = r'prepare_IAM_Lines/gts/lines/txt/training.json'
 
     out_char_to_idx2, out_idx_to_char2, char_freq = character_set.make_char_set(
-        json_path, root=root)
+        [json_path], root=root)
     # Convert to a list to work with easydict
     idx_to_char = dict_to_list(out_idx_to_char2)
 
@@ -393,7 +438,7 @@ if __name__=="__main__":
     default_collate = lambda x: collate(x, device=device)
 
 
-    train_dataset = HwDataset(json_path,
+    train_dataset = HwDataset([json_path],
                               char_to_idx,
                               img_height=60,
                               num_of_channels=1,
@@ -407,4 +452,6 @@ if __name__=="__main__":
                                   collate_fn=default_collate,
                                   pin_memory=device == "cpu")
 
-
+    item = next(iter(train_dataloader))
+    print(item.keys())
+    print(item["strokes"])

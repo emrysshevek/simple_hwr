@@ -86,7 +86,7 @@ class TrainerBaseline(json.JSONEncoder):
         if force_training:
             self.model.train()
         else:
-            self.model.eval(device=self.config.device)
+            self.model.eval()
 
         pred_tup = self.model(line_imgs, online)
         pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
@@ -118,7 +118,7 @@ class TrainerBaseline(json.JSONEncoder):
         if force_training:
             self.model.train()
         else:
-            self.model.eval(device=self.config.device)
+            self.model.eval()
 
         #use_lm = config['testing_language_model']
         #n_warp_iterations = config['n_warp_iterations']
@@ -154,8 +154,8 @@ class TrainerBaseline(json.JSONEncoder):
 
 class TrainerStrokes(TrainerBaseline):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
     def train(self, line_imgs, strokes, labels, label_lengths, gt, retain_graph=False, step=0):
         self.model.train()
@@ -190,3 +190,36 @@ class TrainerStrokes(TrainerBaseline):
         self.config["stats"]["Training Error Rate"].accumulate(err, weight)
 
         return loss, err, pred_strs
+
+    def test_normal(self, line_imgs, online, gt, force_training=False, nudger=False, validation=True):
+        """
+
+        Args:
+            line_imgs:
+            online:
+            gt:
+            force_training: Run test in .train() as opposed to .eval() mode
+
+        Returns:
+
+        """
+
+        if force_training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        pred_tup = self.model(line_imgs, online)
+        pred_logits, rnn_input, *_ = pred_tup[0].cpu(), pred_tup[1], pred_tup[2:]
+
+        output_batch = pred_logits.permute(1, 0, 2)
+        pred_strs = list(self.decoder.decode_test(output_batch))
+
+        # Error Rate
+        if nudger:
+            return rnn_input
+        else:
+            err, weight = calculate_cer(pred_strs, gt)
+            self.update_test_cer(validation, err, weight)
+            loss = -1 # not calculating test loss here
+            return loss, err, pred_strs

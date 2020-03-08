@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 import sys
-sys.path.append("..")
+sys.path.extend(["..", "."])
 
 from builtins import range
 import faulthandler
@@ -93,8 +93,14 @@ def test(model, dataloader, idx_to_char, device, config, with_analysis=False, pl
     for i,x in enumerate(dataloader):
         line_imgs = x['line_imgs'].to(device)
         gt = x['gt']  # actual string ground truth
-        online = x['online'].view(1, -1, 1).to(device) if config["online_augmentation"] and config[
-            "online_flag"] else None
+
+        if "strokes" in x and x["strokes"] is not None:
+            online = x["strokes"].to(device)
+        else:
+            online = Variable(x['online'].to(device), requires_grad=False).view(1, -1, 1) if config[
+                "online_augmentation"] and config["online_flag"] else None
+
+
         loss, initial_err, pred_str = config["trainer"].test(line_imgs, online, gt, validation=validation, with_iterations=with_iterations)
 
         if plot_all:
@@ -173,58 +179,6 @@ def plot_images(line_imgs, name, text_str, dir=None, plot_count=None, live=False
         plt.savefig(path, dpi=400)
         plt.close('all')
 
-def improver(model, dataloader, ctc_criterion, optimizer, dtype, config, mask_online_as_offline=False, iterations=20):
-    """
-
-    Args:
-        model:
-        dataloader:
-        ctc_criterion:
-        optimizer:
-        dtype:
-        config:
-        mask_online_as_offline (bool): if mask_online_as_offline, then online flag is set to offline
-
-    Returns:
-
-    """
-    model.train()  # make sure gradients are tracked
-    lr = .1
-    model.my_eval()  # set dropout to 0
-
-    for i, x in enumerate(dataloader):
-        LOGGER.debug("Improving Iteration: {}".format(i))
-        line_imgs = x['line_imgs'].type(dtype).clone().detach().requires_grad_(True)
-        params = [torch.nn.Parameter(line_imgs)]
-        config["trainer"].optimizer = torch.optim.SGD(params, lr=lr, momentum=0)
-
-        labels = x['labels'].requires_grad_(False)  # numeric loss_indices version of ground truth
-        label_lengths = x['label_lengths'].requires_grad_(False)
-        gt = x['gt']  # actual string ground truth
-
-        # Add online/offline binary flag
-        online_vector = np.zeros(x['online'].shape) if mask_online_as_offline else x['online']
-        online = tensor(online_vector.type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
-
-        loss, initial_err, first_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
-                                                                    step=config["global_step"])
-        # Nudge it X times
-        for ii in range(iterations):
-            loss, final_err, final_pred_str = config["trainer"].train(params[0], online, labels, label_lengths, gt,
-                                                                      step=config["global_step"])
-            # print(torch.abs(x['line_imgs']-params[0]).sum())
-            reset_all_stats(config)
-            training_cer = config["stats"][config["designated_training_cer"]].y[-1]  # most recent training CER
-            if ii % 5 == 0:
-                LOGGER.info(f"{training_cer} {loss}")
-
-        plot_images(params[0], i, final_pred_str, dir=config["image_dir"], plot_count=4)
-        plot_images(x['line_imgs'], f"{i}_original", first_pred_str, dir=config["image_dir"], plot_count=4)
-
-    return training_cer
-
-
 def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
     LOGGER.debug(f"Switching model to train")
     model.train()
@@ -254,8 +208,11 @@ def run_epoch(model, dataloader, ctc_criterion, optimizer, dtype, config):
         # input()
 
         # Add online/offline binary flag
-        online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
-            "online_augmentation"] and config["online_flag"] else None
+        if "strokes" in x and x["strokes"] is not None:
+            online = x["strokes"].type(dtype)
+        else:
+            online = Variable(x['online'].type(dtype), requires_grad=False).view(1, -1, 1) if config[
+                "online_augmentation"] and config["online_flag"] else None
 
         loss, initial_err, first_pred_str = config["trainer"].train(line_imgs, online, labels, label_lengths, gt, step=config["global_step"])
 
@@ -394,7 +351,7 @@ def load_data(config):
 
     config.char_to_idx, config.idx_to_char, config.char_freq = out_char_to_idx2, idx_to_char, char_freq
 
-    train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = make_dataloaders(config=config)
+    train_dataloader, test_dataloader, train_dataset, test_dataset, validation_dataset, validation_dataloader = make_dataloaders(config=config, device="cpu")
 
     config['alphabet_size'] = len(config["idx_to_char"])   # alphabet size to be recognized
     config['num_of_writers'] = train_dataset.classes_count + 1
@@ -538,6 +495,8 @@ def build_model(config_path):
         train_baseline = False if config["load_path"] else True
         config["trainer"] = crnn.TrainerNudger(hw, config["nudger_optimizer"], config, criterion,
                                                train_baseline=train_baseline)
+    elif config["style_encoder"] == "stroke":
+        config["trainer"] = trainer.TrainerStrokes(hw, optimizer, config, criterion)
     else:
         config["trainer"] = trainer.TrainerBaseline(hw, optimizer, config, criterion)
 

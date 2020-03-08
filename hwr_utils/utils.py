@@ -411,6 +411,7 @@ def make_config_consistent_hwr(config):
         config["image_dir"] = os.path.join(config["results_dir"], "images")
         mkdir(config["image_dir"])
 
+    config.device = "cuda" if torch.cuda.is_available() and config.gpu_if_available else "cpu"
     return config
 
 def make_lower(config):

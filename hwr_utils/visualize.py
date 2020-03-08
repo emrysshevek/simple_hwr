@@ -266,7 +266,8 @@ if __name__=="__main__":
         # "/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4"
 
         paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/20200229_223630-stroke_number_with_BCE_RESUME",
-                    "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver4/20200305_072609-stroke_number_with_BCE_lil_bigger"]
+                  "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/",
+                    "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5"]
 
         path = prep_path(paths)
     else:
