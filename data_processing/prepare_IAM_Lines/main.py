@@ -37,7 +37,7 @@ def prep_set(data_set, lines_gts, author_mapping):
 
         img = cv2.imread(image_file, 0)
         if img is None:
-            print "There was an issue with ", image_file
+            print("There was an issue with ", image_file)
             continue
 
         author_id, avg_line, avg_full = author_mapping[line_id]
@@ -80,7 +80,7 @@ def prep_set(data_set, lines_gts, author_mapping):
 
         img = cv2.imread(image_file, 0)
         if img is None:
-            print "There was an issue with ", image_file
+            print("There was an issue with ", image_file)
             continue
 
         author_id, avg_line, avg_full = author_mapping[line_id]
@@ -97,16 +97,16 @@ def prep_set(data_set, lines_gts, author_mapping):
     return output_data, avg_ratio
 
 training_output, avg_ratio = prep_set(training_set, lines_gts, author_mapping)
-print "Training Avg Ratio: ", avg_ratio
+print("Training Avg Ratio: ", avg_ratio)
 val1_output, _ = prep_set(val1_set, lines_gts, author_mapping)
 val2_output, _ = prep_set(val2_set, lines_gts, author_mapping)
 test_output, _ = prep_set(test_set, lines_gts, author_mapping)
 
 
-print len(training_output)
-print len(val1_output)
-print len(val2_output)
-print len(test_output)
+print(len(training_output))
+print(len(val1_output))
+print(len(val2_output))
+print(len(test_output))
 
 try:
     os.makedirs("output")

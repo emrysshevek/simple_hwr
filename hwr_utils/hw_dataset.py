@@ -145,10 +145,14 @@ class HwDataset(Dataset):
                  max_images_to_load=None,
                  occlusion_size=None, occlusion_freq=None, occlusion_level=1,
                  elastic_distortion=True, elastic_alpha=2.5, elastic_sigma=1.1,
-                 logger=None):
+                 logger=None,
+                 **kwargs):
 
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
+        # Data
+        print(data[0])
+        stop
         ## Read in all writer IDs
         writer_id_dict = self.join_writer_ids(root, writer_id_paths)
 
@@ -322,7 +326,9 @@ def loadstrokes(file_path):
     Returns:
             Lookup ID, return the strokes
     """
-    # np.load("/media/data/GitHub/simple_hwr/RESULTS/OFFLINE_PREDS/all_data.npy")
+    np.load("../RESULTS/OFFLINE_PREDS/good/all_data.npy")
+
+
     # List of dicts with "text", "stroke", "id"
     # LOAD DATA
     # RESAMPLE
@@ -330,5 +336,36 @@ def loadstrokes(file_path):
     # MAKE ALL 0's if it doesn't exist
 
 if __name__=="__main__":
-    pass
+    from torch.utils.data import DataLoader
+    from hwr_utils import character_set
+    import character_set
+    from utils import dict_to_list
+    root = "../data"
+    json_path = 'prepare_IAM_Lines/lines/txt/gts/test.json'
+
+    out_char_to_idx2, out_idx_to_char2, char_freq = character_set.make_char_set(
+        json_path, root=root)
+    # Convert to a list to work with easydict
+    idx_to_char = dict_to_list(out_idx_to_char2)
+
+    char_to_idx, idx_to_char, char_freq = out_char_to_idx2, idx_to_char, char_freq
+
+    device="cpu"
+    default_collate = lambda x: collate(x, device=device)
+
+
+    train_dataset = HwDataset(json_path,
+                              char_to_idx,
+                              img_height=60,
+                              num_of_channels=1,
+                              root=root,
+                              )
+
+    train_dataloader = DataLoader(train_dataset,
+                                  batch_size=2,
+                                  shuffle=False,
+                                  num_workers=1,
+                                  collate_fn=default_collate,
+                                  pin_memory=device == "cpu")
+
 
