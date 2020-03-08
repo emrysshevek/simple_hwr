@@ -21,7 +21,7 @@ dataset:
 
 # General
 experiment: default
-name: with_strokes
+name: without_strokes
 output_folder: ./results
 epochs_to_run: 200
 save_freq: 5
@@ -55,7 +55,7 @@ testing_occlude: false
 output_predictions: false                    # Output incorrect test predictions
 
 #Network
-style_encoder: stroke                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
+style_encoder: false                         # "False", "basic_encoder", "fake_encoder" - RNN + MLP (author classifier) -> embedding
 embedding_size: 3                            # Stroke vocab size
 batch_size: 16                               # Batch figsize
 input_height: 60                             # Input dimension of image (will be cropped by default?)
