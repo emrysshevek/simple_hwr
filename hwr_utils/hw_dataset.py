@@ -1,3 +1,6 @@
+import sys
+sys.path.append("..")
+
 import re
 import json
 from pathlib import Path
@@ -305,7 +308,7 @@ class HwDataset(Dataset):
         #online = item.get('online', False)
         # THIS IS A HACK, FIX THIS (below)
         online = int(item['actual_writer_id']) > 700
-        
+
         return {
             "line_img": img,
             "gt_label": gt_label,
@@ -326,7 +329,7 @@ def loadstrokes(file_path):
     Returns:
             Lookup ID, return the strokes
     """
-    np.load("../RESULTS/OFFLINE_PREDS/good/all_data.npy")
+    np.load("RESULTS/OFFLINE_PREDS/good/all_data.npy")
 
 
     # List of dicts with "text", "stroke", "id"
@@ -340,11 +343,14 @@ if __name__=="__main__":
     from hwr_utils import character_set
     import character_set
     from utils import dict_to_list
-    root = "../data"
-    json_path = 'prepare_IAM_Lines/lines/txt/gts/test.json'
+    
+    m = os.getcwd()
+    print(m)
+    root = r"../data/"
+    json_path = r'prepare_IAM_Lines/gts/lines/txt/training.json'
 
     out_char_to_idx2, out_idx_to_char2, char_freq = character_set.make_char_set(
-        json_path, root=root)
+        [json_path], root=root)
     # Convert to a list to work with easydict
     idx_to_char = dict_to_list(out_idx_to_char2)
 
@@ -354,7 +360,7 @@ if __name__=="__main__":
     default_collate = lambda x: collate(x, device=device)
 
 
-    train_dataset = HwDataset(json_path,
+    train_dataset = HwDataset([json_path],
                               char_to_idx,
                               img_height=60,
                               num_of_channels=1,
