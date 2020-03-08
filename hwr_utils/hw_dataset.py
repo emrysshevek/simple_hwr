@@ -3,13 +3,19 @@ import json
 from pathlib import Path
 import torch
 from torch.utils.data import Dataset
-
+from easydict import EasyDict as edict
 import os
 import cv2
 import numpy as np
 
 from hwr_utils import distortions, string_utils
 from hwr_utils.utils import unpickle_it
+
+## FOR STROKE BUSINESS
+from hwr_utils.stroke_recovery import *
+from hwr_utils.stroke_dataset import *
+
+
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -151,8 +157,10 @@ class HwDataset(Dataset):
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
         # Data
-        print(data[0])
-        stop
+        # {'gt': 'A MOVE to stop Mr. Gaitskell from',
+        #  'image_path': 'prepare_IAM_Lines/lines/a01/a01-000u/a01-000u-00.png', 'err': False,
+        #  'author_avg_std': 13.156031815424305, 'author_id': '000'}
+
         ## Read in all writer IDs
         writer_id_dict = self.join_writer_ids(root, writer_id_paths)
 
@@ -249,25 +257,72 @@ class HwDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx):
-        item = self.data[idx]
 
-        image_path = os.path.join(self.root, item['image_path'])
+    def read_img(self, image_path):
         if self.num_of_channels == 3:
             img = cv2.imread(image_path)
         elif self.num_of_channels == 1: # read grayscale
             img = cv2.imread(image_path, 0)
         else:
             raise Exception("Unexpected number of channels")
-        if img is None:
-            print("Warning: image is None:", os.path.join(self.root, item['image_path']))
-            return None
+        return img
+
+    def loadstrokes(self, file_path, data):
+        """
+
+        Args:
+            file_path:
+
+        Returns:
+                Lookup ID, return the strokes
+        """
+        stroke_list = np.load(file_path, allow_pickle=True)
+        output_dict = {}
+        for i in stroke_list:
+            output_dict[i["id"]] = {"stroke": i["stroke"]}
+        self.stroke_dict = output_dict
+        return self.stroke_dict
+
+    def process_stroke(self, img_id, img_width, cnn_type="default64"):
+        cnn_embedding_width = img_width_to_pred_mapping(img_width, cnn_type)
+        # output_dict[i["id"]] = {"stroke": i["stroke"]}
+        if img_id in self.stroke_dict:
+            item = self.stroke_dict[img_id]
+            output_dict = edict()
+            output_dict.x = item["stroke"][:, 0]
+            output_dict.y = item["stroke"][:, 1]
+            output_dict.d = reparameterize_as_func_of_distance(output_dict.x, output_dict.y, item["stroke"][:, 2])
+            x_func, y_func = stroke_recovery.create_functions_from_strokes(output_dict, parameter="d")
+            x, y, is_start_stroke = stroke_recovery.sample(x_func, y_func, output_dict.d,
+                                                           number_of_samples=cnn_embedding_width, noise="random")
+
+            gt = np.array([x, y, is_start_stroke]).transpose([1, 0])
+        else:
+            gt = np.zeros([cnn_embedding_width, 3])
+        return gt
+
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        image_path = os.path.join(self.root, item['image_path'])
+
+        if "line_img" not in self.data[idx]:
+            img = self.read_img(image_path)
+            if img is None:
+                print("Warning: image is None:", os.path.join(self.root, item['image_path']))
+                return None
+            self.data[idx]["line_img"] = img
+        else:
+            img = self.data[idx]["line_img"]
+
+        if "stroke" not in self.data[idx]:
+            self.data[idx]["stroke"] = self.get_stroke(id, width)
 
         percent = float(self.img_height) / img.shape[0]
 
         #if random.randint(0, 1):
         #    img = cv2.resize(img, (0,0), fx=percent, fy=percent, interpolation = cv2.INTER_CUBIC)
         #else:
+
         img = cv2.resize(img, (0, 0), fx=percent, fy=percent, interpolation=cv2.INTER_CUBIC)
 
         if self.warp:
@@ -317,23 +372,7 @@ class HwDataset(Dataset):
             "strokes": None
         }
 
-def loadstrokes(file_path):
-    """
 
-    Args:
-        file_path:
-
-    Returns:
-            Lookup ID, return the strokes
-    """
-    np.load("../RESULTS/OFFLINE_PREDS/good/all_data.npy")
-
-
-    # List of dicts with "text", "stroke", "id"
-    # LOAD DATA
-    # RESAMPLE
-    # PAD WITH 0's
-    # MAKE ALL 0's if it doesn't exist
 
 if __name__=="__main__":
     from torch.utils.data import DataLoader
