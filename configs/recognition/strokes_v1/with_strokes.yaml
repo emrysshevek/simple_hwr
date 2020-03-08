@@ -1,5 +1,5 @@
 ### TESTING
-TESTING: true        # Use batch figsize of 1, only do one batch per epoch; will still save etc.
+TESTING: false        # Use batch figsize of 1, only do one batch per epoch; will still save etc.
 SMALL_TRAINING: false  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
 TEST_FREQ: 1         # epoch frequency for running test set

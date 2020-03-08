@@ -599,7 +599,6 @@ def sample(function_x, function_y, start_times, number_of_samples=64, noise=None
         time = np.maximum(time, 3*EPSILON) # 0 start stroke will be added below
         time = np.minimum(time, last_time-3*EPSILON)
 
-    print(time.shape, start_times.shape)
     time = np.r_[time, start_times]  # add the start times back in; last start time is the same as the end time
 
     # Add start stroke IDs
