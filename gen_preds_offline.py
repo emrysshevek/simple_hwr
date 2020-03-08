@@ -25,8 +25,8 @@ def main(config_path):
 
     PROJ_ROOT = "/media/data/GitHub/simple_hwr/"
     config_path = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long/TEST.yaml"
-    config_path =     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
-    config_path = PROJ_ROOT + "RESULTS/pretrained/brodie_123/stroke_number_with_BCE_RESUME2.yaml"
+    config_path = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/RESUME.yaml"
+    config_path = PROJ_ROOT + "RESULTS/OFFLINE_PREDS/good/normal_preload.yaml"
 
     load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/GOOD/baseline_model.pt"
     load_path_override = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
@@ -34,6 +34,7 @@ def main(config_path):
     load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
     load_path_override = PROJ_ROOT + "RESULTS/pretrained/new_best/good.pt"
 
+    load_path_override = PROJ_ROOT + "RESULTS/OFFLINE_PREDS/all_data.npy"
     _load_path_override = Path(load_path_override)
 
     OUTPUT = PROJ_ROOT / Path("RESULTS/OFFLINE_PREDS/") / _load_path_override.stem
