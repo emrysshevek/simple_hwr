@@ -73,7 +73,7 @@ def collate_basic(batch, device="cpu"):
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
     online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
 
-    return {
+    out = {
         "line_imgs": line_imgs,
         "labels": labels,
         "label_lengths": label_lengths,
@@ -81,9 +81,20 @@ def collate_basic(batch, device="cpu"):
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
         "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
         "paths": [b["path"] for b in batch],
-        "online": online,
-        "strokes": torch.from_numpy(stroke_batch).to(device)
+        "online": online
     }
+
+    # STROKE
+    if "strokes" in batch[0].keys() and batch[0]['strokes'] is not None:
+        stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3),
+                               PADDING_CONSTANT).astype(np.float32)
+        for i in range(len(batch)):
+            # STROKE
+            b_strokes = batch[i]['strokes']  # W x 3
+            stroke_batch[i, :b_strokes.shape[0], :] = b_strokes
+
+        out["strokes"] = torch.from_numpy(stroke_batch).to(device)
+    return out
 
 def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
     """ Returns multiple versions of the same item for n_warping
