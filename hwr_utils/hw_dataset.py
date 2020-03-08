@@ -46,9 +46,6 @@ def collate_basic(batch, device="cpu"):
     all_labels = []
     label_lengths = []
 
-    # STROKE
-    stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3), PADDING_CONSTANT).astype(np.float32)
-
     input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
     for i in range(len(batch)):
         b_img = batch[i]['line_img']
@@ -57,10 +54,6 @@ def collate_basic(batch, device="cpu"):
         l = batch[i]['gt_label']
         all_labels.append(l)
         label_lengths.append(len(l))
-
-        # STROKE
-        b_strokes = batch[i]['strokes'] # W x 3
-        stroke_batch[i, :b_strokes.shape[0], :] = b_strokes
 
 
     all_labels = np.concatenate(all_labels)
