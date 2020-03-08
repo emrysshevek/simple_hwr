@@ -183,10 +183,14 @@ class HwDataset(Dataset):
                  logger=None,
                  **kwargs):
 
+        global LOADSTROKES
+        LOADSTROKES = True if "loadstrokes" in kwargs and kwargs["loadstrokes"] else False
+        self.stroke_path = kwargs["stroke_path"] if "stroke_path" in kwargs else "RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy"
+
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
         if LOADSTROKES:
-            self.stroke_dict = self.load_strokes(file_path="RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy")
+            self.stroke_dict = self.load_strokes(file_path=self.stroke_path)
 
         # Data
         # {'gt': 'A MOVE to stop Mr. Gaitskell from',
