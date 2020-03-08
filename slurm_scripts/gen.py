@@ -114,7 +114,7 @@ def loop_configs(config_root, script_root, ext=".yaml"):
         log_path = Path(script_root / subfolders.parent / ('log_' + config_path.with_suffix('.slurm').name))
         cd_path = src_dir
 
-        py_script = "train_stroke_recovery.py" if "stroke" in config_path.as_posix() else "train.py"
+        py_script = "train_stroke_recovery.py" if "stroke_config" in config_path.as_posix() else "train.py"
 
         command = f"python -u {py_script} --config '{config_path}'"
         #print(f"sh:{sh_path} log:{log_path} cd: {cd_path}")

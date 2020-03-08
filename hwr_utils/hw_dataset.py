@@ -186,7 +186,7 @@ class HwDataset(Dataset):
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
         if LOADSTROKES:
-            self.stroke_dict = self.load_strokes(file_path="/media/data/GitHub/simple_hwr/RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy")
+            self.stroke_dict = self.load_strokes(file_path="RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy")
 
         # Data
         # {'gt': 'A MOVE to stop Mr. Gaitskell from',
