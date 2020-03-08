@@ -324,6 +324,10 @@ def loadstrokes(file_path):
     """
     # np.load("/media/data/GitHub/simple_hwr/RESULTS/OFFLINE_PREDS/all_data.npy")
     # List of dicts with "text", "stroke", "id"
+    # LOAD DATA
+    # RESAMPLE
+    # PAD WITH 0's
+    # MAKE ALL 0's if it doesn't exist
 
 if __name__=="__main__":
     pass
