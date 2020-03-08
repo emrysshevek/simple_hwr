@@ -20,7 +20,6 @@ if LOADSTROKES:
     from hwr_utils.stroke_recovery import *
     from hwr_utils.stroke_dataset import *
 
-
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -85,7 +84,7 @@ def collate_basic(batch, device="cpu"):
     }
 
     # STROKE
-    if "strokes" in batch[0].keys() and batch[0]['strokes'] is not None:
+    if "strokes" in batch[0].keys() and not batch[0]['strokes'] is None:
         stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3),
                                PADDING_CONSTANT).astype(np.float32)
         for i in range(len(batch)):
