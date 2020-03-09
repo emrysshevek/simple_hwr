@@ -34,8 +34,6 @@ def parse_args():
     return opts
 
 def run_epoch(dataloader, report_freq=500):
-    loss_list = []
-
     # for i in range(0, 16):
     #     line_imgs = torch.rand(batch, 1, 60, 60)
     #     targs = torch.rand(batch, 16, 5)
@@ -51,7 +49,7 @@ def run_epoch(dataloader, report_freq=500):
         loss, preds, *_ = trainer.train(item, train=True)
         if loss is None:
             continue
-        loss_list += [loss]
+
         config.stats["Actual_Loss_Function_train"].accumulate(loss)
 
         if config.counter.updates % report_freq == 0 and i > 0:
@@ -66,7 +64,7 @@ def run_epoch(dataloader, report_freq=500):
     end_time = timer()
     logger.info(("Epoch duration:", end_time-start_time))
 
-    #preds_to_graph = preds.permute([0, 2, 1])
+    # GRAPH
     if not preds is None:
         preds_to_graph = [p.permute([1, 0]) for p in preds]
         save_folder = graph(item, config=config, preds=preds_to_graph, _type="train", epoch=epoch)
@@ -75,8 +73,9 @@ def run_epoch(dataloader, report_freq=500):
                                                      f"\nStartPoints\n{str(item['start_points'][0])}")
         utils.pickle_it({"item":item, "preds":[p.detach().numpy() for p in preds_to_graph]}, Path(save_folder) / "example_data.pickle")
 
-    config.scheduler.step()
-    return np.sum(loss_list) / config.n_train_instances
+    #config.scheduler.step()
+    config.scheduler.step(config.stats["Actual_Loss_Function_train"].get_last_epoch())
+    return config.stats["Actual_Loss_Function_train"].get_last_epoch()
 
 def test(dataloader):
     for i, item in enumerate(dataloader):
@@ -280,7 +279,9 @@ def main(config_path, testing=False):
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
-    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
+    #config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
+    config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=False,
+                                                threshold=0.00001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
     if config.model_name != "normal":
         trainer = TrainerStartPoints(model, optimizer, config=config, loss_criterion=config.loss_obj)
@@ -305,8 +306,14 @@ def main(config_path, testing=False):
         test_loss = test(test_dataloader)
         logger.info(f"Epoch: {epoch}, Test Loss: {test_loss}")
         check_epoch_build_loss(config)
+
+        all_test_losses = [x for x in config.stats["Actual_Loss_Function_test"].y if x > 0]
+        if test_loss <= np.min(all_test_losses):
+            utils.save_model_stroke(config, bsf=True)
         if epoch % config.save_freq == 0: # how often to save
             utils.save_model_stroke(config, bsf=False)
+        else:
+            utils.save_stats_stroke(config, bsf=False)
 
     ## Bezier curve
     # Have network predict whether it has reached the end of a stroke or not

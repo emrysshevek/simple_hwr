@@ -536,7 +536,7 @@ def random_pad(gt, vpad=10, hpad=10, height=61):
     return new_gt
 
 
-def overlay_images(background_img, foreground_gt, normalized=True):
+def overlay_images(background_img=None, foreground_gt=None, normalized=True):
     """
 
     Args:
@@ -548,10 +548,17 @@ def overlay_images(background_img, foreground_gt, normalized=True):
     """
     rescale = lambda x: (x+1)*127.5 if normalized else lambda x: x
     ## PLOT THE RED LINE VERSION
-    img = Image.fromarray(np.uint8(rescale(np.squeeze(background_img))), 'L')  # actual image given to model
-    img = img.convert("RGB")
-    red_img = draw_from_gt(foreground_gt, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
-    red_img = Image.fromarray(np.uint8(red_img), 'RGBA')
+    if background_img is not None:
+        img = Image.fromarray(np.uint8(rescale(np.squeeze(background_img))), 'L')  # actual image given to model
+        img = img.convert("RGB")
+        if foreground_gt is None:
+            return img
+
+    if foreground_gt is not None:
+        red_img = draw_from_gt(foreground_gt, show=False, linewidth=1, color=[255, 0, 0], alpha=True)
+        red_img = Image.fromarray(np.uint8(red_img), 'RGBA')
+        if background_img is None:
+            return red_img
 
     height = max(img.size[1], red_img.size[1])
     width = max(img.size[0], red_img.size[0])

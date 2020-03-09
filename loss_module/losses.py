@@ -76,6 +76,7 @@ class DTWLoss(CustomLoss):
 
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
+        raise Exception("Deprecated -- replace with async")
         loss = 0
         if self.parallel:
             pool = multiprocessing.Pool(processes=self.poolcount)
@@ -91,7 +92,7 @@ class DTWLoss(CustomLoss):
     def dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((preds[i], targs[i]))
+            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -117,38 +118,9 @@ class DTWLoss(CustomLoss):
 
         return loss  # , to_value(loss)
 
-    def dtw_with_reverse(self, preds, targs, label_lengths, **kwargs):
-        loss = 0
-        for i in range(len(preds)):  # loop through BATCH
-            a, b   = self.dtw_single((preds[i], targs[i]))
-            ar, br = self.dtw_single((preds[i], targs[i]))
 
-            # LEN X VOCAB
-            if self.method=="normal":
-                pred = preds[i][a, :][:, self.loss_indices]
-                targ = targs[i][b, :][:, self.loss_indices]
-            else:
-                raise NotImplemented
-
-            ## !!! DELETE THIS
-            if self.barron:
-                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
-            elif True:
-                loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
-
-            if self.cross_entropy_indices:
-                pred = preds[i][a, :][:, self.cross_entropy_indices]
-                targ = targs[i][b, :][:, self.cross_entropy_indices]
-
-                if self.relativefy:
-                    targ = relativefy_torch(targ)
-                    targ[0][:, self.cross_entropy_indices] = 1 # first point is a start point
-                loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
-
-        return loss  # , to_value(loss)
-
-
-    def dtw_single(self, _input):
+    @staticmethod
+    def dtw_single(_input, dtw_mapping_basis):
         """ THIS DOES NOT USE SUBCOEF
         Args:
             _input (tuple): pred, targ, label_length
@@ -157,9 +129,9 @@ class DTWLoss(CustomLoss):
 
         """
         pred, targ = _input
-        pred, targ = to_numpy(pred[:, self.dtw_mapping_basis], astype="float64"), \
-                     to_numpy(targ[:, self.dtw_mapping_basis], astype="float64")
-        dist, cost, a, b = self._dtw(pred, targ)
+        pred, targ = to_numpy(pred[:, dtw_mapping_basis], astype="float64"), \
+                     to_numpy(targ[:, dtw_mapping_basis], astype="float64")
+        dist, cost, a, b = DTWLoss._dtw(pred, targ)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a, b

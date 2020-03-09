@@ -1,3 +1,4 @@
+import numpy as np
 
 class Stat:
     def __init__(self, y, x, x_title="", y_title="", name="", plot=True, ymax=None, accumulator_freq=None, **kwargs):
@@ -77,6 +78,19 @@ class Stat:
             return self.y[-1]
         else:
             print("Stat error: No y-value yet")
+            return 0
+
+    def get_last_epoch(self):
+        # ASSUMES IT'S BEING MEASURED ON EPOCH LEVEL
+        try:
+            x = np.array(self.x)
+            y = np.array(self.y)
+            x_max = x[-1]
+            x_min = x[-1] - 1
+            args = np.argwhere((x >= x_min) & (x <= x_max))
+            np.mean(y[args])
+        except:
+            print("Problem with getting value for last epoch")
             return 0
 
 
