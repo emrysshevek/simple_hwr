@@ -97,15 +97,6 @@ class DTWLoss(CustomLoss):
             if self.method=="normal":
                 pred = preds[i][a, :][:, self.loss_indices]
                 targ = targs[i][b, :][:, self.loss_indices]
-            # elif self.method=="align_to_gt":
-            #     pred = preds[i][a, :][:, self.loss_indices]
-            #     targ = targs[i][:, self.loss_indices]
-            # elif self.method=="align_to_pred":
-            #     pred = preds[i][:, self.loss_indices]
-            #     targ = targs[i][b, :][:, self.loss_indices]
-            # elif self.method=="both":
-            #     pred = torch.cat(preds[i][:, self.loss_indices], preds[i][a, :][:, self.loss_indices])
-            #     targ = torch.cat(targs[i][b, :][:, self.loss_indices], targs[i][:, self.loss_indices])
             else:
                 raise NotImplemented
 
@@ -114,10 +105,6 @@ class DTWLoss(CustomLoss):
                 loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
             elif True:
                 loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
-            else:
-                # ONLY WHEN USING SOS!!!
-                start_strokes_factor = (targs[i][b, 2] * 4 + 1).unsqueeze(1).repeat(1, len(self.loss_indices))
-                loss += (start_strokes_factor * abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
 
             if self.cross_entropy_indices:
                 pred = preds[i][a, :][:, self.cross_entropy_indices]
@@ -125,10 +112,41 @@ class DTWLoss(CustomLoss):
 
                 if self.relativefy:
                     targ = relativefy_torch(targ)
-
+                    targ[0][:, self.cross_entropy_indices] = 1 # first point is a start point
                 loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
 
         return loss  # , to_value(loss)
+
+    def dtw_with_reverse(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i in range(len(preds)):  # loop through BATCH
+            a, b   = self.dtw_single((preds[i], targs[i]))
+            ar, br = self.dtw_single((preds[i], targs[i]))
+
+            # LEN X VOCAB
+            if self.method=="normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = targs[i][b, :][:, self.loss_indices]
+            else:
+                raise NotImplemented
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            elif True:
+                loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
+            if self.cross_entropy_indices:
+                pred = preds[i][a, :][:, self.cross_entropy_indices]
+                targ = targs[i][b, :][:, self.cross_entropy_indices]
+
+                if self.relativefy:
+                    targ = relativefy_torch(targ)
+                    targ[0][:, self.cross_entropy_indices] = 1 # first point is a start point
+                loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
+
+        return loss  # , to_value(loss)
+
 
     def dtw_single(self, _input):
         """ THIS DOES NOT USE SUBCOEF
