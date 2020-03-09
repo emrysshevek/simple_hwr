@@ -278,7 +278,7 @@ def make_dataloaders(config, device="cpu"):
                               occlusion_size=config["occlusion_size"],
                               occlusion_freq=config["occlusion_freq"],
                               occlusion_level=config["max_intensity"],
-                              logger=config["logger"])
+                              logger=config["logger"], **config.dataset)
 
     train_dataloader = DataLoader(train_dataset,
                                   batch_size=config["batch_size"],
@@ -311,7 +311,8 @@ def make_dataloaders(config, device="cpu"):
                              random_distortions=False,
                              distortion_sigma=0,
                              max_images_to_load=config["images_to_load"],
-                             logger=config["logger"])
+                             logger=config["logger"],
+                             **config.dataset)
 
     test_dataloader = DataLoader(test_dataset,
                                  batch_size=config["batch_size"],

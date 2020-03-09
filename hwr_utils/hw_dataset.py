@@ -20,7 +20,6 @@ if LOADSTROKES:
     from hwr_utils.stroke_recovery import *
     from hwr_utils.stroke_dataset import *
 
-
 PADDING_CONSTANT = 0
 ONLINE_JSON_PATH = ''
 
@@ -47,9 +46,6 @@ def collate_basic(batch, device="cpu"):
     all_labels = []
     label_lengths = []
 
-    # STROKE
-    stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3), PADDING_CONSTANT).astype(np.float32)
-
     input_batch = np.full((len(batch), dim0, dim1, dim2), PADDING_CONSTANT).astype(np.float32)
     for i in range(len(batch)):
         b_img = batch[i]['line_img']
@@ -58,10 +54,6 @@ def collate_basic(batch, device="cpu"):
         l = batch[i]['gt_label']
         all_labels.append(l)
         label_lengths.append(len(l))
-
-        # STROKE
-        b_strokes = batch[i]['strokes'] # W x 3
-        stroke_batch[i, :b_strokes.shape[0], :] = b_strokes
 
 
     all_labels = np.concatenate(all_labels)
@@ -73,7 +65,7 @@ def collate_basic(batch, device="cpu"):
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
     online = torch.from_numpy(np.array([1 if b['online'] else 0 for b in batch])).float().to(device)
 
-    return {
+    out = {
         "line_imgs": line_imgs,
         "labels": labels,
         "label_lengths": label_lengths,
@@ -81,9 +73,20 @@ def collate_basic(batch, device="cpu"):
         "writer_id": torch.FloatTensor([b['writer_id'] for b in batch]),
         "actual_writer_id": torch.FloatTensor([b['actual_writer_id'] for b in batch]),
         "paths": [b["path"] for b in batch],
-        "online": online,
-        "strokes": torch.from_numpy(stroke_batch).to(device)
+        "online": online
     }
+
+    # STROKE
+    if "strokes" in batch[0].keys() and not batch[0]['strokes'] is None:
+        stroke_batch = np.full((len(batch), img_width_to_pred_mapping(dim1, cnn_type="default64"), 3),
+                               PADDING_CONSTANT).astype(np.float32)
+        for i in range(len(batch)):
+            # STROKE
+            b_strokes = batch[i]['strokes']  # W x 3
+            stroke_batch[i, :b_strokes.shape[0], :] = b_strokes
+
+        out["strokes"] = torch.from_numpy(stroke_batch).to(device)
+    return out
 
 def collate_repetition(batch, device="cpu", n_warp_iterations=21, warp=True, occlusion_freq=None, occlusion_size=None, occlusion_level=1):
     """ Returns multiple versions of the same item for n_warping
@@ -183,10 +186,14 @@ class HwDataset(Dataset):
                  logger=None,
                  **kwargs):
 
+        global LOADSTROKES
+        LOADSTROKES = True if "loadstrokes" in kwargs and kwargs["loadstrokes"] else False
+        self.stroke_path = kwargs["stroke_path"] if "stroke_path" in kwargs else "RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy"
+
         data = self.load_data(data_paths, root, images_to_load=max_images_to_load)
 
         if LOADSTROKES:
-            self.stroke_dict = self.load_strokes(file_path="RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy")
+            self.stroke_dict = self.load_strokes(file_path=self.stroke_path)
 
         # Data
         # {'gt': 'A MOVE to stop Mr. Gaitskell from',

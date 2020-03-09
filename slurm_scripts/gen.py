@@ -20,8 +20,8 @@ if socket.gethostname() in "Galois":
 
 # Paths relative to project directory
 src_dir = proj_dir                                # the dir containing the python script to be summoned in the .sh file
-config_root = proj_dir / "configs/stroke_config"                # the config root folder
-sh_root = proj_dir / "slurm_scripts/scripts/stroke_config"              # the .sh root folder
+config_root = proj_dir / "configs"                # the config root folder
+sh_root = proj_dir / "slurm_scripts/scripts"              # the .sh root folder
 
 
 # Environment
@@ -114,7 +114,7 @@ def loop_configs(config_root, script_root, ext=".yaml"):
         log_path = Path(script_root / subfolders.parent / ('log_' + config_path.with_suffix('.slurm').name))
         cd_path = src_dir
 
-        py_script = "train_stroke_recovery.py" if "stroke_config" in config_path.as_posix() else "train.py"
+        py_script = "train_stroke_recovery.py" if "stroke_config" in config_path.as_posix() else "recognition/train.py"
 
         command = f"python -u {py_script} --config '{config_path}'"
         #print(f"sh:{sh_path} log:{log_path} cd: {cd_path}")

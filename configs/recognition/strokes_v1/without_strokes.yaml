@@ -1,5 +1,5 @@
 ### TESTING
-TESTING: true        # Use batch figsize of 1, only do one batch per epoch; will still save etc.
+TESTING: false        # Use batch figsize of 1, only do one batch per epoch; will still save etc.
 SMALL_TRAINING: false  # Load 1 batch; will not save output
 GPU: true             # Use GPU if available
 TEST_FREQ: 1         # epoch frequency for running test set
@@ -17,7 +17,8 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false                             # Do not train
 
 dataset:
-  stroke_path: "RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy" # not implemented
+  stroke_path: "RESULTS/OFFLINE_PREDS/good/imgs/current/eval/data/all_data.npy"
+  loadstrokes: false
 
 # General
 experiment: default
