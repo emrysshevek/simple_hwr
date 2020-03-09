@@ -423,7 +423,7 @@ def relativefy_numpy(x, reverse=False):
     else:
         return np.insert(x[1:]-x[:-1], 0, x[0])
 
-def relativefy_torch(x, reverse=False):
+def relativefy_torch(x, reverse=False, default_value=0):
     """ Make the x-coordinate relative to the previous one
         First coordinate is relative to 0
     Args:
@@ -435,7 +435,13 @@ def relativefy_torch(x, reverse=False):
     if reverse:
         return torch.cumsum(x,dim=0)
     else:
-        r = torch.zeros(x.shape)
+        if default_value==0:
+            r = torch.zeros(x.shape)
+        elif default_value==1:
+            r = torch.ones(x.shape)
+        else:
+            r = torch.zeros(x.shape)+default_value
+
         r[1:] = x[1:]-x[:-1]
         return r
 

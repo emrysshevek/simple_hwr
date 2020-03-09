@@ -110,9 +110,9 @@ class DTWLoss(CustomLoss):
                 pred = preds[i][a, :][:, self.cross_entropy_indices]
                 targ = targs[i][b, :][:, self.cross_entropy_indices]
 
+                pred = torch.clamp(pred, -4,4)
                 if self.relativefy:
-                    targ = relativefy_torch(targ)
-                    targ[0][:, self.cross_entropy_indices] = 1 # first point is a start point
+                    targ = relativefy_torch(targ, default_value=1) # default=1 ensures first point is a 1 (SOS);
                 loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
 
         return loss  # , to_value(loss)
