@@ -163,6 +163,8 @@ class CNN(nn.Module):
             self.cnn = self.default_CNN(nc=nc, leakyRelu=leakyRelu)
         elif "default64" in cnn_type:
             self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu)
+        elif "default128" in cnn_type:
+            self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu, multiplier=2)
         elif "resnet" in cnn_type:
             from models import resnet
             if cnn_type== "resnet":
@@ -172,8 +174,6 @@ class CNN(nn.Module):
                 self.cnn = resnet.resnet34(pretrained=False, channels=nc)
             elif cnn_type== "resnet101":
                 self.cnn = resnet.resnet101(pretrained=False, channels=nc)
-
-
 
     def default_CNN(self, nc=3, leakyRelu=False):
 
@@ -229,7 +229,7 @@ class CNN(nn.Module):
         return cnn
 
 
-    def default_CNN64(self, nc=3, leakyRelu=False):
+    def default_CNN64(self, nc=3, leakyRelu=False, multiplier=1):
 
         ks = [3, 3, 3, 3, 3, 3, 2] # kernel size 3x3
         ps = [1, 1, 1, 1, 1, 1, 0] # padding
@@ -280,7 +280,7 @@ class CNN(nn.Module):
         cnn.add_module('pooling{0}'.format(3),
                        nn.MaxPool2d((2, 2), (2, 1), (0, 1)))  # 16, 512, 3, 452
         convRelu(6, True)  # 16, 512, 2, 451
-        cnn.add_module("upsample", Interpolate(size=None, scale_factor=[1,2], mode='bilinear', align_corners=True))
+        cnn.add_module("upsample", Interpolate(size=None, scale_factor=[1,2*multiplier], mode='bilinear', align_corners=True))
         return cnn
 
     """
