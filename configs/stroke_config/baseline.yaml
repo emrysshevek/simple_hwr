@@ -8,7 +8,7 @@ load_path: false # ./results/baseline/20190622_155031-lr_0.001_bs_16_warp_False_
 test_only: false # Do not train
 offline_pred: false
 logging: info
-gpu_if_available: true
+gpu_if_available: false
 
 # General
 output_folder: ./results

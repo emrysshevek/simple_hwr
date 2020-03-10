@@ -88,7 +88,7 @@ class Stat:
             x_max = x[-1]
             x_min = x[-1] - 1
             args = np.argwhere((x >= x_min) & (x <= x_max))
-            np.mean(y[args])
+            return np.mean(y[args][y[args] != np.array(None)])
         except:
             print("Problem with getting value for last epoch")
             return 0

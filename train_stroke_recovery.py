@@ -74,8 +74,9 @@ def run_epoch(dataloader, report_freq=500):
         utils.pickle_it({"item":item, "preds":[p.detach().numpy() for p in preds_to_graph]}, Path(save_folder) / "example_data.pickle")
 
     #config.scheduler.step()
-    config.scheduler.step(config.stats["Actual_Loss_Function_train"].get_last_epoch())
-    return config.stats["Actual_Loss_Function_train"].get_last_epoch()
+    training_loss = config.stats["Actual_Loss_Function_train"].get_last_epoch()
+    config.scheduler.step(training_loss)
+    return training_loss
 
 def test(dataloader):
     for i, item in enumerate(dataloader):
@@ -307,7 +308,7 @@ def main(config_path, testing=False):
         logger.info(f"Epoch: {epoch}, Test Loss: {test_loss}")
         check_epoch_build_loss(config)
 
-        all_test_losses = [x for x in config.stats["Actual_Loss_Function_test"].y if x > 0]
+        all_test_losses = [x for x in config.stats["Actual_Loss_Function_test"].y if x and x > 0]
         if test_loss <= np.min(all_test_losses):
             utils.save_model_stroke(config, bsf=True)
         if epoch % config.save_freq == 0: # how often to save
