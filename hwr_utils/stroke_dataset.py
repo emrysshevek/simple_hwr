@@ -566,10 +566,13 @@ def add_output_size_to_data(data, cnn, key="number_of_samples", root=None, img_h
 
 def img_width_to_pred_mapping(width, cnn_type="default64"):
     # If using default
+    default64_base = lambda width: -(width % 2) + width + 4
     if cnn_type=="default":
         return int(width / 4) + 1
     elif cnn_type in ("default64", "FAKE"):
-        return -(width % 2) + width + 4
+        return default64_base(width)
+    elif cnn_type in ("default128"):
+        return default64_base(width)*2
     else:
         raise Exception(f"Unknown CNN type {cnn_type}")
 
