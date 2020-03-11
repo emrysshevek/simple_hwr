@@ -7,7 +7,7 @@ offline_pred: false
 # General
 output_folder: ./results
 epochs_to_run: 200
-update_freq: 500 # print out updates, update graphs etc. after this many updates
+update_freq: 1000 # print out updates, update graphs etc. after this many updates
 save_freq: 5     # save the model every X epochs
 use_visdom: true
 debug: off

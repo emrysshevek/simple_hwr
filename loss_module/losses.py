@@ -38,6 +38,28 @@ class CustomLoss(nn.Module):
             length = len(range(*loss_indices.indices(4))) if isinstance(loss_indices, slice) else len(loss_indices)
             self.subcoef = torch.ones(length).to(self.device)
 
+
+class CosineSimilarity(CustomLoss):
+    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
+    """
+
+    def __init__(self, loss_indices, **kwargs):
+        """
+        """
+        # parse the opts - this will include opts regarding the DTW basis
+        # loss_indices - the loss_indices to calculate the actual loss
+        super().__init__(loss_indices, **kwargs)
+        self.lossfun = self.cosine_similarity
+
+    def cosine_similarity(self, preds, targs, label_lengths, **kwargs):
+        # Each pred is multiplied by every GT
+        # Soft max for each GT; classify the correct GT
+        # Return the best guess GT
+        pass
+
+
+
+
 class DTWLoss(CustomLoss):
     def __init__(self, loss_indices, dtw_mapping_basis=None, **kwargs):
         """

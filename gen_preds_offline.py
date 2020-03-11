@@ -113,9 +113,8 @@ def main(config_path):
     globals().update(locals())
 
 def post_process(pred,gt):
-    # DON'T POST PROCESS FOR NOW
-    #return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
-    return pred
+    return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
+
 
 def eval_only(dataloader, model):
     final_out = []

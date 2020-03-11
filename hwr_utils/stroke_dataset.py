@@ -573,6 +573,8 @@ def img_width_to_pred_mapping(width, cnn_type="default64"):
         return default64_base(width)
     elif cnn_type == "default128":
         return default64_base(width)*2
+    elif cnn_type == "default96":
+        return int(default64_base(width)*1.5)
     else:
         raise Exception(f"Unknown CNN type {cnn_type}")
 

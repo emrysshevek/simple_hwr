@@ -146,7 +146,7 @@ class TrainerStrokeRecovery(Trainer):
         if train:
             self.optimizer.zero_grad()
             loss_tensor.backward()
-            torch.nn.utils.clip_grad_norm_(self.config.model.parameters(), 1)
+            torch.nn.utils.clip_grad_norm_(self.config.model.parameters(), 10)
             self.optimizer.step()
 
         ## Take post activations

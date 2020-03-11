@@ -165,6 +165,8 @@ class CNN(nn.Module):
             self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu)
         elif "default128" in cnn_type:
             self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu, multiplier=2)
+        elif "default96" in cnn_type:
+            self.cnn = self.default_CNN64(nc=nc, leakyRelu=leakyRelu, multiplier=1.5)
         elif "resnet" in cnn_type:
             from models import resnet
             if cnn_type== "resnet":
