@@ -54,7 +54,9 @@ def run_epoch(dataloader, report_freq=500):
 
         if config.counter.updates % report_freq == 0 and i > 0:
             utils.reset_all_stats(config, keyword="_train")
-            logger.info(("update: ", config.counter.updates, "combined loss: ", config.stats["Actual_Loss_Function_train"].get_last()))
+            training_loss = config.stats["Actual_Loss_Function_train"].get_last()
+            logger.info(("update: ", config.counter.updates, "combined loss: ", training_loss))
+            config.scheduler.step(training_loss)
 
         if epoch==1 and i==0:
             logger.info(("Preds", preds[0]))
@@ -75,7 +77,6 @@ def run_epoch(dataloader, report_freq=500):
 
     #config.scheduler.step()
     training_loss = config.stats["Actual_Loss_Function_train"].get_last_epoch()
-    config.scheduler.step(training_loss)
     return training_loss
 
 def test(dataloader):
@@ -91,7 +92,7 @@ def test(dataloader):
 
     return config.stats["Actual_Loss_Function_test"].get_last()
 
-def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoch="current", show=False):
+def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoch="current", show=False, plot_points=True):
     if save_folder == "auto":
         _epoch = str(epoch)
         save_folder = (config.image_dir / _epoch / _type)
@@ -140,19 +141,21 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
         bg = overlay_images(background_img=gt_img.numpy(), foreground_gt=coords.transpose())
         if save_folder:
             bg.save(save_folder / f"overlay{suffix}_{i}_{name}.png")
-        else:
+
+        if show:
             plt.figure(dpi=300)
             plt.imshow(bg)
+            plt.show()
+
         ## Undo relative positions for X for graphing
         ## In normal mode, the cumulative sum has already been taken
-
-        #render_points_on_image(gts=coords, img=img, save_path=save_folder / f"{i}_{name}{suffix}.png")
-        save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None
-        if config.dataset.image_prep.lower().startswith('pil'):
-            render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_path, origin='lower', invert_y_image=True, show=show)
-        else:
-            render_points_on_image_matplotlib(gts=coords, img_path=img_path, save_path=save_path,
-                                   origin='lower', show=show)
+        if plot_points:
+            save_path = save_folder / f"{i}_{name}{suffix}.png" if save_folder else None
+            if config.dataset.image_prep.lower().startswith('pil'):
+                render_points_on_image(gts=coords, img=gt_img.numpy() , save_path=save_path, origin='lower', invert_y_image=True, show=show)
+            else:
+                render_points_on_image_matplotlib(gts=coords, img_path=img_path, save_path=save_path,
+                                       origin='lower', show=show)
 
     # Loop through each item in batch
     for i, el in enumerate(batch["paths"]):
@@ -281,8 +284,8 @@ def main(config_path, testing=False):
 
     optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
     #config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=5, verbose=False,
-                                                threshold=0.00001, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+    config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=40, verbose=False,
+                                                threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
     if config.model_name != "normal":
         trainer = TrainerStartPoints(model, optimizer, config=config, loss_criterion=config.loss_obj)

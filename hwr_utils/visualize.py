@@ -214,12 +214,14 @@ def prep_path(foreign_paths):
 
     """
 
-    new_path = increment_path(base_path=Path("../RESULTS/COMPARISON"), make_directory=False)
+    new_path = increment_path(base_path=Path("RESULTS/COMPARISON"), make_directory=True)
     if not is_iterable(foreign_paths):
         foreign_paths = [foreign_paths]
 
     for foreign_path in foreign_paths:
         for stats_file in Path(foreign_path).rglob("all_stats.json"):
+            if "BSF" in stats_file.parent.name:
+                continue
             experiment_folder_name = stats_file.parent.name
             experiment_folder_name2 = stats_file.parent.parent.name
             print(experiment_folder_name)
@@ -250,8 +252,6 @@ if __name__=="__main__":
     load_bashrc()
     p = Popen(f'pkill -f visdom', shell=True, close_fds=True)
     visdom_command = "/home/taylor/anaconda3/envs/hwr5/bin/python -m visdom.server -p 9001 &>/dev/null &"
-    p = Popen(visdom_command, shell=True, close_fds=True)
-    time.sleep(2)
     if True:
         path = r"/home/taylor/shares/Super/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver3/"
         #path = r"fish://tarch@rhel7ssh.fsl.byu.edu/zhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/results/stroke_config/ver3/"
@@ -268,10 +268,18 @@ if __name__=="__main__":
         paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver4/20200229_223630-stroke_number_with_BCE_RESUME",
                   "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/",
                     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5"]
+        # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/20200301-PRETRAIN"]
+        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver5",
+                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5"]
+
 
         path = prep_path(paths)
     else:
         path = Path("/media/data/GitHub/simple_hwr/RESULTS/COMPARISON/11_")
+
+
+    p = Popen(visdom_command, shell=True, close_fds=True)
+    time.sleep(2)
 
     #path = r"./results/stroke_config"
     #path = r"/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/long/variants"
