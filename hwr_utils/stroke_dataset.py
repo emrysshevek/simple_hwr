@@ -3,6 +3,7 @@ import json
 import multiprocessing
 import torch
 from torch.utils.data import Dataset
+from scipy.spatial import KDTree
 
 import os
 import cv2
@@ -405,7 +406,8 @@ class StrokeRecoveryDataset(Dataset):
             "x_func": item["x_func"],
             "y_func": item["y_func"],
             "gt_format": self.gt_format,
-            "start_points": start_points
+            "start_points": start_points,
+            "kdtree": KDTree(gt[:, 0:2])
         }
 
 def create_gts_from_raw_dict(item, interval, noise, gt_format=None):

@@ -61,6 +61,22 @@ class CosineSimilarity(CustomLoss):
         pass
 
 
+class NearestNeighbor(CustomLoss):
+    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
+    """
+
+    def __init__(self, loss_indices, **kwargs):
+        """
+        """
+        # parse the opts - this will include opts regarding the DTW basis
+        # loss_indices - the loss_indices to calculate the actual loss
+        super().__init__(loss_indices, **kwargs)
+        self.lossfun = self.nearest_neighbor
+
+    def nearest_neighbor(self, preds, targs, label_lengths, line_imgs, kd_tree, **kwargs):
+        bad_indices = line_imgs[torch.round(preds[:,self.loss_indices])]
+
+
 
 
 class DTWLoss(CustomLoss):
