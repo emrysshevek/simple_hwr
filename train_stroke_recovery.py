@@ -56,7 +56,11 @@ def run_epoch(dataloader, report_freq=500):
             utils.reset_all_stats(config, keyword="_train")
             training_loss = config.stats["Actual_Loss_Function_train"].get_last()
             logger.info(("update: ", config.counter.updates, "combined loss: ", training_loss))
+            lr = next(iter(config.optimizer.param_groups))['lr']
             config.scheduler.step(training_loss)
+            new_lr = next(iter(config.optimizer.param_groups))['lr']
+            if new_lr != lr:
+                logger.info(f"LR decreased from {lr} to {new_lr}")
 
         if epoch==1 and i==0:
             logger.info(("Preds", preds[0]))
