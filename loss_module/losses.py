@@ -55,6 +55,9 @@ class CosineSimilarity(CustomLoss):
         # Each pred is multiplied by every GT
         # Soft max for each GT; classify the correct GT
         # Return the best guess GT
+        
+
+
         pass
 
 
