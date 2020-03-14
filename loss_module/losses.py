@@ -139,6 +139,7 @@ class DTWLoss(CustomLoss):
             if self.method=="normal":
                 pred = preds[i][a, :][:, self.loss_indices]
                 targ = targs[i][b, :][:, self.loss_indices]
+
             else:
                 raise NotImplemented
 
@@ -149,14 +150,20 @@ class DTWLoss(CustomLoss):
                 loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
 
             if self.cross_entropy_indices:
-                pred = preds[i][a, :][:, self.cross_entropy_indices]
-                targ = targs[i][b, :][:, self.cross_entropy_indices]
+                pred2 = preds[i][a, :][:, self.cross_entropy_indices]
+                targ2 = targs[i][b, :][:, self.cross_entropy_indices]
 
-                pred = torch.clamp(pred, -4,4)
+                pred2 = torch.clamp(pred2, -4,4)
                 if self.relativefy:
-                    targ = relativefy_torch(targ, default_value=1) # default=1 ensures first point is a 1 (SOS);
-                loss += BCEWithLogitsLoss(pred, targ).sum() * .1  # AVERAGE pointwise loss for 1 image
+                    targ2 = relativefy_torch(targ2, default_value=1) # default=1 ensures first point is a 1 (SOS);
+                loss += BCEWithLogitsLoss(pred2, targ2).sum() * .1  # AVERAGE pointwise loss for 1 image
 
+                # TEMP HACKY LOSS, WEIGHT START/END POINTS MORE!
+                # This will take only the first start point as having extra weight
+                start_points = torch.nonzero(targ2.flatten())
+                end_points = start_points[1:] - 1
+                combined_points = torch.unique(torch.cat([start_points, end_points]))
+                loss += (4*abs(pred[combined_points] - targ[combined_points]) * self.subcoef).sum()
         return loss  # , to_value(loss)
 
 

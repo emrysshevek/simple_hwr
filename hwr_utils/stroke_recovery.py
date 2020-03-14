@@ -763,7 +763,7 @@ def post_process_remove_strays(gt, max_dist=.2):
         gt[bad_points, 2] = 1
     return gt
 
-def make_more_starts(gt, max_dist=.1):
+def make_more_starts(gt, max_dist=.15):
     """ Make more start points and delete superflouous ones
 
     Args:
@@ -810,24 +810,69 @@ def get_nearest_point(reference, moving_component, reference_is_image=False, **k
             reference = np.squeeze(reference)
         height = reference.shape[0]
         y_coords,x_coords = np.where(reference<150/127.5-1)
-        reference = np.c_[x_coords, height-y_coords].astype(np.float64) / height
+        reference = np.c_[x_coords, height-y_coords].astype(np.float64) / height # rescale to be 0-1 based on height!
 
     if "kd" in kwargs:
         kd = kwargs["kd"]
     else:
         kd = KDTree(reference[:, :2].data)
 
-    distances, neighbor_indices = kd.query(moving_component[:, :2])  # How far do we have to move the GT's to match the predictions?
+    distances, neighbor_indices = kd.query(moving_component[:, :2])  # How far do we have to move the GT's to match the predictions? Based on 0-1 height scale
     nearest_points = reference[neighbor_indices]
     return nearest_points, distances
 
-def move_bad_points(reference, moving_component, reference_is_image=False, max_distance=6, **kwargs):
+def move_bad_points_deprecated(reference, moving_component, reference_is_image=False, max_distance=6, **kwargs):
     nearest_points, distances = get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
     if isinstance(moving_component, Tensor):
         moving_component = moving_component.detach().numpy()
     moving_component[:,0:2] = nearest_points
     print(moving_component)
     return moving_component #moving_component[distances<max_distance]
+
+
+def preserve_deleted_start_points(moving_component, proposed_deletion_indices):
+    lost_start_points = np.argwhere(np.round(moving_component[proposed_deletion_indices][:, 2]))
+    lost_start_points = proposed_deletion_indices[lost_start_points]
+
+    output_start_point_indices = []
+    _temp_output_start_point_indices = lost_start_points + 1
+    for i in _temp_output_start_point_indices.flatten().tolist():
+        while i in proposed_deletion_indices:  # make sure that index is not going to be deleted
+            i += 1
+        if i < moving_component.shape[0]:
+            output_start_point_indices.append(i)
+    # globals().update(locals())
+    return list(set(output_start_point_indices))
+
+
+def move_bad_points(reference, moving_component, reference_is_image=True, max_distance=.04, **kwargs):
+    # JUST FOR GRAPHING
+    item = {"line_imgs": [reference[:, :1000]], "paths": [""]}
+    preds = moving_component.clone().detach().numpy()
+
+    # plt.figure(dpi=300)
+    # print("Before fix")
+    # graph(item, preds=[preds.copy().transpose([1, 0])], _type="eval", epoch="current", config=config, save_folder=None,
+    #       plot_points=False, show=True)
+
+    nearest_points, distances = get_nearest_point(reference, moving_component, reference_is_image, **kwargs)
+    if isinstance(moving_component, Tensor):
+        moving_component = moving_component.detach().numpy()
+    moving_component[:, 0:2] = nearest_points
+
+    # Collapse start points a bit
+    proposed_deletion_indices = np.argwhere(distances >= max_distance).flatten()
+    new_start_points = preserve_deleted_start_points(moving_component, proposed_deletion_indices)
+    moving_component[new_start_points, 2] = 1
+    output = np.delete(moving_component, proposed_deletion_indices, axis=0)
+
+    # output = moving_component[distances < max_distance]
+
+    # globals().update(locals())
+    # graph(item, preds=[output.copy().transpose([1, 0])], _type="eval", epoch="current", config=config, save_folder=None,
+    #       plot_points=False, show=True)
+
+    return output
 
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE

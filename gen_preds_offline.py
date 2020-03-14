@@ -32,7 +32,8 @@ def main(config_path):
     load_path_override = "/media/data/GitHub/simple_hwr/~RESULTS/20191213_155358-baseline-GOOD_long"
     load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
     load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
-    load_path_override = PROJ_ROOT + "RESULTS/pretrained/new_best/good.pt"
+    load_path_override = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/dtw_train_2.9/normal_preload_model.pt"
+    #load_path_override = PROJ_ROOT + "RESULTS/pretrained/new_best/good.pt"
 
     #load_path_override = PROJ_ROOT + "RESULTS/OFFLINE_PREDS/all_data.npy"
     _load_path_override = Path(load_path_override)
@@ -113,8 +114,9 @@ def main(config_path):
     globals().update(locals())
 
 def post_process(pred,gt):
-    #return move_bad_points(reference=gt, moving_component=pred, reference_is_image=True)
-    return pred
+    return make_more_starts(move_bad_points(reference=gt, moving_component=pred, reference_is_image=True), max_dist=.15)
+
+    #return pred
 
 def eval_only(dataloader, model):
     final_out = []
@@ -125,13 +127,13 @@ def eval_only(dataloader, model):
                                            sigmoid_activations=config.sigmoid_indices)
 
         # Pred comes out of eval WIDTH x VOCAB
-        preds_to_graph = [post_process(p, item["line_imgs"][i]).permute([1, 0]) for i,p in enumerate(preds)]
+        preds_to_graph = [post_process(p, item["line_imgs"][i]).transpose([1, 0]) for i,p in enumerate(preds)]
 
         # Get GTs, save to file
-        if i<10:
+        if i<1:
             # Save a sample
             save_folder = graph(item, preds=preds_to_graph, _type="eval", epoch="current", config=config)
-            output_path = (save_folder / "data")
+            output_path = (Path(save_folder) / "data")
             output_path.mkdir(exist_ok=True, parents=True)
 
         names = [Path(p).stem.lower() for p in item["paths"]]

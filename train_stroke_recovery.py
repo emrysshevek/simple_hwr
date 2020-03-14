@@ -94,6 +94,18 @@ def test(dataloader):
         save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
+    try:
+        loss = "dtw"
+        for variant in "_train", "_test":
+            plt.plot(config.stats[f"{loss}{variant}"].x[-20:], config.stats[f"{loss}{variant}"].y[-20:])
+            plt.savefig(config.image_dir / f"{loss}{variant}")
+            plt.plot(config.stats[f"{loss}{variant}"].x, config.stats[f"{loss}{variant}"].y)
+            plt.savefig(config.image_dir / f"{loss}{variant}_complete")
+            plt.close('all')
+    except:
+        logger.info("Problem graphing")
+        pass
+
     return config.stats["Actual_Loss_Function_test"].get_last()
 
 def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoch="current", show=False, plot_points=True):
@@ -286,7 +298,7 @@ def main(config_path, testing=False):
     # Create loss object
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=.0005 * batch_size/32)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate * batch_size/32)
     #config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
     config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=40, verbose=False,
                                                 threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
