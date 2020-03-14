@@ -33,6 +33,8 @@ def main(config_path):
     load_path_override= "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver1/20200215_014143-normal/normal_model.pt"
     load_path_override = "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/ver2/20200217_033031-normal2/normal2_model.pt"
     load_path_override = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/dtw_train_2.9/normal_preload_model.pt"
+    load_path_override = "/media/data/GitHub/simple_hwr/RESULTS/pretrained/dtw_train_v2/v2.pt"
+
     #load_path_override = PROJ_ROOT + "RESULTS/pretrained/new_best/good.pt"
 
     #load_path_override = PROJ_ROOT + "RESULTS/OFFLINE_PREDS/all_data.npy"
@@ -58,8 +60,8 @@ def main(config_path):
     device=torch.device(config.device)
     #device=torch.device("cpu")
 
-    #output = utils.increment_path(name="Run", base_path=Path("./results/stroke_recovery"))
-    output = Path(config.results_dir)
+    output = utils.increment_path(name="Run", base_path=Path(load_path_override).parent)
+    #output = Path(config.results_dir)
     output.mkdir(parents=True, exist_ok=True)
     folder = Path(config.dataset_folder)
 

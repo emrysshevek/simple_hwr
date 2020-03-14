@@ -257,7 +257,7 @@ class CreateDataset:
             new_format = raw_format = item["stroke"]
             # if len(item["stroke"])>1:
             #     return None
-            file_name = item["name"]
+            file_name = Path(item["name"]).stem
 
         stroke_dict = prep_stroke_dict(new_format, time_interval=0, scale_time_distance=True)  # list of dictionaries, 1 per file
         if stroke_dict is None:
@@ -275,7 +275,7 @@ class CreateDataset:
             if square and (x_to_y < .5 or x_to_y > 2):
                 continue
 
-            new_img_path = (new_img_folder / (file_name + f"_{i}")).with_suffix(".tif")
+            new_img_path = (new_img_folder / f"{file_name}_{i}").with_suffix(".tif")
 
             new_item = {
                 "image_path": new_img_path.relative_to(absolute_data_folder).as_posix(),
@@ -660,15 +660,15 @@ def indic():
     """
     root = Path("/media/data/GitHub/simple_hwr/data/indic/")
     for language in "devnagari", "tamil", "telug":
-        strokes = None      # None=MAX stroke
+        strokes = 1      # None=MAX stroke
         square = False      # Don't require square images
         instances = None    # None=Use all available instances
         test_set_size = 30 # use leftover test images in Training
         train_set_size = 60
         combine_images = False # combine images to make them longer
         RENDER = True
-        variant=f"{language}"
-        load_path = root / ((variant) + "_raw.json")
+        variant=f"{language}_one_stroke"
+        load_path = root / ((language) + "_raw.json")
 
         data_set = CreateDataset(max_strokes=strokes,
                                  square=square,
@@ -685,8 +685,8 @@ def indic():
 
 if __name__ == "__main__":
     #new()
-    synthetic()
-    #indic()
+    #synthetic()
+    indic()
 
 # import cProfile
 #

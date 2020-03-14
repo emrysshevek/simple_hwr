@@ -13,9 +13,12 @@ from hwr_utils.stroke_recovery import relativefy
 from hwr_utils.stroke_dataset import pad, create_gts
 from scipy.spatial import KDTree
 import time
+from hwr_utils.stroke_recovery import distance_metric
 
-def start_point_is_correct():
+def start_point_is_correct(preds, gts):
+    distance_metric(preds[0,:2], gts[0,:2])
     pass
+
 
 def juncture_is_correct(gts, preds):
     # Algorithm: make segments along the function, then O(n^2) check
