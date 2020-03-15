@@ -663,10 +663,10 @@ def indic():
         strokes = 1      # None=MAX stroke
         square = False      # Don't require square images
         instances = None    # None=Use all available instances
-        test_set_size = 30 # use leftover test images in Training
-        train_set_size = 60
+        test_set_size = None # use leftover test images in Training
+        train_set_size = None
         combine_images = False # combine images to make them longer
-        RENDER = True
+        RENDER = False
         variant=f"{language}_one_stroke"
         load_path = root / ((language) + "_raw.json")
 
