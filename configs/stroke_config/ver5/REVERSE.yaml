@@ -5,12 +5,13 @@
 # Load model
 TESTING: false # this is for debugging, do it on a small dataset
 load_path: /fslhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/normal_preload_model.pt
+load_path: /media/data/GitHub/simple_hwr/RESULTS/pretrained/dtw_train_2.9/normal_preload_model.pt
+
 results_dir_override: # will override the subexperiment folder logic
 test_only: false # Do not train
 offline_pred: false
 logging: info
 gpu_if_available: true
-
 
 # General
 output_folder: ./results
@@ -90,7 +91,7 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: dtw_sos_eos
+  - name: dtw_reverse
     coef: 1
     gts:
       - x

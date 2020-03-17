@@ -873,6 +873,23 @@ def move_bad_points(reference, moving_component, reference_is_image=True, max_di
     #       plot_points=False, show=True)
 
     return output
+np.split
+def invert_each_stroke(gt, stroke_numbers=True):
+    """
+
+    Args:
+        gt:
+        stroke_numbers:
+
+    Returns:
+        GTs with strokes inverted
+        SOS arg numbers (0,5,11...)
+    """
+    if not (gt[:, 2] <= 1).all() or stroke_numbers:
+        stroke_starts = np.argwhere(stroke_recovery.relativefy_numpy(gt[:, 2])).flatten()
+    else:
+        stroke_starts = np.argwhere(gt[:, 2]).flatten()
+    return np.concatenate([np.vstack([x[::-1] for x in np.split(gt[:,:2], stroke_starts) if x.size]), gt[:,2:]], axis=1), stroke_starts
 
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE

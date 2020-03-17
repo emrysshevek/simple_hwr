@@ -365,6 +365,8 @@ class StrokeRecoveryDataset(Dataset):
                 # Assuming e.g. we pass everything through the CNN every time etc.
                 img = read_img(image_path, add_distortion=add_distortion)
 
+        gt_reverse_strokes, sos_args = stroke_recovery.invert_each_stroke(gt)
+
         # Assumes dimension 2 is start points, 3 is EOS
         # START POINT MODEL
         if False and gt.shape[-1] > 3:
@@ -402,6 +404,8 @@ class StrokeRecoveryDataset(Dataset):
         return {
             "line_img": img,
             "gt": gt,
+            "gt_reverse_strokes": gt_reverse_strokes,
+            "sos_args": sos_args,
             "path": image_path,
             "x_func": item["x_func"],
             "y_func": item["y_func"],
@@ -714,10 +718,11 @@ def collate_stroke(batch, device="cpu"):
     labels = torch.from_numpy(labels.astype(TYPE)).to(device)
     label_lengths = torch.from_numpy(label_lengths.astype(np.int32)).to(device)
 
-    return {
+    return_d = {
         "line_imgs": line_imgs,
         "gt": labels, # Numpy Array, with padding
         "gt_list": all_labels, # List of numpy arrays
+        "gt_reverse_strokes": [torch.from_numpy(b["gt_reverse_strokes"].astype(TYPE)).to(device) for b in batch],
         "start_points": start_points,  # List of numpy arrays
         "gt_format": [batch[0]["gt_format"]]*batch_size,
         "label_lengths": label_lengths,
@@ -725,6 +730,13 @@ def collate_stroke(batch, device="cpu"):
         "x_func": [b["x_func"] for b in batch],
         "y_func": [b["y_func"] for b in batch],
     }
+
+    # Pass everything else through too
+    for i in batch[0].keys():
+        if i not in return_d.keys():
+            return_d[i] = [b[i] for b in batch]
+
+    return return_d
 
 
 def collate_stroke_eval(batch, device="cpu"):

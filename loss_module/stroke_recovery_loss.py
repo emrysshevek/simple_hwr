@@ -63,6 +63,12 @@ class StrokeLoss:
             loss_fn = l1.lossfun
         elif loss["name"].lower().startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
+        elif loss["name"].lower().startswith("dtw") and "sos_eos" in loss["name"].lower():
+            l = DTWLoss(**loss, device=self.device)
+            loss_fn = l.lossfun = l.dtw_sos_eos
+        elif loss["name"].lower().startswith("dtw") and "reverse" in loss["name"].lower():
+            l = DTWLoss(**loss, device=self.device)
+            loss_fn = l.lossfun = l.dtw_reverse
         elif loss["name"].lower().startswith("dtw"):
             loss_fn = DTWLoss(**loss, device=self.device).lossfun
         elif loss["name"].lower().startswith("barron"):
@@ -107,7 +113,7 @@ class StrokeLoss:
         for key, item in master_loss_defintion.items():
             logger.info(f"Loss {key}: {item}")
 
-    def main_loss(self, preds, targs, label_lengths, suffix):
+    def main_loss(self, preds, item, suffix):
         """ Preds: BATCH, TIME, VOCAB SIZE
                     VOCAB: x, y, start stroke, end_of_sequence
         Args:
@@ -120,6 +126,9 @@ class StrokeLoss:
         # Adapatively invert stroke targs if first instance is on the wrong end?? sounds sloooow
 
         """
+        label_lengths = item["label_lengths"]
+        targs = item["gt_list"]
+
         losses = torch.zeros(len(self.master_loss_defintion), requires_grad=False)
         batch_size = len(preds)
         total_points = tensor_sum(label_lengths)
@@ -130,11 +139,12 @@ class StrokeLoss:
 
             # Try calculating the loss
             try:
-                loss_tensor = loss_fn(preds, targs, label_lengths)
+                loss_tensor = loss_fn(preds, targs, label_lengths, item=item)
             except Exception as e:
                 losses[i] = torch.zeros(1, requires_grad=True)
                 logger.error(e)
                 logger.error(f"{loss_fn}")
+                #loss_tensor = loss_fn(preds, targs, label_lengths, item=item)
                 continue
 
             loss = to_value(loss_tensor)

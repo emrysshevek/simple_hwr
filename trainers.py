@@ -138,7 +138,7 @@ class TrainerStrokeRecovery(Trainer):
         preds = self.eval(line_imgs, self.model, label_lengths=label_lengths, relative_indices=self.relative_indices,
                           device=self.config.device, gt=item["gt"], train=train, convolve=self.convolve)  # This evals and permutes result, Width,Batch,Vocab -> Batch, Width, Vocab
 
-        loss_tensor, loss = self.loss_criterion.main_loss(preds, gt, label_lengths, suffix)
+        loss_tensor, loss = self.loss_criterion.main_loss(preds, item, suffix)
 
         # Update all other stats
         self.update_stats(item, preds, train=train)
@@ -250,7 +250,7 @@ class TrainerStartPoints(Trainer):
         for i, pred in enumerate(preds):
             pred_list.append(pred[:len(gt[i])])
 
-        loss_tensor, loss = self.loss_criterion.main_loss(pred_list, gt, label_lengths, suffix)
+        loss_tensor, loss = self.loss_criterion.main_loss(preds, item, suffix)
 
         if train:
             self.optimizer.zero_grad()
@@ -311,7 +311,7 @@ class TrainerStartEndStroke(Trainer):
         for i, pred in enumerate(preds):
             pred_list.append(pred[:len(gt[i])])
 
-        loss_tensor, loss = self.loss_criterion.main_loss(pred_list, gt, label_lengths, suffix)
+        loss_tensor, loss = self.loss_criterion.main_loss(preds, item, suffix)
 
         if train:
             self.optimizer.zero_grad()

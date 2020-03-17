@@ -97,7 +97,7 @@ def test(dataloader):
     try:
         loss = "dtw"
         for variant in "_train", "_test":
-            plt.plot(config.stats[f"{loss}{variant}"].x[-20:], config.stats[f"{loss}{variant}"].y[-20:])
+            plt.plot(config.stats[f"{loss}{variant}"].x[-40:], config.stats[f"{loss}{variant}"].y[-40:])
             plt.savefig(config.image_dir / f"{loss}{variant}")
             plt.plot(config.stats[f"{loss}{variant}"].x, config.stats[f"{loss}{variant}"].y)
             plt.savefig(config.image_dir / f"{loss}{variant}_complete")

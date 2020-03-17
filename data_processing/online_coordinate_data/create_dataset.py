@@ -93,8 +93,13 @@ class CreateDataset:
 
         if self.json_path.suffix == ".json":
             self.data_dict = json.load(self.json_path.open("r"))
-        else:
+        elif self.json_path.suffix == ".npy":
             self.data_dict = np.load(self.json_path, allow_pickle=True)
+        elif self.json_path.is_dir():
+            self.data_dict = []
+            for f in self.json_path.glob("*.json"):
+                print(f"Loading from {f}")
+                self.data_dict.extend(json.load(f.open("r")))
 
         self.output_dict = {"train": [], "test": []}
         self.max_strokes=max_strokes
@@ -626,10 +631,14 @@ def synthetic():
     train_set_size = 60
     combine_images = False # combine images to make them longer
     RENDER = True
-    variant="FullSynthetic100k"
-    json_path = "synthetic_online/train_synth_full.json"
+    if True:
+        variant = "Boosted"
+        source_json_path = "synthetic_online/boosted"
+    else:
+        variant="FullSynthetic100k"
+        source_json_path = "synthetic_online/train_synth_full.json"
     #json_path = "synthetic_online/train_synth_sample.json"
-    if "sample" in json_path:
+    if "sample" in source_json_path:
         variant += "_sample"
 
     number_of_strokes = str(strokes) if isinstance(strokes, int) else "MAX"
@@ -641,7 +650,7 @@ def synthetic():
                              train_set_size=train_set_size,
                              combine_images=combine_images,
                              #img_folder="prepare_online_data/lineImages",
-                             json_path=json_path,
+                             json_path=source_json_path,
                              synthetic=True
                              )
 
@@ -685,8 +694,8 @@ def indic():
 
 if __name__ == "__main__":
     #new()
-    #synthetic()
-    indic()
+    synthetic()
+    #indic()
 
 # import cProfile
 #

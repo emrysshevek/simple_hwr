@@ -11,6 +11,30 @@ import logging
 from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
 from hwr_utils.stroke_recovery import relativefy_torch
+import sys
+sys.path.append("..")
+
+# def extensions():
+#     #__builtins__.__NUMPY_SETUP__ = False
+#     from Cython.Distutils import Extension
+#     import numpy as np
+#     extra_compile_args = ["-O3"]
+#     extra_link_args = []
+#     if sys.platform == "darwin":
+#         extra_compile_args.append("-mmacosx-version-min=10.9")
+#         extra_compile_args.append('-stdlib=libc++')
+#         extra_link_args.append('-stdlib=libc++')
+#     return  {"extra_compile_args":" ".join(extra_compile_args),
+#                 "extra_link_args":" ".join(extra_link_args),
+#                 "include_dirs":[np.get_include()],
+#                 "language":"c++"}
+#
+# import pyximport
+# #pyximport.install(setup_args={"include_dirs":np.get_include()})
+# pyximport.install(setup_args=extensions())
+# python taylor_dtw/setup.py install --force
+from taylor_dtw.custom_dtw import dtw2d_with_backward
+
 
 BCELoss = torch.nn.BCELoss()
 BCEWithLogitsLoss = torch.nn.BCEWithLogitsLoss(pos_weight=torch.ones(1)*5)
@@ -130,7 +154,7 @@ class DTWLoss(CustomLoss):
                 loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum()
         return loss
 
-    def dtw(self, preds, targs, label_lengths, **kwargs):
+    def dtw_sos_eos(self, preds, targs, label_lengths, **kwargs):
         loss = 0
         for i in range(len(preds)):  # loop through BATCH
             a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
@@ -166,6 +190,79 @@ class DTWLoss(CustomLoss):
                 loss += (4*abs(pred[combined_points] - targ[combined_points]) * self.subcoef).sum()
         return loss  # , to_value(loss)
 
+    def dtw(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i in range(len(preds)):  # loop through BATCH
+            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+
+            # LEN X VOCAB
+            if self.method=="normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = targs[i][b, :][:, self.loss_indices]
+
+            else:
+                raise NotImplemented
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            elif True:
+                loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
+            if self.cross_entropy_indices:
+                pred2 = preds[i][a, :][:, self.cross_entropy_indices]
+                targ2 = targs[i][b, :][:, self.cross_entropy_indices]
+
+                pred2 = torch.clamp(pred2, -4,4)
+                if self.relativefy:
+                    targ2 = relativefy_torch(targ2, default_value=1) # default=1 ensures first point is a 1 (SOS);
+                loss += BCEWithLogitsLoss(pred2, targ2).sum() * .1  # AVERAGE pointwise loss for 1 image
+        return loss  # , to_value(loss)
+
+    def dtw_reverse(self, preds, targs, label_lengths, item, **kwargs):
+        loss = 0
+        for i in range(len(preds)):  # loop through BATCH
+            #a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            targs_reverse = item["gt_reverse_strokes"][i]
+            a, b = self.dtw_single_reverse(preds[i], targs[i], targs_reverse, dtw_mapping_basis=self.dtw_mapping_basis)
+
+            # LEN X VOCAB
+            if self.method=="normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = targs[i][b, :][:, self.loss_indices]
+                targ2 = targs_reverse[b, :][:, self.loss_indices]
+                sos_arg = item["sos_args"][i] # the actual start stroke indices
+                first_indices_in_b = []
+                for ii in sos_arg:
+                    first_indices_in_b.append(np.argmax(b >= ii))
+
+                sos_arg = (np.concatenate([first_indices_in_b[1:], [targ.shape[0]]]) - first_indices_in_b).tolist() # convert indices to array sizes
+            else:
+                raise NotImplemented
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            else:
+                a_strokes = (abs(pred - targ)* self.subcoef).split(sos_arg)
+                b_strokes = (abs(pred - targ2) * self.subcoef).split(sos_arg)
+
+                loss_a = Tensor([torch.sum(x) for x in a_strokes])
+                loss_b = Tensor([torch.sum(x) for x in b_strokes])
+
+                loss += (torch.min(loss_a, loss_b)).sum()  # AVERAGE pointwise loss for 1 image
+
+            if self.cross_entropy_indices:
+                pred2 = preds[i][a, :][:, self.cross_entropy_indices]
+                targ2 = targs[i][b, :][:, self.cross_entropy_indices]
+
+                pred2 = torch.clamp(pred2, -4,4)
+                if self.relativefy:
+                    targ2 = relativefy_torch(targ2, default_value=1) # default=1 ensures first point is a 1 (SOS);
+                loss += BCEWithLogitsLoss(pred2, targ2).sum() * .1  # AVERAGE pointwise loss for 1 image
+
+        return loss  # , to_value(loss)
+
 
     @staticmethod
     def dtw_single(_input, dtw_mapping_basis):
@@ -180,6 +277,29 @@ class DTWLoss(CustomLoss):
         pred, targ = to_numpy(pred[:, dtw_mapping_basis], astype="float64"), \
                      to_numpy(targ[:, dtw_mapping_basis], astype="float64")
         dist, cost, a, b = DTWLoss._dtw(pred, targ)
+
+        # Cost is weighted by how many GT stroke points, i.e. how long it is
+        return a, b
+
+    @staticmethod
+    def dtw_single_reverse(pred, targ, reverse_targ, dtw_mapping_basis):
+        """ THIS DOES NOT USE SUBCOEF
+        Args:
+            _input (tuple): pred, targ, label_length
+
+        Returns:
+
+        """
+        pred, targ, reverse_targ = to_numpy(pred[:, dtw_mapping_basis], astype="float64"), \
+                                    to_numpy(targ[:, dtw_mapping_basis], astype="float64"), \
+                                   to_numpy(reverse_targ[:, dtw_mapping_basis], astype="float64")
+
+        x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
+        x2 = np.ascontiguousarray(targ)
+        x3 = np.ascontiguousarray(reverse_targ)
+
+        dist, cost, a, b = dtw2d_with_backward(x1, x2, x3) # dist, cost, a, b
+
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a, b
@@ -325,7 +445,7 @@ class SSL(nn.Module):
         self.nn_indices = slice(0, 2)
         self.lossfun = self.ssl
 
-    def ssl(self, preds, targs, label_lengths):
+    def ssl(self, preds, targs, label_lengths, **kwargs):
         ### TODO: L1 distance and SOS/EOS are really two different losses, but they both depend on identifying the start points
 
         # Method
