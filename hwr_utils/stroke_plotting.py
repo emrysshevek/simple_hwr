@@ -175,8 +175,10 @@ def draw_strokes(stroke_list, x_to_y=1, line_width=None, save_path=""):
 
     if save_path:
         plt.savefig(save_path, pad_inches=pad_dpi["padding"], bbox_inches='tight') # adds 7 pixels total in padding for 61 height
-        f.clear()
-        plt.close(f)
+
+    f.clear()
+    plt.close(f)
+    plt.close('all')
 
 
 def draw_strokes_from_gt_list_OLD(stroke_list, x_to_y=1, line_width=None, save_path=""):

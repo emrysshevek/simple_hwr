@@ -63,6 +63,9 @@ class StrokeLoss:
             loss_fn = l1.lossfun
         elif loss["name"].lower().startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
+        elif loss["name"].lower() == "dtw_sos_eos_l2":
+            l = DTWLoss(**loss, device=self.device)
+            loss_fn = l.lossfun = l.dtw_sos_eos_L2
         elif loss["name"].lower().startswith("dtw") and "sos_eos" in loss["name"].lower():
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_sos_eos

@@ -509,12 +509,13 @@ class CreateDataset:
         step = 20000
         print(f"Total items: {len(data_dict)}, using batches of 20k")
         while start < len(data_dict):
-            subdict = data_dict[start:start+step]
+            subdict = data_dict[:step]
             if parallel:
                  all_results.extend(self._parallel(subdict))
             else:
                 all_results.extend(self.loop(tqdm(subdict), func=self.worker_wrapper))
-            start += step
+            # Shrink data_dict for memory reasons
+            data_dict = data_dict[step:]
         return self.final_process(all_results)
 
     def _parallel(self, data_dict):
@@ -623,7 +624,7 @@ def new():
                              )
     data_set.parallel(max_iter=instances, parallel=True)
 
-def synthetic():
+def synthetic(vers="random"):
     strokes = None      # None=MAX stroke
     square = False      # Don't require square images
     instances = None    # None=Use all available instances
@@ -632,8 +633,8 @@ def synthetic():
     combine_images = False # combine images to make them longer
     RENDER = True
     if True:
-        variant = "Boosted"
-        source_json_path = "synthetic_online/boosted"
+        variant = f"Boosted_{vers}"
+        source_json_path = f"synthetic_online/boosted/{vers}"
     else:
         variant="FullSynthetic100k"
         source_json_path = "synthetic_online/train_synth_full.json"
@@ -694,7 +695,8 @@ def indic():
 
 if __name__ == "__main__":
     #new()
-    synthetic()
+    synthetic("random")
+    #synthetic("normal")
     #indic()
 
 # import cProfile

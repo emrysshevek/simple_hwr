@@ -32,7 +32,7 @@ sys.path.append("..")
 # import pyximport
 # #pyximport.install(setup_args={"include_dirs":np.get_include()})
 # pyximport.install(setup_args=extensions())
-# python taylor_dtw/setup.py install --force
+# cd loss_module && python taylor_dtw/setup.py install --force
 from taylor_dtw.custom_dtw import dtw2d_with_backward
 
 
@@ -83,7 +83,6 @@ class CosineSimilarity(CustomLoss):
 
 
         pass
-
 
 class NearestNeighbor(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
@@ -190,6 +189,43 @@ class DTWLoss(CustomLoss):
                 loss += (4*abs(pred[combined_points] - targ[combined_points]) * self.subcoef).sum()
         return loss  # , to_value(loss)
 
+    def dtw_sos_eos_L2(self, preds, targs, label_lengths, **kwargs):
+        loss = 0
+        for i in range(len(preds)):  # loop through BATCH
+            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+
+            # LEN X VOCAB
+            if self.method=="normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = targs[i][b, :][:, self.loss_indices]
+
+            else:
+                raise NotImplemented
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            elif True:
+                loss += (abs(pred - targ)**2 * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
+            if self.cross_entropy_indices:
+                pred2 = preds[i][a, :][:, self.cross_entropy_indices]
+                targ2 = targs[i][b, :][:, self.cross_entropy_indices]
+
+                pred2 = torch.clamp(pred2, -4,4)
+                if self.relativefy:
+                    targ2 = relativefy_torch(targ2, default_value=1) # default=1 ensures first point is a 1 (SOS);
+                loss += BCEWithLogitsLoss(pred2, targ2).sum() * .1  # AVERAGE pointwise loss for 1 image
+
+                # TEMP HACKY LOSS, WEIGHT START/END POINTS MORE!
+                # This will take only the first start point as having extra weight
+                start_points = torch.nonzero(targ2.flatten())
+                end_points = start_points[1:] - 1
+                combined_points = torch.unique(torch.cat([start_points, end_points]))
+                loss += (4*abs(pred[combined_points] - targ[combined_points]) * self.subcoef).sum()
+        return loss  # , to_value(loss)
+
+
     def dtw(self, preds, targs, label_lengths, **kwargs):
         loss = 0
         for i in range(len(preds)):  # loop through BATCH
@@ -234,7 +270,7 @@ class DTWLoss(CustomLoss):
                 sos_arg = item["sos_args"][i] # the actual start stroke indices
                 first_indices_in_b = []
                 for ii in sos_arg:
-                    first_indices_in_b.append(np.argmax(b >= ii))
+                    first_indices_in_b.append(np.argmax(b >= ii)) # Double check off by one errors etc.
 
                 sos_arg = (np.concatenate([first_indices_in_b[1:], [targ.shape[0]]]) - first_indices_in_b).tolist() # convert indices to array sizes
             else:

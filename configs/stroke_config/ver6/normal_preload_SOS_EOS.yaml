@@ -4,11 +4,13 @@
 
 # Load model
 TESTING: false # this is for debugging, do it on a small dataset
-load_path: /home/taylor/github/simple_hwr/RESULTS/ver4/20200229_223630-stroke_number_with_BCE_RESUME/stroke_number_with_BCE_RESUME_model.pt
+load_path: /fslhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/normal_preload_model.pt
+results_dir_override: # will override the subexperiment folder logic
 test_only: false # Do not train
 offline_pred: false
 logging: info
 gpu_if_available: true
+
 
 # General
 output_folder: ./results
@@ -37,9 +39,9 @@ dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 warp: true
 
 # LR schedule
-learning_rate: 5e-4          # LR
-scheduler_step: 2           # Every X steps, multiply LR by gamma
-scheduler_gamma: .95          # LR decay rate
+learning_rate: 1e-5          # LR
+scheduler_step: 1            # Every X steps, multiply LR by gamma
+scheduler_gamma: .95         # LR decay rate
 
 ## Loss options:
   # Based on width of image, determine how many outputs there should be
@@ -88,20 +90,7 @@ pred_opts: # if relative etc., specify that here; e.g., opts:rel opts:cumsum etc
 # can also add activation functions here NOT IMPLEMENTED
 # LOSS FNs WITH THE SAME NAME WILL BE CONSIDERED THE SAME!
 loss_fns:
-  - name: l1_with_stroke_numbers
-    coef: 1
-    gts:
-      - x
-      - y
-    subcoef: 1, 1
-  - name: cross_entropy
-    subcoef: 0.5
-    gts:
-      - eos
-    activation: sigmoid
-
-loss_fns2:
-  - name: dtw
+  - name: dtw_sos_eos
     coef: 1
     gts:
       - x
@@ -112,12 +101,13 @@ loss_fns2:
     cross_entropy_indices: # SIGMOID TAKEN DURING LOSS
       - stroke_number
     relativefy_cross_entropy_gt: true #
-
-  - name: cross_entropy
-    subcoef: 0.01
+    barron: false
+  - name: l1_
+    coef: .05
     gts:
-      - eos
-    activation: sigmoid
+      - x
+      - y
+    subcoef: 1, 1
 
 # Always report these, but don't include in backpropagation
 #loss_fns_to_report:
@@ -133,7 +123,7 @@ loss_fns2:
 convolve_func: cumsum # or conv_weight, conv_window, cumsum
 cumsum_window_size: 21 # only for the conv_window and conv_weight
 
-first_loss_epochs: 2
+first_loss_epochs: 2000
 training_nn_loss: false # calculate nearest neighbor loss on every training instance; <- this is basically just DTW loss, without the time constraint? really only useful for offline images with pixels etc.
 # test_nn_loss: true # calculate nearest neighbor loss on every test instance
 

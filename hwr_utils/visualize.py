@@ -269,9 +269,9 @@ if __name__=="__main__":
                   "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/",
                     "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5"]
         # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/RESULTS/20200301-PRETRAIN"]
-        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver5",]
-                 # "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5",
-                 # '/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/20200301-PRETRAIN']
+        paths = ["/home/taylor/shares/brodie/github/simple_hwr/RESULTS/ver5",
+                 "/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/ver5",
+                 '/media/SuperComputerGroups/fslg_hwr/taylor_simple_hwr/results/stroke_config/20200301-PRETRAIN']
 
 
         path = prep_path(paths)
