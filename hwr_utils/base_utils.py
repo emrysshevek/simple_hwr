@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger("root."+__name__)
 
 def to_numpy(tensor, astype="float64"):
-    if isinstance(tensor,torch.FloatTensor) or isinstance(tensor,torch.cuda.FloatTensor):
+    if isinstance(tensor,(torch.cuda.FloatTensor, torch.FloatTensor, torch.Tensor)):
         return tensor.detach().cpu().numpy().astype(astype)
     else:
         return tensor

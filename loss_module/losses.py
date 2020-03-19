@@ -153,10 +153,12 @@ class DTWLoss(CustomLoss):
                 loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum()
         return loss
 
-    def dtw_sos_eos(self, preds, targs, label_lengths, **kwargs):
+    def dtw_sos_eos(self, preds, targs, label_lengths, item, **kwargs):
         loss = 0
+        item = add_preds_numpy(preds, item)
+
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -189,10 +191,12 @@ class DTWLoss(CustomLoss):
                 loss += (4*abs(pred[combined_points] - targ[combined_points]) * self.subcoef).sum()
         return loss  # , to_value(loss)
 
-    def dtw_sos_eos_L2(self, preds, targs, label_lengths, **kwargs):
+    def dtw_sos_eos_L2(self, preds, targs, label_lengths, item, **kwargs):
         loss = 0
+        item = add_preds_numpy(preds, item)
+
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -226,10 +230,11 @@ class DTWLoss(CustomLoss):
         return loss  # , to_value(loss)
 
 
-    def dtw(self, preds, targs, label_lengths, **kwargs):
+    def dtw(self, preds, targs, label_lengths, item, **kwargs):
         loss = 0
+        item = add_preds_numpy(preds, item)
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -257,10 +262,12 @@ class DTWLoss(CustomLoss):
 
     def dtw_reverse(self, preds, targs, label_lengths, item, **kwargs):
         loss = 0
+        item = add_preds_numpy(preds, item)
+
         for i in range(len(preds)):  # loop through BATCH
             #a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
             targs_reverse = item["gt_reverse_strokes"][i]
-            a, b = self.dtw_single_reverse(preds[i], targs[i], targs_reverse, dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single_reverse(item["preds_numpy"][i], targs[i], targs_reverse, dtw_mapping_basis=self.dtw_mapping_basis)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -358,6 +365,103 @@ class DTWLoss(CustomLoss):
     #
     # import dtaidistance.dtw
     # from dtaidistance.dtw_ndim
+
+class NNLoss(CustomLoss):
+    """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
+    """
+
+    def __init__(self, loss_indices, **kwargs):
+        """
+        """
+        # parse the opts - this will include opts regarding the DTW basis
+        # loss_indices - the loss_indices to calculate the actual loss
+        super().__init__(loss_indices, **kwargs)
+        self.lossfun = self.nn_loss
+
+    def nn_loss(self, preds, targs, label_lengths, item, **kwargs):
+        # Forces predictions to be near a GT
+        item = add_preds_numpy(preds, item)
+        move_preds_to_gt_loss = 0
+        move_gts_to_pred_loss = 0
+        kdtrees = create_kdtrees(item["preds_numpy"])
+
+        for i,pred in enumerate(preds):
+            p = pred[:, self.loss_indices]
+            pred_numpy = item["preds_numpy"][i][:, self.loss_indices]
+            targ = targs[i][:, self.loss_indices]
+            distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
+            move_preds_to_gt_loss += torch.sum(abs(p - targ[neighbor_indices]) * self.subcoef)
+
+            #k = KDTree(pred_numpy)
+            k = kdtrees[i]
+            distances, neighbor_indices = k.query(targ)
+            move_gts_to_pred_loss += torch.sum(abs(p[neighbor_indices] - targ) )
+        return move_gts_to_pred_loss+move_preds_to_gt_loss
+
+    def nn_loss(self, preds, targs, label_lengths, item, **kwargs):
+        # Forces predictions to be near a GT
+        item = add_preds_numpy(preds, item)
+        move_preds_to_gt_loss = 0
+        move_gts_to_pred_loss = 0
+        kdtrees = create_kdtrees(item["preds_numpy"])
+
+        if True:
+            for i,pred in enumerate(preds):
+                p = pred[:, self.loss_indices]
+                pred_numpy = item["preds_numpy"][i][:, self.loss_indices]
+                targ = targs[i][:, self.loss_indices]
+                distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
+                move_preds_to_gt_loss += torch.sum(abs(p - targ[neighbor_indices]) * self.subcoef)
+
+                #k = KDTree(pred_numpy)
+                k = kdtrees[i]
+                distances, neighbor_indices = k.query(targ)
+                move_gts_to_pred_loss += torch.sum(abs(p[neighbor_indices] - targ) )
+            return move_gts_to_pred_loss + move_preds_to_gt_loss
+        else:
+            pool = multiprocessing.Pool(processes=12)
+            it = iter(zip(preds, targs, [item]*len(targs), range(len(preds)), [self.loss_indices]*len(targs)))
+            sum = pool.imap(self.nn_loss_one, it)  # iterates through everything all at once
+            pool.close()
+            return np.sum(sum)
+
+    @ staticmethod
+    def nn_loss_one(pred, targ, item, i, loss_indices):
+        p = pred[:, loss_indices]
+        trg = targ[i][:, loss_indices]
+
+        pred_numpy = item["preds_numpy"][i][:, loss_indices]
+        distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
+        move_preds_to_gt_loss = torch.sum(abs(p - trg[neighbor_indices]) )
+
+        k = KDTree(pred_numpy)
+        #k = kdtrees[i]
+        distances, neighbor_indices = k.query(trg)
+        move_gts_to_pred_loss = torch.sum(abs(p[neighbor_indices] - trg))
+        return move_gts_to_pred_loss + move_preds_to_gt_loss
+
+def create_kdtrees(preds, poolcount=24):
+    pool = multiprocessing.Pool(processes=poolcount)
+    it = iter(zip(preds, range(len(preds))))
+    trees = pool.imap(_create_kd_tree, it)  # iterates through everything all at once
+    pool.close()
+
+    output = {}
+    for i in trees:
+        output[i[0]] = i[1]
+    return output
+
+def _create_kd_tree(pred_i):
+    pred, i = pred_i
+    return i, KDTree(pred[:,:2])
+
+
+def add_preds_numpy(preds, item):
+    if "preds_numpy" not in item:
+        item["preds_numpy"] = []
+        for p in preds:
+            item["preds_numpy"].append(to_numpy(p))
+    return item
 
 class L1(CustomLoss):
     """ Use opts to specify "variable_L1" (resample to get the same number of GTs/preds)
@@ -503,7 +607,7 @@ class SSL(nn.Module):
             # Get the coords of all start strokes
             targ_start_strokes = targs[i][torch.nonzero(targs[i][:, self.loss_indices]).squeeze(1), self.nn_indices]  #
             # targ_end_strokes = (targ_start_strokes-1)[1:] # get corresponding end strokes - this excludes the final stroke point!!
-            k = KDTree(preds[i][:, self.nn_indices].data)
+            k = KDTree(preds[i][:, self.nn_indices])
 
             # Start loss_indices; get the preds nearest the actual start points
             start_indices = k.query(targ_start_strokes)[1]

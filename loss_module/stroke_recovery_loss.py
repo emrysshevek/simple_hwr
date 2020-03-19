@@ -53,36 +53,39 @@ class StrokeLoss:
         Returns:
 
         """
+        loss_name = loss["name"].lower()
         # IF THE EXACT SAME LOSS ALREADY EXISTS, DON'T BUILD A NEW ONE
         if loss["name"] in self.master_loss_defintion:
             loss_fn = self.master_loss_defintion[loss["name"]]["fn"]
-        elif loss["name"].lower().startswith("l1"):
+        elif loss_name.startswith("l1"):
             l1 = L1(**loss, device=self.device)
-            if "swapper" in loss["name"].lower():
+            if "swapper" in loss_name:
                 l1.lossfun = l1.l1_swapper
             loss_fn = l1.lossfun
-        elif loss["name"].lower().startswith("l2"):
+        elif loss_name.startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
-        elif loss["name"].lower() == "dtw_sos_eos_l2":
+        elif loss_name == "dtw_sos_eos_l2":
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_sos_eos_L2
-        elif loss["name"].lower().startswith("dtw") and "sos_eos" in loss["name"].lower():
+        elif loss_name.startswith("dtw") and "sos_eos" in loss_name:
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_sos_eos
-        elif loss["name"].lower().startswith("dtw") and "reverse" in loss["name"].lower():
+        elif loss_name.startswith("dtw") and "reverse" in loss_name:
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_reverse
-        elif loss["name"].lower().startswith("dtw"):
+        elif loss_name.startswith("dtw"):
             loss_fn = DTWLoss(**loss, device=self.device).lossfun
-        elif loss["name"].lower().startswith("barron"):
+        elif loss_name.startswith("barron"):
             loss_fn = AdaptiveLossFunction(num_dims=vocab_size, float_dtype=np.float32, device='cpu').lossfun
-        elif loss["name"].lower().startswith("ssl"):
+        elif loss_name.startswith("ssl"):
             loss_fn = SSL(**loss, device=self.device).lossfun
-        elif loss["name"].lower().startswith("cross_entropy"):
+        elif loss_name.startswith("cross_entropy"):
             loss_fn = CrossEntropy(**loss, device=self.device).lossfun
-        elif loss["name"].lower().startswith("softdtw"):
+        elif loss_name.startswith("softdtw"):
             from loss_module.soft_dtw import SoftDTW
             loss_fn = SoftDTW(**loss).lossfun
+        elif loss_name == "nnloss":
+            loss_fn = NNLoss(**loss, device=self.device).lossfun
         else:
             raise Exception(f"Unknown loss: {loss['name']}")
         return loss_fn
@@ -147,7 +150,7 @@ class StrokeLoss:
                 losses[i] = torch.zeros(1, requires_grad=True)
                 logger.error(e)
                 logger.error(f"{loss_fn}")
-                #loss_tensor = loss_fn(preds, targs, label_lengths, item=item)
+                loss_tensor = loss_fn(preds, targs, label_lengths, item=item)
                 continue
 
             loss = to_value(loss_tensor)
@@ -178,6 +181,9 @@ class StrokeLoss:
 
         combined_loss = torch.sum(losses * self.coefs) # only for the actual gradient loss so that the loss doesn't change with bigger batch sizes;, not the reported one since it will be divided by instances later
         combined_loss_value = to_value(combined_loss)
+
+        if "preds_numpy" in item:
+            del item["preds_numpy"]
         return combined_loss, combined_loss_value/batch_size # does the total loss makes most sense at the EXAMPLE level? Don't think 'combined_loss_value' is used anymore
 
     def barron_loss(self, preds, targs, label_lengths, **kwargs):

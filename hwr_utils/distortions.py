@@ -8,12 +8,22 @@ from scipy.ndimage.filters import gaussian_filter
 import numpy as np
 import matplotlib.pylab as plt
 import math
+from PIL import ImageEnhance, Image
 
 INTERPOLATION = {
     "linear": cv2.INTER_LINEAR,
     "cubic": cv2.INTER_CUBIC
 }
 cv2.setNumThreads(0)
+
+def change_contrast(img, min_contrast=.25, max_contrast=1.3, contrast=None):
+    if isinstance(img, np.ndarray):
+        img = Image.fromarray(np.uint8(img), "L")
+    enhancer = ImageEnhance.Contrast(img)
+    if contrast is None:
+        contrast = np.random.rand()*(max_contrast-min_contrast)+min_contrast
+    #Image.fromarray(np.array(enhancer.enhance(contrast))).show()
+    return np.array(enhancer.enhance(contrast))
 
 def occlude(img, occlusion_size=1, occlusion_freq=.5, occlusion_level=1, logger=None, noise_type=None):
     if occlusion_freq:
@@ -332,7 +342,7 @@ def get_test_image():
 
 def plot(img, title):
     plt.figure(dpi=400)
-    plt.imshow(img, cmap="gray")
+    plt.imshow(img, cmap="gray", vmin=0, vmax=255)
     plt.title(title)
     plt.show()
 
@@ -375,12 +385,18 @@ def test_blur(img):
 
 def test_gaussian(img):
     for i in range(0,5):
-        gauss = gaussian_noise(img, max_intensity=.2, logger=None)
+        gauss = change_contrast(gaussian_noise(img, max_intensity=.4, logger=None), contrast=(i+1)*.1)
         plot(gauss, "gauss")
+
+def test_contrast(img):
+    for i in range(0,5):
+        contrast = change_contrast(img, contrast=(i+1)*.2)
+        plot(contrast, "contrast")
 
 if __name__ == "__main__":
     img = get_test_image()
-    test_gaussian(img)
+    test_contrast(img)
+
     #test_wavy_distortion(img)
     # img = get_test_image()
     #

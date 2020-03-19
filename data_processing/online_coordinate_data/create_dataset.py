@@ -631,7 +631,7 @@ def synthetic(vers="random"):
     test_set_size = 30  # use leftover test images in Training
     train_set_size = 60
     combine_images = False # combine images to make them longer
-    RENDER = True
+    RENDER = False
     if True:
         variant = f"Boosted_{vers}"
         source_json_path = f"synthetic_online/boosted/{vers}"
@@ -696,7 +696,7 @@ def indic():
 if __name__ == "__main__":
     #new()
     synthetic("random")
-    #synthetic("normal")
+    synthetic("normal")
     #indic()
 
 # import cProfile

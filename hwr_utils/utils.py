@@ -142,7 +142,7 @@ stroke_defaults = {"SMALL_TRAINING": False,
                    "data_root_local":".",
                    "training_nn_loss": False,
                    "test_nn_loss": True,
-                   "test_nn_loss_freq": 10,
+                   "test_nn_loss_freq": 1,
                    "visdom_port": 9001,
                    "gpu_if_available": True,
                     "start_of_stroke_method":"normal",
@@ -180,6 +180,7 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
 
     # Go search for it
     if not config_path.exists():
+        print(f"{config_path} does not exist")
         config_path = find_config(config_path.name, config_root)
 
     config = edict(read_config(config_path))
@@ -199,7 +200,10 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
             config[k] = defaults[k]
 
     # Main output folder
-    if config["load_path"] and not results_dir_override and "results_dir_override" not in config:
+    if results_dir_override or ("results_dir_override" in config and config.results_dir_override):
+        experiment = Path(results_dir_override).stem
+        output_root = results_dir_override
+    elif config["load_path"]:
         _output = incrementer(Path(config["load_path"]).parent, "new_experiment") # if it has a load path, create a new experiment in that same folder!
         experiment = _output.stem
         output_root = _output.as_posix()
@@ -210,7 +214,7 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
                 experiment = config["experiment"]
             output_root = os.path.join(config["output_folder"], experiment)
 
-        except:
+        except Exception as e:
             log_print(f"Failed to find relative path of config file {config_root} {config_path}")
 
     # Use config folder to determine output folder

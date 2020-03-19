@@ -95,15 +95,15 @@ def test(dataloader):
     utils.reset_all_stats(config, keyword="_test")
 
     try:
-        loss = "dtw"
-        for variant in "_train", "_test":
-            plt.plot(config.stats[f"{loss}{variant}"].x[-40:], config.stats[f"{loss}{variant}"].y[-40:])
-            plt.savefig(config.image_dir / f"{loss}{variant}")
-            plt.plot(config.stats[f"{loss}{variant}"].x, config.stats[f"{loss}{variant}"].y)
-            plt.savefig(config.image_dir / f"{loss}{variant}_complete")
-            plt.close('all')
-    except:
-        logger.info("Problem graphing")
+        for loss in config.stats:
+            if "dtw" in loss.lower():
+                plt.plot(config.stats[f"{loss}"].x[-100:], config.stats[f"{loss}"].y[-100:])
+                plt.savefig(config.image_dir / f"{loss}")
+                plt.plot(config.stats[f"{loss}"].x, config.stats[f"{loss}"].y)
+                plt.savefig(config.image_dir / f"{loss}_complete")
+        plt.close('all')
+    except Exception as e:
+        logger.info(f"Problem graphing: {e}")
         pass
 
     return config.stats["Actual_Loss_Function_test"].get_last()

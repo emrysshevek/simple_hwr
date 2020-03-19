@@ -5,7 +5,7 @@
 # Load model
 TESTING: true # this is for debugging, do it on a small dataset
 load_path: /fslhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/normal_preload_model.pt
-load_path: /media/data/GitHub/simple_hwr/RESULTS/pretrained/dtw_train_2.9/normal_preload_model.pt
+load_path: /fslhome/tarch/fsl_groups/fslg_hwr/compute/taylor_simple_hwr/RESULTS/20200301-PRETRAIN/normal_preload_model.pt
 
 results_dir_override: # will override the subexperiment folder logic
 test_only: false # Do not train
@@ -41,7 +41,7 @@ dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 warp: true
 
 # LR schedule
-learning_rate: 1e-4          # LR
+learning_rate: 1e-5          # LR
 scheduler_step: 1            # Every X steps, multiply LR by gamma
 scheduler_gamma: .95         # LR decay rate
 
@@ -54,7 +54,7 @@ scheduler_gamma: .95         # LR decay rate
 
 test_size: null
 train_size: null
-batch_size: 32
+batch_size: 16
 
 ## GTs
 # All options include:

@@ -71,11 +71,13 @@ def add_unormalized_distortion(img):
 
     """
 
-    return distortions.gaussian_noise(
-        distortions.blur(
-            distortions.random_distortions(img.astype(np.float32), noise_max=1.1), # this one can really mess it up, def no bigger than 2
-            max_intensity=1.0),
-        max_intensity=.1)
+    return distortions.change_contrast(
+            distortions.gaussian_noise(
+            distortions.blur(
+                distortions.random_distortions(img.astype(np.float32), noise_max=1.1), # this one can really mess it up, def no bigger than 2
+                max_intensity=1.0),
+            max_intensity=.35)
+            )
     #return img.astype(np.float64) # this one can really mess it up, def no bigger than 2
 
 class BasicDataset(Dataset):
@@ -411,7 +413,7 @@ class StrokeRecoveryDataset(Dataset):
             "y_func": item["y_func"],
             "gt_format": self.gt_format,
             "start_points": start_points,
-            "kdtree": KDTree(gt[:, 0:2])
+            "kdtree": KDTree(gt[:, 0:2]) # Will force preds to get nearer to nearest GTs; really want GTs forced to nearest pred; this will finish strokes better
         }
 
 def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
@@ -729,6 +731,7 @@ def collate_stroke(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
         "x_func": [b["x_func"] for b in batch],
         "y_func": [b["y_func"] for b in batch],
+        "kdtree": [b["kdtree"] for b in batch]
     }
 
     # Pass everything else through too

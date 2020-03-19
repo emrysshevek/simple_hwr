@@ -6,7 +6,7 @@ import socket
 
 # GLOBALS
 EMAIL = "taylornarchibald@gmail.com" # mikebbrodie@gmail.com
-MEM = 32000
+MEM = 64000
 
 ## Setup paths
 group_path = Path("/panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr")

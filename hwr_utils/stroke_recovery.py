@@ -773,6 +773,8 @@ def make_more_starts(gt, max_dist=.15):
     Returns:
 
     """
+    if isinstance(gt, Tensor):
+        gt = gt.detach().numpy()
     distances = distance_metric(gt[:, 0], gt[:, 1])
     idx = np.argwhere(distances > max_dist).reshape(-1)
     gt[idx, 2] = 1
@@ -815,7 +817,7 @@ def get_nearest_point(reference, moving_component, reference_is_image=False, **k
     if "kd" in kwargs:
         kd = kwargs["kd"]
     else:
-        kd = KDTree(reference[:, :2].data)
+        kd = KDTree(reference[:, :2])
 
     distances, neighbor_indices = kd.query(moving_component[:, :2])  # How far do we have to move the GT's to match the predictions? Based on 0-1 height scale
     nearest_points = reference[neighbor_indices]
@@ -831,6 +833,16 @@ def move_bad_points_deprecated(reference, moving_component, reference_is_image=F
 
 
 def preserve_deleted_start_points(moving_component, proposed_deletion_indices):
+    """ If a starting point is deleted, move it to the next point
+
+    Args:
+        moving_component:
+        proposed_deletion_indices:
+
+    Returns:
+
+    """
+
     lost_start_points = np.argwhere(np.round(moving_component[proposed_deletion_indices][:, 2]))
     lost_start_points = proposed_deletion_indices[lost_start_points]
 
