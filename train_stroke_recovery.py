@@ -98,9 +98,12 @@ def test(dataloader):
         for loss in config.stats:
             plt.plot(config.stats[f"{loss}"].x[-100:], config.stats[f"{loss}"].y[-100:])
             plt.savefig(config.image_dir / f"{loss}")
+            plt.clf()
+            plt.close('all')
             plt.plot(config.stats[f"{loss}"].x, config.stats[f"{loss}"].y)
             plt.savefig(config.image_dir / f"{loss}_complete")
-        plt.close('all')
+            plt.clf()
+            plt.close('all')
     except Exception as e:
         logger.info(f"Problem graphing: {e}")
         pass
@@ -190,7 +193,7 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 
 def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     ## LOAD DATASET
-    NUM_WORKERS = 1
+    NUM_WORKERS = 5
     if NUM_WORKERS==1:
         warnings.warn("ONLY 1 WORKER!!!")
         if not config.TESTING:
