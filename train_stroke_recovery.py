@@ -191,6 +191,12 @@ def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoc
 def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
     ## LOAD DATASET
     NUM_WORKERS = 1
+    if NUM_WORKERS==1:
+        warnings.warn("ONLY 1 WORKER!!!")
+        if not config.TESTING:
+            warnings.warn("AUTOMATIC OVERRIDE, USING 5 WORKERS!!!")
+            NUM_WORKERS = 5
+
     train_dataset=StrokeRecoveryDataset([folder / "train_online_coords.json", *kwargs["extra_dataset"]],
                             root=config.data_root,
                             max_images_to_load = train_size,
@@ -280,7 +286,7 @@ def main(config_path, testing=False):
     cnn = model.cnn # if set to a cnn object, then it will resize the GTs to be the same size as the CNN output
     logger.info(("Current dataset: ", folder))
 
-    train_dataloader, test_dataloader =  build_data_loaders(folder, cnn, train_size, test_size, **config.dataset)
+    train_dataloader, test_dataloader = build_data_loaders(folder, cnn, train_size, test_size, **config.dataset, config=config)
 
     # example = next(iter(test_dataloader)) # BATCH, WIDTH, VOCAB
     # vocab_size = example["gt"].shape[-1]

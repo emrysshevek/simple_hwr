@@ -93,7 +93,13 @@ origin = np.array([0, 1])
 distance = lambda x: np.sum((np.asarray(x) - origin) ** 2)
 
 def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
-    strokes = np.split(gt, stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers))
+    sos_args = stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers)
+    strokes = np.split(gt, sos_args)
+
+    # if stroke_numbers:
+    #     sos = np.zeros(gt.shape[0])
+    #     sos[sos_args] = 1
+    #     gt[:,2] = np.zeros(gt.shape[0])
 
     # Reverse strokes as needed - start point is always the top-leftmost point
     del_index = []
@@ -110,7 +116,16 @@ def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
 
     # Reorder strokes as needed - left most start point goes first
     reorder = sorted(strokes, key=lambda stroke: distance(stroke[0, :2]))
-    return np.concatenate(reorder)
+    output = np.concatenate(reorder)
+
+    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
+        sos = stroke_recovery.relativefy(output[:,2])!=0
+        output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
+
+        # Should get the same result here
+        #np.testing.assert_equal(stroke_recovery.relativefy(output[:,2]), sos)
+
+    return output
 
 class BasicDataset(Dataset):
     """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
@@ -435,7 +450,7 @@ class StrokeRecoveryDataset(Dataset):
         else:
             start_points = np.array([])
 
-        kdtree = KDTree(gt[:, 0:2]) if "nnloss" in self.config.losses else None
+        kdtree = KDTree(gt[:, 0:2]) if "nnloss" in [loss["name"] for loss in self.config.loss_fns] else None
 
         return {
             "line_img": img,
