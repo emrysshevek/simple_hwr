@@ -376,6 +376,10 @@ class NNLoss(CustomLoss):
         # parse the opts - this will include opts regarding the DTW basis
         # loss_indices - the loss_indices to calculate the actual loss
         super().__init__(loss_indices, **kwargs)
+
+        self.pred_tree = kwargs["pred_tree"] if "pred_tree" in kwargs else True
+        self.gt_tree = kwargs["gt_tree"] if "gt_tree" in kwargs else True
+
         self.lossfun = self.nn_loss
 
     def nn_loss(self, preds, targs, label_lengths, item, **kwargs):
@@ -383,62 +387,46 @@ class NNLoss(CustomLoss):
         item = add_preds_numpy(preds, item)
         move_preds_to_gt_loss = 0
         move_gts_to_pred_loss = 0
-        kdtrees = create_kdtrees(item["preds_numpy"])
-
-        for i,pred in enumerate(preds):
-            p = pred[:, self.loss_indices]
-            pred_numpy = item["preds_numpy"][i][:, self.loss_indices]
-            targ = targs[i][:, self.loss_indices]
-            distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
-            move_preds_to_gt_loss += torch.sum(abs(p - targ[neighbor_indices]) * self.subcoef)
-
-            #k = KDTree(pred_numpy)
-            k = kdtrees[i]
-            distances, neighbor_indices = k.query(targ)
-            move_gts_to_pred_loss += torch.sum(abs(p[neighbor_indices] - targ) )
-        return move_gts_to_pred_loss+move_preds_to_gt_loss
-
-    def nn_loss(self, preds, targs, label_lengths, item, **kwargs):
-        # Forces predictions to be near a GT
-        item = add_preds_numpy(preds, item)
-        move_preds_to_gt_loss = 0
-        move_gts_to_pred_loss = 0
-        kdtrees = create_kdtrees(item["preds_numpy"])
+        #kdtrees = create_kdtrees(item["preds_numpy"])
 
         if True:
             for i,pred in enumerate(preds):
                 p = pred[:, self.loss_indices]
-                pred_numpy = item["preds_numpy"][i][:, self.loss_indices]
                 targ = targs[i][:, self.loss_indices]
-                distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
-                move_preds_to_gt_loss += torch.sum(abs(p - targ[neighbor_indices]) * self.subcoef)
+                pred_numpy = item["preds_numpy"][i][:, self.loss_indices]
 
-                #k = KDTree(pred_numpy)
-                k = kdtrees[i]
-                distances, neighbor_indices = k.query(targ)
-                move_gts_to_pred_loss += torch.sum(abs(p[neighbor_indices] - targ) )
+                if self.gt_tree:
+                    distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
+                    move_preds_to_gt_loss += torch.sum(abs(p - targ[neighbor_indices]) * self.subcoef)
+
+                if self.pred_tree:
+                    k = KDTree(pred_numpy)
+                    #k = kdtrees[i]
+                    distances, neighbor_indices = k.query(targ)
+                    move_gts_to_pred_loss += torch.sum(abs(p[neighbor_indices] - targ) )
+
             return move_gts_to_pred_loss + move_preds_to_gt_loss
-        else:
-            pool = multiprocessing.Pool(processes=12)
-            it = iter(zip(preds, targs, [item]*len(targs), range(len(preds)), [self.loss_indices]*len(targs)))
-            sum = pool.imap(self.nn_loss_one, it)  # iterates through everything all at once
-            pool.close()
-            return np.sum(sum)
+        # else:
+        #     pool = multiprocessing.Pool(processes=12)
+        #     it = iter(zip(preds, targs, [item]*len(targs), range(len(preds)), [self.loss_indices]*len(targs)))
+        #     sum = pool.imap(self.nn_loss_one, it)  # iterates through everything all at once
+        #     pool.close()
+        #     return np.sum(sum)
 
-    @ staticmethod
-    def nn_loss_one(pred, targ, item, i, loss_indices):
-        p = pred[:, loss_indices]
-        trg = targ[i][:, loss_indices]
-
-        pred_numpy = item["preds_numpy"][i][:, loss_indices]
-        distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
-        move_preds_to_gt_loss = torch.sum(abs(p - trg[neighbor_indices]) )
-
-        k = KDTree(pred_numpy)
-        #k = kdtrees[i]
-        distances, neighbor_indices = k.query(trg)
-        move_gts_to_pred_loss = torch.sum(abs(p[neighbor_indices] - trg))
-        return move_gts_to_pred_loss + move_preds_to_gt_loss
+    # @ staticmethod
+    # def nn_loss_one(pred, targ, item, i, loss_indices):
+    #     p = pred[:, loss_indices]
+    #     trg = targ[i][:, loss_indices]
+    #
+    #     pred_numpy = item["preds_numpy"][i][:, loss_indices]
+    #     distances, neighbor_indices = item["kdtree"][i].query(pred_numpy)
+    #     move_preds_to_gt_loss = torch.sum(abs(p - trg[neighbor_indices]) )
+    #
+    #     k = KDTree(pred_numpy)
+    #     #k = kdtrees[i]
+    #     distances, neighbor_indices = k.query(trg)
+    #     move_gts_to_pred_loss = torch.sum(abs(p[neighbor_indices] - trg))
+    #     return move_gts_to_pred_loss + move_preds_to_gt_loss
 
 def create_kdtrees(preds, poolcount=24):
     pool = multiprocessing.Pool(processes=poolcount)
