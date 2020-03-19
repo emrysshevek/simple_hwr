@@ -603,7 +603,7 @@ def new():
     test_set_size = 30 # use leftover test images in Training
     train_set_size = 60
     combine_images = False # combine images to make them longer
-    RENDER = True
+    RENDER = False
     variant="verysmall"
     if square:
         variant += "Square"

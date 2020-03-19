@@ -885,7 +885,20 @@ def move_bad_points(reference, moving_component, reference_is_image=True, max_di
     #       plot_points=False, show=True)
 
     return output
-np.split
+
+def get_sos_args(sos, stroke_numbers=True):
+    """
+    Args:
+        sos (array like): A list of stroke numbers
+    Returns:
+
+    """
+    if not (sos <= 1).all() or stroke_numbers:
+        stroke_starts = np.argwhere(relativefy_numpy(sos)).flatten()
+    else:
+        stroke_starts = np.argwhere(sos).flatten()
+    return stroke_starts
+
 def invert_each_stroke(gt, stroke_numbers=True):
     """
 

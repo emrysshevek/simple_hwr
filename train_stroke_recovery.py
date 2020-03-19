@@ -96,11 +96,10 @@ def test(dataloader):
 
     try:
         for loss in config.stats:
-            if "dtw" in loss.lower():
-                plt.plot(config.stats[f"{loss}"].x[-100:], config.stats[f"{loss}"].y[-100:])
-                plt.savefig(config.image_dir / f"{loss}")
-                plt.plot(config.stats[f"{loss}"].x, config.stats[f"{loss}"].y)
-                plt.savefig(config.image_dir / f"{loss}_complete")
+            plt.plot(config.stats[f"{loss}"].x[-100:], config.stats[f"{loss}"].y[-100:])
+            plt.savefig(config.image_dir / f"{loss}")
+            plt.plot(config.stats[f"{loss}"].x, config.stats[f"{loss}"].y)
+            plt.savefig(config.image_dir / f"{loss}_complete")
         plt.close('all')
     except Exception as e:
         logger.info(f"Problem graphing: {e}")

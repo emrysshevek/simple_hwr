@@ -76,9 +76,41 @@ def add_unormalized_distortion(img):
             distortions.blur(
                 distortions.random_distortions(img.astype(np.float32), noise_max=1.1), # this one can really mess it up, def no bigger than 2
                 max_intensity=1.0),
-            max_intensity=.35)
+            max_intensity=.30)
             )
     #return img.astype(np.float64) # this one can really mess it up, def no bigger than 2
+
+def fake_gt():
+    gt2 = np.tile(np.array([1, 2, 3, 8, 7, 6, -3, -2, -1]), (4, 1)).transpose()
+    gt2[-1, 1] = 10
+    gt2[6, 1] = 10
+
+    gt2[:, 2] = [1, 0, 0, 1, 1, 0, 1, 0, 0]
+    gt2[:, 3] = [0, 0, 0, 0, 0, 0, 0, 0, 1]
+    return gt2
+
+origin = np.array([0, 1])
+distance = lambda x: np.sum((np.asarray(x) - origin) ** 2)
+
+def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
+    strokes = np.split(gt, stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers))
+
+    # Reverse strokes as needed - start point is always the top-leftmost point
+    del_index = []
+    for i, stroke in enumerate(strokes):
+        if stroke.size:
+            # Swap
+            if distance(stroke[0, :2]) > distance(stroke[-1, :2]):
+                strokes[i][:, :2] = stroke[::-1, :2]
+        else:
+            del_index.append(i)
+
+    for i in del_index:
+        del strokes[i]
+
+    # Reorder strokes as needed - left most start point goes first
+    reorder = sorted(strokes, key=lambda stroke: distance(stroke[0, :2]))
+    return np.concatenate(reorder)
 
 class BasicDataset(Dataset):
     """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
@@ -403,6 +435,8 @@ class StrokeRecoveryDataset(Dataset):
         else:
             start_points = np.array([])
 
+        kdtree = KDTree(gt[:, 0:2]) if "nnloss" in self.config.losses else None
+
         return {
             "line_img": img,
             "gt": gt,
@@ -413,7 +447,7 @@ class StrokeRecoveryDataset(Dataset):
             "y_func": item["y_func"],
             "gt_format": self.gt_format,
             "start_points": start_points,
-            "kdtree": KDTree(gt[:, 0:2]) # Will force preds to get nearer to nearest GTs; really want GTs forced to nearest pred; this will finish strokes better
+            "kdtree": kdtree # Will force preds to get nearer to nearest GTs; really want GTs forced to nearest pred; this will finish strokes better
         }
 
 def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
@@ -459,7 +493,7 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
     # Put it together
     gt = []
 
-    for el in gt_format:
+    for i,el in enumerate(gt_format):
         if el == "x":
             gt.append(x)
         elif el == "y":
@@ -483,6 +517,9 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
             raise Exception(f"Unkown GT format: {el}")
 
     gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
+
+    # Rearrange strokes and reverse strokes as needed - ASSUMES X,Y,SOS/Strokenumbers
+    gt = reorder_strokes(gt, stroke_numbers=("stroke_number" in gt_format), sos_index=2)
 
     # print(gt)
     # draw_from_gt(gt, show=True)
