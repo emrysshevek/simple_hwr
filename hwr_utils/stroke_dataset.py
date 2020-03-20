@@ -11,7 +11,7 @@ import numpy as np
 from tqdm import tqdm
 
 from hwr_utils import stroke_recovery
-from hwr_utils.utils import unpickle_it
+from hwr_utils.utils import unpickle_it, npy_loader
 import pickle
 from pathlib import Path
 import logging
@@ -271,11 +271,11 @@ class StrokeRecoveryDataset(Dataset):
         for data_path in data_paths: # loop through JSONs
             data_path = str(data_path)
             print(os.path.join(root, data_path))
-            with open(os.path.join(root, data_path)) as fp:
-                new_data = json.load(fp)
-                if isinstance(new_data, dict):
-                    new_data = [item for key, item in new_data.items()]
-                data.extend(new_data)
+            new_data = npy_loader(os.path.join(root, data_path))
+
+            if isinstance(new_data, dict):
+                new_data = [item for key, item in new_data.items()]
+            data.extend(new_data)
         # Calculate how many points are needed
 
         if self.cnn:

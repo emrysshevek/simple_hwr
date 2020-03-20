@@ -33,6 +33,13 @@ def parse_args():
     opts = parser.parse_args()
     return opts
 
+def update_LR(config, training_loss=None):
+    config.scheduler.step(training_loss)
+    lr = next(iter(config.optimizer.param_groups))['lr']
+    new_lr = next(iter(config.optimizer.param_groups))['lr']
+    if new_lr != lr:
+        logger.info(f"LR decreased from {lr} to {new_lr}")
+
 def run_epoch(dataloader, report_freq=500):
     # for i in range(0, 16):
     #     line_imgs = torch.rand(batch, 1, 60, 60)
@@ -56,16 +63,12 @@ def run_epoch(dataloader, report_freq=500):
             utils.reset_all_stats(config, keyword="_train")
             training_loss = config.stats["Actual_Loss_Function_train"].get_last()
             logger.info(("update: ", config.counter.updates, "combined loss: ", training_loss))
-            lr = next(iter(config.optimizer.param_groups))['lr']
-            config.scheduler.step(training_loss)
-            new_lr = next(iter(config.optimizer.param_groups))['lr']
-            if new_lr != lr:
-                logger.info(f"LR decreased from {lr} to {new_lr}")
 
         if epoch==1 and i==0:
             logger.info(("Preds", preds[0]))
             logger.info(("GTs", item["gt_list"][0]))
 
+        update_LR(config)
 
     end_time = timer()
     logger.info(("Epoch duration:", end_time-start_time))
@@ -310,10 +313,10 @@ def main(config_path, testing=False):
     # Create loss object
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate * batch_size/32)
-    #config.scheduler = lr_scheduler.StepLR(optimizer, step_size=10, gamma=.95)
-    config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=40, verbose=False,
-                                                threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
+    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate * batch_size/24)
+    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=180000, gamma=.95) # halves every ~10 "super" epochs
+    # config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=80, verbose=False,
+    #                                             threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
     if config.model_name != "normal":
         trainer = TrainerStartPoints(model, optimizer, config=config, loss_criterion=config.loss_obj)
@@ -353,16 +356,17 @@ def main(config_path, testing=False):
 
 def check_epoch_build_loss(config, loss_exists=True):
     epoch = config.counter.epochs
-    if config.first_loss_epochs and epoch == config.first_loss_epochs:
-        config.loss_obj.build_losses(config.loss_fns2)
 
-    # If no loss exists yet
-    elif not loss_exists:
-        if config.first_loss_epochs and epoch > config.first_loss_epochs:
+    # If we should be on loss_fn2
+    if (config.first_loss_epochs and epoch == config.first_loss_epochs) or (not loss_exists and epoch >= config.first_loss_epochs):
+        if "loss_fns2" in config and config.loss_fns2:
+            logger.info("Building loss 2")
             config.loss_obj.build_losses(config.loss_fns2)
-        else:
-            config.loss_obj.build_losses(config.loss_fns)
+            return
 
+    if not loss_exists:
+        logger.info("Building loss 1")
+        config.loss_obj.build_losses(config.loss_fns)
 
 if __name__=="__main__":
     opts = parse_args()

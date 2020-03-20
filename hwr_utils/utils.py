@@ -216,6 +216,8 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
 
         except Exception as e:
             log_print(f"Failed to find relative path of config file {config_root} {config_path}")
+            experiment = Path(config_path).stem
+            output_root = os.path.join(config["output_folder"], experiment)
 
     # Use config folder to determine output folder
     config["experiment"] = str(experiment)
@@ -548,6 +550,10 @@ def validate_and_prep_loss(config):
     config.vocab_size = len(config.pred_format) # vocab size is the desired_num_of_strokes of the GT format
 
     # Process loss functions
+    if "loss_fns" not in config.keys() and "loss_fns2" in config.keys():
+        config["loss_fns"] = config["loss_fns2"]
+        del config["loss_fns2"]
+
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]
         for i, loss in enumerate(config[loss_fn_group]):  # [{name: , coef: } ...]
             indices = [config.gt_format.index(k) for k in loss["gts"]] # This will throw an error if the loss expected something not in the GT
@@ -1227,6 +1233,22 @@ def get_index(l, item):
         return l.index(item)
     else:
         return -1
+
+def npy_loader(path):
+    if Path(path).suffix == ".json":
+        numpy_path = Path(path).with_suffix(".npy")
+        if numpy_path.exists() and os.path.getmtime(numpy_path) > os.path.getmtime(path):
+            print("Loading .npy version")
+            return np.load(numpy_path, allow_pickle=True)
+        else: # if json was updated, re-make the numpy version
+            print(f"No npy file detected or too old, saving {numpy_path}")
+            new_data = json.load(Path(path).open("r"))
+            np.save(numpy_path, new_data)
+            return new_data
+    elif Path(path).suffix == ".npy":
+        return np.load(path)
+    else:
+        raise Exception(f"Unexpected file type {Path(path).suffix}")
 
 if __name__=="__main__":
     from hwr_utils.visualize import Plot
