@@ -94,19 +94,23 @@ def test(dataloader):
         save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
-    try:
-        for loss in config.stats:
+    for loss in config.stats:
+        try:
+            # Print recent snapshot
             plt.plot(config.stats[f"{loss}"].x[-100:], config.stats[f"{loss}"].y[-100:])
             plt.savefig(config.image_dir / f"{loss}")
             plt.clf()
             plt.close('all')
-            plt.plot(config.stats[f"{loss}"].x, config.stats[f"{loss}"].y)
+
+            # Print entire graph
+            max_length = min(len(config.stats[f"{loss}"].x), len(config.stats[f"{loss}"].y))
+            plt.plot(config.stats[f"{loss}"].x[-max_length:], config.stats[f"{loss}"].y[-max_length:])
             plt.savefig(config.image_dir / f"{loss}_complete")
             plt.clf()
             plt.close('all')
-    except Exception as e:
-        logger.info(f"Problem graphing: {e}")
-        pass
+        except Exception as e:
+            logger.info(f"Problem graphing: {e}")
+            pass
 
     return config.stats["Actual_Loss_Function_test"].get_last()
 
