@@ -415,7 +415,8 @@ class StrokeRecoveryDataset(Dataset):
                 img = read_img(image_path, add_distortion=add_distortion)
 
         gt_reverse_strokes, sos_args = stroke_recovery.invert_each_stroke(gt)
-
+        gt_reverse_strokes = np.array([])
+        
         # Assumes dimension 2 is start points, 3 is EOS
         # START POINT MODEL
         if False and gt.shape[-1] > 3:

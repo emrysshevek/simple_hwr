@@ -15,7 +15,7 @@ experiment: two_stage
 name_deprecated: nudger_online_warp
 output_folder: ./results
 epochs_to_run: 200
-save_freq: 5
+save_freq: 1
 use_visdom: true
 debug: off
 

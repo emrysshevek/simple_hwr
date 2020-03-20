@@ -11,7 +11,7 @@ experiment: two_stage
 name_deprecated: REAL_BASELINE
 output_folder: ./results
 epochs_to_run: 150
-save_freq: 5
+save_freq: 1
 use_visdom: true
 debug: off
 

@@ -1,3 +1,4 @@
+import itertools
 import numbers
 import socket
 import argparse
@@ -200,21 +201,35 @@ def load_config(config_path, hwr=True, testing=False, results_dir_override=None)
             config[k] = defaults[k]
 
     # Main output folder
-    if results_dir_override or ("results_dir_override" in config and config.results_dir_override):
+    # If override specified
+
+    if Path(config_path).stem=="RESUME":
+        output_root = Path(config_path).parent
+        experiment = config.experiment
+
+        # Backup some stuff
+        backup = incrementer(output_root, "backup")
+        backup.mkdir(exist_ok=True, parents=True)
+        print(backup)
+        for f in itertools.chain(output_root.glob("*.json"),output_root.glob("*.log")):
+            shutil.copy(str(f), backup)
+        output_root = output_root.as_posix()
+    elif results_dir_override or ("results_dir_override" in config and config.results_dir_override):
         experiment = Path(results_dir_override).stem
         output_root = results_dir_override
-    elif config["load_path"]:
+    # If using preloaded model AND override is not mentioned
+    elif (config["load_path"] and "results_dir_override" not in config):
         _output = incrementer(Path(config["load_path"]).parent, "new_experiment") # if it has a load path, create a new experiment in that same folder!
         experiment = _output.stem
         output_root = _output.as_posix()
     else:
-        try:
+        try: # Try to recreate the structure in the config directory (if this is in the config directory)
             experiment = Path(config_path).absolute().relative_to(Path(config_root).absolute()).parent
             if str(experiment) == ".": # if experiment is in root directory, use the experiment specified in the yaml
                 experiment = config["experiment"]
             output_root = os.path.join(config["output_folder"], experiment)
 
-        except Exception as e:
+        except Exception as e: # Fail safe; just dump to "./output/CONFIG NAME"
             log_print(f"Failed to find relative path of config file {config_root} {config_path}")
             experiment = Path(config_path).stem
             output_root = os.path.join(config["output_folder"], experiment)
@@ -552,6 +567,8 @@ def validate_and_prep_loss(config):
     # Process loss functions
     if "loss_fns" not in config.keys() and "loss_fns2" in config.keys():
         config["loss_fns"] = config["loss_fns2"]
+        del config["loss_fns2"]
+    if "loss_fns2" in config and not config.loss_fns2:
         del config["loss_fns2"]
 
     for loss_fn_group in [k for k in config.keys() if "loss_fns" in k]:  # [loss_fns, loss_fns2]

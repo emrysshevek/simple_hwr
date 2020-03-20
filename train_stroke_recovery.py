@@ -87,13 +87,15 @@ def run_epoch(dataloader, report_freq=500):
     return training_loss
 
 def test(dataloader):
+    preds_to_graph = None
     for i, item in enumerate(dataloader):
         loss, preds, *_ = trainer.test(item)
         if loss is None:
             continue
+        if i ==0:
+            preds_to_graph = [p.permute([1, 0]) for p in preds]
         config.stats["Actual_Loss_Function_test"].accumulate(loss)
-    if not preds is None:
-        preds_to_graph = [p.permute([1, 0]) for p in preds]
+    if not preds_to_graph is None:
         save_folder = graph(item, config=config, preds=preds_to_graph, _type="test", epoch=epoch)
     utils.reset_all_stats(config, keyword="_test")
 
@@ -314,7 +316,7 @@ def main(config_path, testing=False):
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate * batch_size/24)
-    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=180000, gamma=.95) # halves every ~10 "super" epochs
+    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=int(180000/batch_size), gamma=.95) # halves every ~10 "super" epochs
     # config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=80, verbose=False,
     #                                             threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 
