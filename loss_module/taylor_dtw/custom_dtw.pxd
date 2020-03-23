@@ -31,11 +31,6 @@ cdef inline int d_argmin(double  a, double b, double c):
 cdef double euclidean_distance(double[::1] a, double[::1] b):
     cdef int i
     cdef double tmp, d
-    d = 0
-    for i in range(a.shape[0]):
-        tmp = a[i] - b[i]
-        d += tmp * tmp
-    return sqrt(d)
 
 
 @cython.boundscheck(False)
@@ -138,7 +133,7 @@ cdef traceback(double[:, ::1] cost_mat, int ilen, int jlen):
     a.push_back(i)
     b.push_back(j)
     cdef int match
-    while (i > 0 or j > 0):
+    while (i > 0 and j > 0):
         match = d_argmin(cost_mat[i - 1, j - 1], cost_mat[i - 1, j], cost_mat[i, j - 1])
         if match == 0:
             i -= 1
@@ -152,6 +147,8 @@ cdef traceback(double[:, ::1] cost_mat, int ilen, int jlen):
             cost += cost_mat[i, j - 1]
         a.push_back(i)
         b.push_back(j)
+    a.push_back(0)
+    b.push_back(0)
     return a, b, cost
 
 
@@ -201,3 +198,8 @@ cdef double[:, ::1] create_cost_mat_2d_with_backward(
             cost_mat[i, j] = min(dist_func(a[i - 1], b[j - 1]), dist_func(a[i - 1], b2[j - 1])) +\
                 d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
     return cost_mat[1:, 1:]
+
+if __name__=='__main__':
+    x1 = np.array([1,2.0,3])
+    x2 = np.array([1,1.2,3])
+    dist, cost, a, b = dtw1d(x1, x2, )

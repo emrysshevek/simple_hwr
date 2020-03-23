@@ -34,8 +34,8 @@ def parse_args():
     return opts
 
 def update_LR(config, training_loss=None):
-    config.scheduler.step(training_loss)
     lr = next(iter(config.optimizer.param_groups))['lr']
+    config.scheduler.step(training_loss)
     new_lr = next(iter(config.optimizer.param_groups))['lr']
     if new_lr != lr:
         logger.info(f"LR decreased from {lr} to {new_lr}")
