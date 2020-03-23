@@ -535,7 +535,7 @@ def create_gts(x_func, y_func, start_times, number_of_samples, gt_format, noise=
     gt = np.array(gt).transpose([1,0]) # swap axes -> WIDTH, VOCAB
 
     # Rearrange strokes and reverse strokes as needed - ASSUMES X,Y,SOS/Strokenumbers
-    gt = reorder_strokes(gt, stroke_numbers=("stroke_number" in gt_format), sos_index=2)
+    # gt = reorder_strokes(gt, stroke_numbers=("stroke_number" in gt_format), sos_index=2)
 
     # print(gt)
     # draw_from_gt(gt, show=True)
