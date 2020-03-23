@@ -119,6 +119,11 @@ def test(dataloader):
 
     return config.stats["Actual_Loss_Function_test"].get_last()
 
+def reset_LR(optimizer, lr):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+
+
 def graph(batch, config=None, preds=None, _type="test", save_folder="auto", epoch="current", show=False, plot_points=True):
     if save_folder == "auto":
         _epoch = str(epoch)
@@ -315,7 +320,8 @@ def main(config_path, testing=False):
     # Create loss object
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.learning_rate * batch_size/24)
+    LR = config.learning_rate * batch_size/24
+    optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     config.scheduler = lr_scheduler.StepLR(optimizer, step_size=int(180000/batch_size), gamma=.95) # halves every ~10 "super" epochs
     # config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=80, verbose=False,
     #                                             threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
@@ -329,8 +335,12 @@ def main(config_path, testing=False):
     config.trainer=trainer
     config.model = model
     if config.load_path:
-        utils.load_model_strokes(config)  # should be load_model_strokes??????
+        utils.load_model_strokes(config, config.load_optimizer)  # should be load_model_strokes??????
         print(config.counter.epochs)
+
+    if config.reset_LR:
+        reset_LR(optimizer, LR)
+
 
     check_epoch_build_loss(config, loss_exists=False)
     current_epoch = config.counter.epochs

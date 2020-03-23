@@ -154,6 +154,8 @@ stroke_defaults = {"SMALL_TRAINING": False,
                     "dataset": {"img_height": 61, "image_prep": "pil_with_distortion","num_of_channels": 1, "include_synthetic": True},
                     "coordconv_method": "y_abs",
                     "model": {"nHidden": 128, "num_layers": 2},
+                    "reset_LR": True,
+                    "load_optimizer": False
                     }
 
 def debugger(func):
@@ -780,7 +782,7 @@ def save_model_stroke(config, bsf=False):
         create_resume_training_stroke(config)
     config["save_count"] += 1
 
-def load_model_strokes(config):
+def load_model_strokes(config, load_optimizer=True):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
         old_state = torch.load(config["load_path"])
@@ -795,7 +797,7 @@ def load_model_strokes(config):
 
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
-        if "optimizer" in config.keys():
+        if "optimizer" in config.keys() and load_optimizer:
             config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
@@ -810,7 +812,6 @@ def load_model_strokes(config):
         except:
             warnings.warn("Unable to load from visdom.json; does the file exist?")
             ## RECREATE VISDOM FROM FILE IF VISDOM IS NOT FOUND
-
 
     # Load Stats History
     stat_path = os.path.join(path, "all_stats.json")
@@ -956,6 +957,8 @@ def create_resume_training_stroke(config):
 
     output = Path(config["results_dir"])
     with open(Path(output / 'RESUME.yaml'), 'w') as outfile:
+        config.reset_LR = False # don't reset learning rate if loading from pretrained model
+        config.load_optimizer = True # load the previous optimizer state
         yaml.dump(export_config, outfile, default_flow_style=False, sort_keys=False)
 
     with open(Path(output / 'TEST.yaml'), 'w') as outfile:
