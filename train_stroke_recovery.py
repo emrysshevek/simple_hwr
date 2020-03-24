@@ -342,6 +342,7 @@ def main(config_path, testing=False):
     if config.reset_LR:
         reset_LR(optimizer, LR)
 
+    logger.info(f"Starting LR is {next(iter(config.optimizer.param_groups))['lr']}")
 
     check_epoch_build_loss(config, loss_exists=False)
     current_epoch = config.counter.epochs

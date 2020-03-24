@@ -1,5 +1,6 @@
 import re
 import json
+import warnings
 import multiprocessing
 import torch
 from torch.utils.data import Dataset
@@ -89,43 +90,6 @@ def fake_gt():
     gt2[:, 3] = [0, 0, 0, 0, 0, 0, 0, 0, 1]
     return gt2
 
-origin = np.array([0, 1])
-distance = lambda x: np.sum((np.asarray(x) - origin) ** 2)
-
-def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
-    sos_args = stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers)
-    strokes = np.split(gt, sos_args)
-
-    # if stroke_numbers:
-    #     sos = np.zeros(gt.shape[0])
-    #     sos[sos_args] = 1
-    #     gt[:,2] = np.zeros(gt.shape[0])
-
-    # Reverse strokes as needed - start point is always the top-leftmost point
-    del_index = []
-    for i, stroke in enumerate(strokes):
-        if stroke.size:
-            # Swap
-            if distance(stroke[0, :2]) > distance(stroke[-1, :2]):
-                strokes[i][:, :2] = stroke[::-1, :2]
-        else:
-            del_index.append(i)
-
-    for i in del_index:
-        del strokes[i]
-
-    # Reorder strokes as needed - left most start point goes first
-    reorder = sorted(strokes, key=lambda stroke: distance(stroke[0, :2]))
-    output = np.concatenate(reorder)
-
-    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
-        sos = stroke_recovery.relativefy(output[:,2])!=0
-        output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
-
-        # Should get the same result here
-        #np.testing.assert_equal(stroke_recovery.relativefy(output[:,2]), sos)
-
-    return output
 
 class BasicDataset(Dataset):
     """ The kind of dataset used for e.g. offline data. Just looks at images, and calculates the output size etc.
@@ -234,7 +198,7 @@ class StrokeRecoveryDataset(Dataset):
         x_func, y_func = stroke_recovery.create_functions_from_strokes(output, parameter=parameter) # can be d if the function should be a function of distance
         if "number_of_samples" not in item:
             item["number_of_samples"] = int(output[parameter+"range"] / self.interval)
-            print("UNK NUMBER OF SAMPLES!!!")
+            warnings.warn("UNK NUMBER OF SAMPLES!!!")
 
         if parameter == "t":
             start_times = output.start_times
@@ -451,7 +415,7 @@ class StrokeRecoveryDataset(Dataset):
         else:
             start_points = np.array([])
 
-        kdtree = KDTree(gt[:, 0:2]) if "nnloss" in [loss["name"] for loss in self.config.loss_fns] else None
+        kdtree = KDTree(gt[:, 0:2]) if self.config and "nnloss" in [loss["name"] for loss in self.config.loss_fns] else None
 
         return {
             "line_img": img,

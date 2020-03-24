@@ -270,23 +270,32 @@ def gt_to_raw(instance):
     return output
 
 
-def gt_to_pil_format(instance, stroke_number=True, has_start_points=True):
+def gt_to_list_of_strokes(instance, stroke_number=True, has_start_points=True):
     """
 
     Args:
         instance: NUMPY!
 
     Returns:
-        Pil format; list of strokes Length X (x,y)
+        list of strokes LENGTH X (x,y) e.g. shape = [ (Len,2) , (stroke 2) ...
     """
 
     has_start_points = False if instance.shape[-1] <= 2 else True
 
     if has_start_points:
         # if start points are sequential 000011112222...
+
+        if instance[0,2] != 1: # first point should be a start point
+            warnings.warn("First SOS should be 1!!!")
+
+        start_indices = stroke_recovery.get_sos_args(instance[:,2], stroke_numbers=stroke_number)
         start_points = stroke_recovery.relativefy(instance[:, 2]) if stroke_number else instance[:, 2]
-        start_indices = np.argwhere(np.round(start_points) == 1).astype(int).reshape(-1)
+        #np.argwhere(np.round(start_points) == 1).astype(int).reshape(-1)
         l = np.split(instance[:, 0:2], start_indices)
+        if not l[0].size:
+            l = l[1:]
+        else:
+            warnings.warn("First item should have been empty")
         if np.any(start_points < 0):
             raise Exception("Start points are less than 0")
         return l
@@ -371,6 +380,22 @@ def draw_from_raw(raw, show=True, save_path=None, height=61, right_padding="rand
         img.show()
     return data
 
+def gt_to_pil(gt, stroke_number=False):
+    """
+
+    Args:
+        gt:
+        stroke_number:
+
+    Returns:
+        Pil format; list of strokes; each stroke is list of (x,y) points
+                    e.g. [[(0,0),(1,1)], ]
+    """
+
+    list_of_strokes = gt_to_list_of_strokes(gt, stroke_number=stroke_number)
+    for stroke in list_of_strokes:
+        yield [tuple(stroke_point) for stroke_point in stroke.flatten().reshape(-1, 2).tolist()]
+
 def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
                  right_padding="random", linewidth=None, max_width=5, color=0, alpha=False,
                  use_stroke_number=None, plot_points=False):
@@ -426,19 +451,21 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
     #     rescale = min(height, max_rescale)
 
     gt_rescaled = np.c_[gt[:, 0:2] * rescale, gt[:, 2:]]
-    pil_format = gt_to_pil_format(gt_rescaled, stroke_number=use_stroke_number)
+    pil_format = gt_to_list_of_strokes(gt_rescaled, stroke_number=use_stroke_number)
     img = Image.new(image_type, (width, height), background)
     draw = ImageDraw.Draw(img)
 
-    for line in pil_format:
+    #sos_args = stroke_recovery.get_sos_args(gt_rescaled, stroke_numbers=use_stroke_number)
+    _color = color
+    for i, line in enumerate(pil_format):
         if line.size > 2:
             line = [tuple(x) for x in line.flatten().reshape(-1, 2).tolist()]
-            draw.line(line, fill=color, width=linewidth, joint='curve')
+            draw.line(line, fill=_color, width=linewidth, joint='curve')
         elif line.size == 2: # only have a single coordinate, make it big!
             line1 = line - linewidth / 2
             line2 = line + linewidth / 2
             line = np.r_[line1, line2].flatten().tolist()
-            draw.ellipse(line, fill=color, outline=color)
+            draw.ellipse(line, fill=_color, outline=color)
 
     if plot_points:
         image_type = "RGB"

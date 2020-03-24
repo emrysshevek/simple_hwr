@@ -893,7 +893,7 @@ def get_sos_args(sos, stroke_numbers=True):
     Returns:
 
     """
-    if not (sos <= 1).all() or stroke_numbers:
+    if stroke_numbers or not (sos <= 1).all():
         stroke_starts = np.argwhere(relativefy_numpy(sos)).flatten()
     else:
         stroke_starts = np.argwhere(sos).flatten()
@@ -916,10 +916,126 @@ def invert_each_stroke(gt, stroke_numbers=True):
         stroke_starts = np.argwhere(gt[:, 2]).flatten()
     return np.concatenate([np.vstack([x[::-1] for x in np.split(gt[:,:2], stroke_starts) if x.size]), gt[:,2:]], axis=1), stroke_starts
 
+
+origin = np.array([0, 1])
+distance = lambda x: np.sum((np.asarray(x) - origin) ** 2)
+
+def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
+    """ Reverse strokes so start/end point nearest to top left of image is first
+        Re-order strokes so stroke with point nearest top left is first
+
+    Args:
+        gt:
+        stroke_numbers:
+        sos_index:
+
+    Returns:
+
+    """
+    sos_args = stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers)
+    strokes = np.split(gt, sos_args)
+
+    # Reverse strokes as needed - start point is always the top-leftmost point
+    del_index = []
+    for i, stroke in enumerate(strokes):
+        if stroke.size:
+            # Swap
+            if distance(stroke[0, :2]) > distance(stroke[-1, :2]):
+                strokes[i][:, :2] = stroke[::-1, :2]
+        else:
+            del_index.append(i)
+
+    for i in del_index:
+        del strokes[i]
+
+    # Reorder strokes as needed - left most start point goes first
+    reorder = sorted(strokes, key=lambda stroke: distance(stroke[0, :2]))
+    output = np.concatenate(reorder)
+
+    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
+        sos = stroke_recovery.relativefy(output[:,2])!=0
+        output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
+
+        # Should get the same result here
+        #np.testing.assert_equal(stroke_recovery.relativefy(output[:,2]), sos)
+
+    return output
+
+def swap_strokes_left_v1(gt, stroke_numbers=False, sos_index=2, distance_threshold=.1):
+    """ Reverse strokes so start/end point nearest to top left of image is first
+        Re-order strokes so stroke with point nearest top left is first
+
+    Args:
+        gt:
+        stroke_numbers:
+        sos_index:
+
+    Returns:
+
+    """
+    # gt = np.array(range(36)).reshape(9, 4)
+    # gt[:, 2] = [1, 0, 0, 1, 0, 1, 0, 0, 0]
+    # gt[-1, :] = [3.4, 5, 1, 1]
+    # print(gt)
+
+    sos_args = get_sos_args(gt[:, sos_index], stroke_numbers=stroke_numbers)
+    strokes = np.split(gt, sos_args)[1:]
+
+    avg_x_position = [np.mean(s[:, 0]) for s in strokes if s.size]
+    avg_x_position += np.cumsum(
+        [distance_threshold] * len(avg_x_position))  # this acts like a threshold, but increases for larger stroke swaps
+
+    x = list(zip(strokes, avg_x_position))
+    x.sort(key=lambda m: m[1])
+
+    output = np.concatenate([i[0] for i in x])
+
+    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
+        sos = stroke_recovery.relativefy(output[:,2])!=0
+        output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
+
+    return output
+
+
+def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=.3):
+    """ Swap stroke if the most left part is further right than the previous stroke
+
+    Args:
+        gt:
+        stroke_numbers:
+        sos_index:
+
+    Returns:
+
+    """
+    # gt = np.array(range(36)).reshape(9, 4)
+    # gt[:, 2] = [1, 0, 0, 1, 0, 1, 0, 0, 0]
+    # gt[-1, :] = [3.4, 5, 1, 1]
+    # print(gt)
+
+    sos_args = get_sos_args(gt[:, sos_index], stroke_numbers=stroke_numbers)
+    strokes = np.split(gt, sos_args)[1:]
+
+    min_x_position = [np.min(s[:, 0]) for s in strokes if s.size]
+    min_x_position += np.cumsum([distance_threshold] * len(min_x_position))  # this acts like a threshold, but increases for larger stroke swaps
+
+    x = list(zip(strokes, min_x_position))
+    x.sort(key=lambda m: m[1])
+
+    output = np.concatenate([i[0] for i in x])
+
+    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
+        sos = stroke_recovery.relativefy(output[:,2])!=0
+        output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
+
+    return output
+
+
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE
 ## ANY SUFFICIENTLY LARGE JUMP -> MAKE A START STROKE
 ## DTW -> PAIR POINTS TOGETHER, EVALUATE HOW ACCURATE ON STROKE BY STROKE LEVEL
+
 
 
 if __name__=="__main__":
