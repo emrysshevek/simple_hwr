@@ -64,6 +64,9 @@ class StrokeLoss:
             loss_fn = l1.lossfun
         elif loss_name.startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
+        elif loss_name == "dtw_l1_swapper":
+            l = DTWLoss(**loss, device=self.device)
+            loss_fn = l.lossfun = l.dtw_l1_swapper
         elif loss_name == "dtw_sos_eos_l2":
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_sos_eos_L2

@@ -681,7 +681,19 @@ def reparameterize_as_func_of_distance(x, y, start_strokes, has_repeated_end=Tru
 
     return cum_sum
 
+
 def get_stroke_length_gt(x, y, start_points, use_distance=True):
+    """ This is really a distance function
+    
+    Args:
+        x: 
+        y: 
+        start_points: 
+        use_distance: 
+
+    Returns:
+
+    """
     input_shape = start_points.shape
 
     start_indices = np.where(start_points)[0]
@@ -900,7 +912,7 @@ def get_sos_args(sos, stroke_numbers=True):
     return stroke_starts
 
 def invert_each_stroke(gt, stroke_numbers=True):
-    """
+    """ reverse stroke point order
 
     Args:
         gt:
@@ -915,6 +927,20 @@ def invert_each_stroke(gt, stroke_numbers=True):
     else:
         stroke_starts = np.argwhere(gt[:, 2]).flatten()
     return np.concatenate([np.vstack([x[::-1] for x in np.split(gt[:,:2], stroke_starts) if x.size]), gt[:,2:]], axis=1), stroke_starts
+
+
+def get_number_of_stroke_pts_from_gt(gt, stroke_numbers=True):
+    """ Get the number of stroke points
+
+    Returns:
+
+    """
+    if not (gt[:, 2] <= 1).all() or stroke_numbers:
+        stroke_starts = np.argwhere(stroke_recovery.relativefy_numpy(gt[:, 2])).flatten()
+    else:
+        stroke_starts = np.argwhere(gt[:, 2]).flatten()
+    stroke_starts = np.concatenate([stroke_starts,[len(gt)]])
+    return stroke_starts[1:]-stroke_starts[:-1]
 
 
 origin = np.array([0, 1])
@@ -997,7 +1023,7 @@ def swap_strokes_left_v1(gt, stroke_numbers=False, sos_index=2, distance_thresho
     return output
 
 
-def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=.3):
+def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=.1, height=None):
     """ Swap stroke if the most left part is further right than the previous stroke
 
     Args:
@@ -1008,6 +1034,9 @@ def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=
     Returns:
 
     """
+    if height:
+        distance_threshold *= height
+
     # gt = np.array(range(36)).reshape(9, 4)
     # gt[:, 2] = [1, 0, 0, 1, 0, 1, 0, 0, 0]
     # gt[-1, :] = [3.4, 5, 1, 1]
@@ -1030,6 +1059,55 @@ def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=
 
     return output
 
+
+def swap_items(l, pos1, pos2):
+    l[pos1], l[pos2] = l[pos2], l[pos1]
+    return l
+
+def swap_strokes(gt, start, end, pivot):
+    """
+
+    Args:
+        gt: WIDTH x VOCAB (3)
+        start (int): index of end of stroke
+        end (int): index of start of stroke
+        pivot (int): index of stroke change
+
+    Returns:
+
+    """
+    t = np.copy(gt[start:end])
+    gt[start:start + end - pivot] = t[pivot - start:end - start]
+    gt[start + end - pivot:end] = t[:pivot - start]
+    return gt
+
+def swap_to_minimize_l1(pred, gt, exponent=2, stroke_numbers=True):
+    gt_stroke_lens = get_number_of_stroke_pts_from_gt(gt, stroke_numbers=stroke_numbers)
+    ordering = list(range(len(gt_stroke_lens)))
+    pos = 0
+    for i in range(len(gt_stroke_lens) - 1):
+        end = pos + gt_stroke_lens[i] + gt_stroke_lens[i + 1]
+        normal_slice = slice(pos, end)
+        normal_l1 = abs(gt[normal_slice, :2] - pred[normal_slice, :2])**exponent
+
+        alt_gt = np.concatenate([gt[pos + gt_stroke_lens[i]:end, :2], gt[pos:pos + gt_stroke_lens[i], :2]])
+        alternative_l1 = abs(alt_gt - pred[normal_slice, :2])**exponent
+        #         if i == 0:
+        #             print(alt_gt)
+        #             print(alternative_l1)
+        #             print(normal_l1)
+        if np.sum(alternative_l1) < np.sum(normal_l1):
+            #print(f"Swap {i} {i + 1}")
+            gt = swap_strokes(gt, pos, end, pivot=pos + gt_stroke_lens[i])
+            swap_items(gt_stroke_lens, i, i + 1)
+            swap_items(ordering, i, i + 1)
+        pos += gt_stroke_lens[i]
+
+    if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
+        sos = stroke_recovery.relativefy(gt[:,2])!=0
+        gt[:,2] = np.cumsum(sos) # Regenerate stroke numbers
+
+    return gt
 
 ## KD TREE MOVE POINTS? TEST THIS
 ## DELETE POINTS THAT AREN'T CLOSE TO A STROKE

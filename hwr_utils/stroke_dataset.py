@@ -336,7 +336,16 @@ class StrokeRecoveryDataset(Dataset):
         #         print(i)
         #         break
 
+        # Stroke order
+
         item = self.data[idx]
+
+        # if not "current_stroke_order" in item:
+        #     item["current_stroke_order"] = list(range(np.sum(item["gt"][:,2])))
+        #     item["new_stroke_order"] = item["current_stroke_order"]
+        # if not np.allclose(item["new_stroke_order"], item["current_stroke_order"]):
+        #     # Swap to get current_stroke_order to look like new_stroke_order
+
         image_path = self.root / item['image_path']
 
         ## DEFAULT GT ARRAY
