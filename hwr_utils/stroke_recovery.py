@@ -1081,17 +1081,32 @@ def swap_strokes(gt, start, end, pivot):
     gt[start + end - pivot:end] = t[:pivot - start]
     return gt
 
-def swap_to_minimize_l1(pred, gt, exponent=2, stroke_numbers=True):
+def swap_to_minimize_l1(pred, gt, exponent=2, stroke_numbers=True, center_of_mass=False):
+    """
+
+    Args:
+        pred:
+        gt:
+        exponent:
+        stroke_numbers:
+        center_of_mass: take center of mass (true) vs.
+
+    Returns:
+
+    """
     gt_stroke_lens = get_number_of_stroke_pts_from_gt(gt, stroke_numbers=stroke_numbers)
     ordering = list(range(len(gt_stroke_lens)))
     pos = 0
     for i in range(len(gt_stroke_lens) - 1):
         end = pos + gt_stroke_lens[i] + gt_stroke_lens[i + 1]
         normal_slice = slice(pos, end)
-        normal_l1 = abs(gt[normal_slice, :2] - pred[normal_slice, :2])**exponent
-
         alt_gt = np.concatenate([gt[pos + gt_stroke_lens[i]:end, :2], gt[pos:pos + gt_stroke_lens[i], :2]])
-        alternative_l1 = abs(alt_gt - pred[normal_slice, :2])**exponent
+        if center_of_mass:
+            normal_l1 = abs(np.sum(gt[normal_slice, :2],axis=0) - np.sum(pred[normal_slice, :2], axis=0))
+            alternative_l1 = abs(np.sum(alt_gt, axis=0) - np.sum(pred[normal_slice, :2], axis=0))
+        else:
+            normal_l1 = abs(gt[normal_slice, :2] - pred[normal_slice, :2]) ** exponent
+            alternative_l1 = abs(alt_gt - pred[normal_slice, :2]) ** exponent
         #         if i == 0:
         #             print(alt_gt)
         #             print(alternative_l1)

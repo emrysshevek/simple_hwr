@@ -132,6 +132,13 @@ class DTWLoss(CustomLoss):
         else:
             self.barron = None
 
+        if "l1_center_of_mass" in kwargs and kwargs["l1_center_of_mass"]:
+            logger.info("Taking center of mass")
+            self.center_of_mass = True
+        else:
+            self.center_of_mass = False
+
+
         if "relativefy_cross_entropy_gt" in kwargs and kwargs["relativefy_cross_entropy_gt"]:
             logger.info("Relativefying stroke number + BCE!!!")
             self.relativefy = True
@@ -160,7 +167,7 @@ class DTWLoss(CustomLoss):
             pred = item["preds_numpy"][i]
             targ = targs[i]
             # This can be extended to do DTW with just a small buffer
-            adjusted_targ = swap_to_minimize_l1(pred, targ.detach().numpy().astype("float64"), stroke_numbers=True)
+            adjusted_targ = swap_to_minimize_l1(pred, targ.detach().numpy().astype("float64"), stroke_numbers=True, center_of_mass=self.center_of_mass)
             a, b = self.dtw_single((item["preds_numpy"][i], adjusted_targ), dtw_mapping_basis=self.dtw_mapping_basis)
             adjusted_targ = tensor(adjusted_targ)
             # LEN X VOCAB
