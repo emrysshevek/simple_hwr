@@ -138,6 +138,12 @@ class DTWLoss(CustomLoss):
         else:
             self.center_of_mass = False
 
+        if "window_size" in kwargs:
+            self.window_size = kwargs["window_size"]
+        else:
+            self.window_size = 20
+
+
 
         if "relativefy_cross_entropy_gt" in kwargs and kwargs["relativefy_cross_entropy_gt"]:
             logger.info("Relativefying stroke number + BCE!!!")
@@ -168,7 +174,7 @@ class DTWLoss(CustomLoss):
             targ = targs[i]
             # This can be extended to do DTW with just a small buffer
             adjusted_targ = swap_to_minimize_l1(pred, targ.detach().numpy().astype("float64"), stroke_numbers=True, center_of_mass=self.center_of_mass)
-            a, b = self.dtw_single((item["preds_numpy"][i], adjusted_targ), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], adjusted_targ), dtw_mapping_basis=self.dtw_mapping_basis, window_size=self.window_size)
             adjusted_targ = tensor(adjusted_targ)
             # LEN X VOCAB
             if self.method == "normal":
@@ -199,7 +205,7 @@ class DTWLoss(CustomLoss):
         item = add_preds_numpy(preds, item)
 
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis, window_size=self.window_size)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -237,7 +243,10 @@ class DTWLoss(CustomLoss):
         item = add_preds_numpy(preds, item)
 
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single(
+                (item["preds_numpy"][i], targs[i]),
+                dtw_mapping_basis=self.dtw_mapping_basis,
+                window_size=self.window_size)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -275,7 +284,7 @@ class DTWLoss(CustomLoss):
         loss = 0
         item = add_preds_numpy(preds, item)
         for i in range(len(preds)):  # loop through BATCH
-            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single((item["preds_numpy"][i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis, window_size=self.window_size)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -308,7 +317,12 @@ class DTWLoss(CustomLoss):
         for i in range(len(preds)):  # loop through BATCH
             #a, b = self.dtw_single((preds[i], targs[i]), dtw_mapping_basis=self.dtw_mapping_basis)
             targs_reverse = item["gt_reverse_strokes"][i]
-            a, b = self.dtw_single_reverse(item["preds_numpy"][i], targs[i], targs_reverse, dtw_mapping_basis=self.dtw_mapping_basis)
+            a, b = self.dtw_single_reverse(
+                item["preds_numpy"][i],
+                targs[i],
+                targs_reverse,
+                dtw_mapping_basis=self.dtw_mapping_basis,
+                window_size=self.window_size)
 
             # LEN X VOCAB
             if self.method=="normal":
@@ -349,7 +363,7 @@ class DTWLoss(CustomLoss):
 
 
     @staticmethod
-    def dtw_single(_input, dtw_mapping_basis):
+    def dtw_single(_input, dtw_mapping_basis, **kwargs):
         """ THIS DOES NOT USE SUBCOEF
         Args:
             _input (tuple): pred, targ, label_length
@@ -360,13 +374,13 @@ class DTWLoss(CustomLoss):
         pred, targ = _input
         pred, targ = to_numpy(pred[:, dtw_mapping_basis], astype="float64"), \
                      to_numpy(targ[:, dtw_mapping_basis], astype="float64")
-        dist, cost, a, b = DTWLoss._dtw(pred, targ)
+        dist, cost, a, b = DTWLoss._dtw(pred, targ, **kwargs)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a, b
 
     @staticmethod
-    def dtw_single_reverse(pred, targ, reverse_targ, dtw_mapping_basis):
+    def dtw_single_reverse(pred, targ, reverse_targ, dtw_mapping_basis, **kwargs):
         """ THIS DOES NOT USE SUBCOEF
         Args:
             _input (tuple): pred, targ, label_length
@@ -390,12 +404,14 @@ class DTWLoss(CustomLoss):
 
     @staticmethod
     # ORIGINAL
-    def _dtw(pred, targ):
+    def _dtw(pred, targ, window_size=20):
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
         x2 = np.ascontiguousarray(targ)
-        return dtw.constrainted_dtw2d(x1, x2, 6) # dist, cost, a, b
-        #return dtw.dtw2d(x1, x2) # dist, cost, a, b
+        if window_size:
+            return dtw.constrainted_dtw2d(x1, x2, window_size) # dist, cost, a, b
+        else:
+            return dtw.dtw2d(x1, x2) # dist, cost, a, b
 
     # @staticmethod
     # # FASTER
