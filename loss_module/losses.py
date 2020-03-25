@@ -142,8 +142,7 @@ class DTWLoss(CustomLoss):
             self.window_size = kwargs["window_size"]
         else:
             self.window_size = 20
-
-
+        logger.info(f"DTW Window Size {self.window_size}")
 
         if "relativefy_cross_entropy_gt" in kwargs and kwargs["relativefy_cross_entropy_gt"]:
             logger.info("Relativefying stroke number + BCE!!!")
