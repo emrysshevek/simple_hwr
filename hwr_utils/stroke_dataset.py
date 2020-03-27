@@ -292,7 +292,7 @@ class StrokeRecoveryDataset(Dataset):
         # padded_gt = StrokeRecoveryDataset.enlarge_gt(padded_gt, width=image_width)  # enlarge to fit - needs to be at least as big as GTs
 
         img = draw_from_gt(padded_gt, show=False, save_path=None, min_width=None, height=img_height,
-                           right_padding="random", linewidth=None, max_width=10, use_stroke_number=use_stroke_number)
+                           right_padding="random", linewidth=None, max_width=8, use_stroke_number=use_stroke_number)
 
         # img = img[::-1] # convert to lower origin format
         if add_distortion:

@@ -6,6 +6,10 @@ cimport numpy as np
 cimport cython
 from libc.math cimport fabs, sqrt, INFINITY
 from libcpp.vector cimport vector
+import warnings
+
+""" Constraint is diagonal +/- constraint (e.g. constraint=2 means window_length=5
+"""
 
 ctypedef double (*metric_ptr)(double[::1] a, double[::1])
 
@@ -16,6 +20,7 @@ cdef inline double d_min(double a, double b, double c):
         return b
     else:
         return c
+
 
 cdef inline int d_argmin(double  a, double b, double c):
     if a <= b and a <= c:
@@ -37,19 +42,30 @@ cdef double euclidean_distance(double[::1] a, double[::1] b):
         d += tmp * tmp
     return sqrt(d)
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def check_constraint(np.ndarray[np.float64_t, ndim=1, mode="c"] a, np.ndarray[np.float64_t, ndim=1, mode="c"] b,
+                       constraint=0, warn=True):
+    cdef int min_size = abs(a.shape[0] - b.shape[0]) + 1
+    if constraint < min_size:
+        if warn:
+            warnings.warn("Constraint {} too small for sequences length {} and {}; using {}".format(constraint, a.shape[0], b.shape[0], min_size))
+        constraint = min_size
+    return constraint
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
 def dtw1d(np.ndarray[np.float64_t, ndim=1, mode="c"] a, np.ndarray[np.float64_t, ndim=1, mode="c"] b):
-    cost_mat, cost, align_a, align_b = __dtw1d(a, b, b.shape[0])
+    cdef int constraint = abs(a.shape[0] - b.shape[0]) + 1
+    cost_mat, cost, align_a, align_b = __dtw1d(a, b, constraint)
     return cost_mat, cost, align_a, align_b
 
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def constrainted_dtw1d(np.ndarray[np.float64_t, ndim=1, mode="c"] a, np.ndarray[np.float64_t, ndim=1, mode="c"] b,
+def constrained_dtw1d(np.ndarray[np.float64_t, ndim=1, mode="c"] a, np.ndarray[np.float64_t, ndim=1, mode="c"] b,
                        constraint=0):
-    constraint = max(abs(a.shape[0] - b.shape[0]), constraint)
+    constraint = check_constraint(a,b,constraint)
     cost_mat, cost, align_a, align_b = __dtw1d(a, b, constraint)
     return cost_mat, cost, align_a, align_b
 
@@ -83,14 +99,16 @@ cdef double[:, ::1] create_cost_mat_1d(double[::1] a, double[::1]b, int constrai
 @cython.wraparound(False)
 def dtw2d(np.ndarray[np.float64_t, ndim=2, mode="c"] a,
           np.ndarray[np.float64_t, ndim=2, mode="c"] b, metric="euclidean"):
-    cost_mat, cost, align_a, align_b = __dtw2d(a, b, b.shape[0], metric)
+    cdef int constraint = abs(a.shape[0] - b.shape[0]) + 1
+    cost_mat, cost, align_a, align_b = __dtw2d(a, b, constraint, metric)
     return cost_mat, cost, align_a, align_b
+
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def constrainted_dtw2d(np.ndarray[np.float64_t, ndim=2, mode="c"] a,
+def constrained_dtw2d(np.ndarray[np.float64_t, ndim=2, mode="c"] a,
                        np.ndarray[np.float64_t, ndim=2, mode="c"] b, constraint=0, metric="euclidean"):
-    constraint = max(abs(a.shape[0] - b.shape[0]), constraint)
+    constraint = check_constraint(a,b,constraint)
     cost_mat, cost, align_a, align_b = __dtw2d(a, b, constraint, metric)
     return cost_mat, cost, align_a, align_b
 
@@ -99,7 +117,7 @@ def constrainted_dtw2d(np.ndarray[np.float64_t, ndim=2, mode="c"] a,
 @cython.wraparound(False)
 cdef __dtw2d(np.ndarray[np.float64_t, ndim=2, mode="c"] a,
              np.ndarray[np.float64_t, ndim=2, mode="c"] b, int constraint, metric):
-    assert a.shape[1] == b.shape[1], 'Matrices must have same dimension. a={}, b={}'.format(a.shape[1], b.shape[1])
+    assert a.shape[1] == b.shape[1], 'Matrices must have same dimention. a={}, b={}'.format(a.shape[1], b.shape[1])
     cdef metric_ptr dist_func
     if metric == 'euclidean':
         dist_func = &euclidean_distance

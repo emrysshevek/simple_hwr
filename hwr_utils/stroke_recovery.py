@@ -923,7 +923,7 @@ def invert_each_stroke(gt, stroke_numbers=True):
         SOS arg numbers (0,5,11...)
     """
     if not (gt[:, 2] <= 1).all() or stroke_numbers:
-        stroke_starts = np.argwhere(stroke_recovery.relativefy_numpy(gt[:, 2])).flatten()
+        stroke_starts = np.argwhere(relativefy_numpy(gt[:, 2])).flatten()
     else:
         stroke_starts = np.argwhere(gt[:, 2]).flatten()
     return np.concatenate([np.vstack([x[::-1] for x in np.split(gt[:,:2], stroke_starts) if x.size]), gt[:,2:]], axis=1), stroke_starts
@@ -936,7 +936,7 @@ def get_number_of_stroke_pts_from_gt(gt, stroke_numbers=True):
 
     """
     if not (gt[:, 2] <= 1).all() or stroke_numbers:
-        stroke_starts = np.argwhere(stroke_recovery.relativefy_numpy(gt[:, 2])).flatten()
+        stroke_starts = np.argwhere(relativefy_numpy(gt[:, 2])).flatten()
     else:
         stroke_starts = np.argwhere(gt[:, 2]).flatten()
     stroke_starts = np.concatenate([stroke_starts,[len(gt)]])
@@ -958,7 +958,7 @@ def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
     Returns:
 
     """
-    sos_args = stroke_recovery.get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers)
+    sos_args = get_sos_args(gt[:,sos_index], stroke_numbers=stroke_numbers)
     strokes = np.split(gt, sos_args)
 
     # Reverse strokes as needed - start point is always the top-leftmost point
@@ -979,7 +979,7 @@ def reorder_strokes(gt, stroke_numbers=False, sos_index=2):
     output = np.concatenate(reorder)
 
     if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
-        sos = stroke_recovery.relativefy(output[:,2])!=0
+        sos = relativefy(output[:,2])!=0
         output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
 
         # Should get the same result here
@@ -1017,7 +1017,7 @@ def swap_strokes_left_v1(gt, stroke_numbers=False, sos_index=2, distance_thresho
     output = np.concatenate([i[0] for i in x])
 
     if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
-        sos = stroke_recovery.relativefy(output[:,2])!=0
+        sos = relativefy(output[:,2])!=0
         output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
 
     return output
@@ -1054,7 +1054,7 @@ def swap_strokes_left(gt, stroke_numbers=False, sos_index=2, distance_threshold=
     output = np.concatenate([i[0] for i in x])
 
     if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
-        sos = stroke_recovery.relativefy(output[:,2])!=0
+        sos = relativefy(output[:,2])!=0
         output[:,2] = np.cumsum(sos) # Regenerate stroke numbers
 
     return output
@@ -1119,7 +1119,7 @@ def swap_to_minimize_l1(pred, gt, exponent=2, stroke_numbers=True, center_of_mas
         pos += gt_stroke_lens[i]
 
     if stroke_numbers: # Stroke numbers are now out of order; find where the strokes change, then re-add
-        sos = stroke_recovery.relativefy(gt[:,2])!=0
+        sos = relativefy(gt[:,2])!=0
         gt[:,2] = np.cumsum(sos) # Regenerate stroke numbers
 
     return gt

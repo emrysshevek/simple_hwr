@@ -433,7 +433,8 @@ def draw_from_gt(gt, show=True, save_path=None, min_width=None, height=61,
         background = tuple((*background, 0))
 
     if linewidth is None:
-        linewidth = min(max(int(abs(np.random.randn()) * (max_width - 1) * .5 + 1), 1),max_width)
+        linewidth = min(max(int(abs(np.random.beta(2,4)) * max_width + .8), 1),max_width)
+        #min(max(int(abs(np.random.randn()) * (max_width - 1) * .5 + 1), 1),max_width)
 
     if isinstance(right_padding, str):
         right_padding = np.random.randint(6)
