@@ -790,6 +790,7 @@ def load_model_strokes(config, load_optimizer=True):
     else:
         old_state = torch.load(os.path.join(config["load_path"], "baseline_model.pt"))
         path = config["load_path"]
+    logger.info(f"Loading MODEL from {path}")
 
     # Load the definition of the loaded model if it was saved
     # if "model_definition" in old_state.keys():
@@ -798,6 +799,7 @@ def load_model_strokes(config, load_optimizer=True):
     if "model" in old_state.keys():
         config["model"].load_state_dict(old_state["model"])
         if "optimizer" in config.keys() and load_optimizer:
+            logger.info("Loading optimizer...")
             config["optimizer"].load_state_dict(old_state["optimizer"])
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]

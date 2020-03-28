@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import torch
 # from sdtw import SoftDTW
@@ -10,9 +11,10 @@ from robust_loss_pytorch import AdaptiveLossFunction
 import logging
 from hwr_utils.stroke_dataset import create_gts
 from hwr_utils.utils import to_numpy
-from hwr_utils.stroke_recovery import relativefy_torch, swap_to_minimize_l1
+from hwr_utils.stroke_recovery import relativefy_torch, swap_to_minimize_l1, get_number_of_stroke_pts_from_gt
 import sys
 sys.path.append("..")
+#pip install git+https://github.com/tahlor/pydtw
 
 # def extensions():
 #     #__builtins__.__NUMPY_SETUP__ = False
@@ -149,6 +151,13 @@ class DTWLoss(CustomLoss):
             self.relativefy = True
         else:
             self.barron = False
+
+        if "low_level_dtw_alg" in kwargs and kwargs["low_level_dtw_alg"]=="invert":
+            logger.info("Using INVERT low-level DTW")
+            self._dtw_alg = "invert"
+        else:
+            self._dtw_alg = ""
+
 
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
@@ -361,8 +370,7 @@ class DTWLoss(CustomLoss):
         return loss  # , to_value(loss)
 
 
-    @staticmethod
-    def dtw_single(_input, dtw_mapping_basis, **kwargs):
+    def dtw_single(self, _input, dtw_mapping_basis, **kwargs):
         """ THIS DOES NOT USE SUBCOEF
         Args:
             _input (tuple): pred, targ, label_length
@@ -370,10 +378,16 @@ class DTWLoss(CustomLoss):
         Returns:
 
         """
-        pred, targ = _input
-        pred, targ = to_numpy(pred[:, dtw_mapping_basis], astype="float64"), \
-                     to_numpy(targ[:, dtw_mapping_basis], astype="float64")
-        dist, cost, a, b = DTWLoss._dtw(pred, targ, **kwargs)
+        _pred, _targ = _input
+        pred, targ = to_numpy(_pred[:, dtw_mapping_basis], astype="float64"), \
+                     to_numpy(_targ[:, dtw_mapping_basis], astype="float64")
+
+        if self._dtw_alg == "invert":
+            gt_stroke_lens = get_number_of_stroke_pts_from_gt(_targ, stroke_numbers=True)
+            warnings.simplefilter("ignore")
+            dist, cost, a, b = DTWLoss._dtw_with_invert(pred, targ, gt_stroke_lens, **kwargs)
+        else:
+            dist, cost, a, b = DTWLoss._dtw(pred, targ, **kwargs)
 
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         return a, b
@@ -402,13 +416,102 @@ class DTWLoss(CustomLoss):
         return a, b
 
     @staticmethod
+    def align(gt, gt_next, pred, str_len, window_size=10):
+        """ Match the GT stroke + a few more strokes
+            Get last match to GT stroke
+
+
+            gt_next: next stroke
+        """
+        _comb = np.concatenate([gt, gt_next], axis=0)
+        # print("combined", _comb, pred)
+        f, cost, a, b = dtw.constrained_dtw2d(_comb, pred, window_size)
+        # print(a,b)
+        # print("GT", _comb[a])
+        # print("Pred", pred[b])
+        dist = np.sum(abs(_comb[a] - pred[b]))
+        return dist, a, b
+
+    @staticmethod
+    def _dtw_with_invert(preds, gt, gt_stroke_lens, window=10, **kwargs):
+        """ Matches each pred/stroke individually
+
+        # Consider a cython function that takes exisiting distance matrix and only refills the last bit
+
+        Args:
+            gt:
+            preds:
+            window:
+
+        Returns:
+
+        Optimizations:
+            # gt_stroke_lens done in dataloader
+            # store as contiguous arrays
+
+        """
+        gt = np.ascontiguousarray(gt)
+        preds = np.ascontiguousarray(preds)
+        gt_stroke_lens = np.insert(gt_stroke_lens, 0, 0)  # possibly swap first stroke
+
+        match_a = []
+        match_b = []
+
+        pos_gt = 0
+        pos_pred = 0
+
+        ## FIRST ATTEMPT AT MANUAL DTW MATCH
+        for i in range(len(gt_stroke_lens)):
+            next_stroke_length = gt_stroke_lens[i + 1] if i + 1 < len(gt_stroke_lens) else 0
+            str_len = gt_stroke_lens[i]
+            temp_window = min(window, next_stroke_length)
+
+            end_gt, end_pred = pos_gt + str_len, pos_pred + str_len + temp_window
+            gt_next = gt[end_gt:end_gt + next_stroke_length]
+            gt_stroke = gt[pos_gt:end_gt]
+            pred_stroke = preds[pos_pred:end_pred]
+            # print(gt_stroke, gt_next, pred_stroke)
+            dist, a, b = DTWLoss.align(gt_stroke, gt_next[:temp_window], pred_stroke, str_len, window)
+
+            if i < len(gt_stroke_lens) - 1:
+                gtr_next = np.ascontiguousarray(gt_next[::-1])
+                distr, ar, br = DTWLoss.align(gt_stroke, gtr_next[:temp_window], pred_stroke, str_len, window)
+                # Invert the next stroke
+                # print("LOSS", dist, distr)
+                if distr < dist:
+                    # print("REVERSE REVERSE!")
+                    gt[end_gt:end_gt + next_stroke_length] = gtr_next
+                    a, b = ar, br
+
+                # print("A", a)
+                # print("B", b)
+
+                if i > 0:  # first one doesn't save alignment
+                    last_stroke_idx_a = len(a) - 1 - np.argmax(
+                        a[::-1] == str_len)  # how far to go in the alignment list
+                    # -1 because 0 indexing; 10 - np.argmax(np.array([5]*10)[::-1]==5) - 1
+                    # print("How far to go in alignment list", last_stroke_idx_a)
+                    pos_pred_update = b[last_stroke_idx_a]  # how far the pred matches
+                    # print("How far the pred matches", pos_pred_update)
+                    # print("How far the gt matches (by def)", str_len)
+
+                    match_a += [x + pos_gt for x in a[:last_stroke_idx_a]]
+                    match_b += [x + pos_pred for x in b[:last_stroke_idx_a]]
+                    pos_gt += str_len
+                    pos_pred += pos_pred_update
+            else:
+                match_a += [x + pos_gt for x in a]
+                match_b += [x + pos_pred for x in b]
+        return None, None, match_a, match_b
+
+    @staticmethod
     # ORIGINAL
     def _dtw(pred, targ, window_size=20):
         # Cost is weighted by how many GT stroke points, i.e. how long it is
         x1 = np.ascontiguousarray(pred)  # time step, batch, (x,y)
         x2 = np.ascontiguousarray(targ)
         if window_size:
-            return dtw.constrainted_dtw2d(x1, x2, window_size) # dist, cost, a, b
+            return dtw.constrained_dtw2d(x1, x2, window_size) # dist, cost, a, b
         else:
             return dtw.dtw2d(x1, x2) # dist, cost, a, b
 

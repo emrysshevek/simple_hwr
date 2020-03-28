@@ -114,6 +114,7 @@ loss_fns2:
     gamma: 1       # soft DTW
     reverse: false # soft DTW
     barron: true # use Barron
+    low_level_dtw_alg: invert # use the invert DTW
     gts:
       - x
       - y

@@ -340,6 +340,7 @@ def main(config_path, testing=False):
         print(config.counter.epochs)
 
     if config.reset_LR:
+        logger.info("Resetting LR")
         reset_LR(optimizer, LR)
 
     logger.info(f"Starting LR is {next(iter(config.optimizer.param_groups))['lr']}")

@@ -28,13 +28,14 @@ dependencies:
     - protobuf==3.7.1
     - six==1.12.0
     - tqdm
-    - pydtw==2.0.2
     - tensorboardx==1.6
     - torch>=1.2.0
     - torchfile==0.1.0
     - torchvision==0.2.2.post3
     - wget
     - git+https://github.com/Tahlor/robust_loss_pytorch
+    - git+https://github.com/tahlor/pydtw
+
 #prefix: /panfs/pan.fsl.byu.edu/scr/grp/fslg_hwr/env/hwr
 
 # conda env create -f environment.yaml --name munit2
