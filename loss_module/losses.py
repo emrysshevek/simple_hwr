@@ -433,7 +433,7 @@ class DTWLoss(CustomLoss):
         return dist, a, b
 
     @staticmethod
-    def _dtw_with_invert(preds, gt, gt_stroke_lens, window=10, **kwargs):
+    def _dtw_with_invert(preds, gt, gt_stroke_lens, next_stroke_sample_len=5, pred_buffer=10, window=10, **kwargs):
         """ Matches each pred/stroke individually
 
         # Consider a cython function that takes exisiting distance matrix and only refills the last bit
@@ -441,7 +441,10 @@ class DTWLoss(CustomLoss):
         Args:
             gt:
             preds:
-            window:
+            next_stroke_sample_len: how many points to sample to choose whether to reverse
+            pred_buffer: how many extra preds to add to alignment, in case pred is behind; if pred is ahead, hopefully
+                this won't detract too much
+            window: the DTW window size; since we're forcing strokes to line up, it probably doesn't need to be too big
 
         Returns:
 
@@ -464,18 +467,17 @@ class DTWLoss(CustomLoss):
         for i in range(len(gt_stroke_lens)):
             next_stroke_length = gt_stroke_lens[i + 1] if i + 1 < len(gt_stroke_lens) else 0
             str_len = gt_stroke_lens[i]
-            temp_window = min(window, next_stroke_length)
-
-            end_gt, end_pred = pos_gt + str_len, pos_pred + str_len + temp_window
+            _next_stroke_sample_len = min(next_stroke_sample_len, next_stroke_length)
+            end_gt, end_pred = pos_gt + str_len, pos_pred + str_len + _next_stroke_sample_len + pred_buffer
             gt_next = gt[end_gt:end_gt + next_stroke_length]
             gt_stroke = gt[pos_gt:end_gt]
             pred_stroke = preds[pos_pred:end_pred]
             # print(gt_stroke, gt_next, pred_stroke)
-            dist, a, b = DTWLoss.align(gt_stroke, gt_next[:temp_window], pred_stroke, str_len, window)
+            dist, a, b = DTWLoss.align(gt_stroke, gt_next[:_next_stroke_sample_len], pred_stroke, str_len, window)
 
             if i < len(gt_stroke_lens) - 1:
                 gtr_next = np.ascontiguousarray(gt_next[::-1])
-                distr, ar, br = DTWLoss.align(gt_stroke, gtr_next[:temp_window], pred_stroke, str_len, window)
+                distr, ar, br = DTWLoss.align(gt_stroke, gtr_next[:_next_stroke_sample_len], pred_stroke, str_len, window)
                 # Invert the next stroke
                 # print("LOSS", dist, distr)
                 if distr < dist:

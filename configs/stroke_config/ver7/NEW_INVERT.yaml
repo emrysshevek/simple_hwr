@@ -117,7 +117,7 @@ loss_fns2:
       - stroke_number
     relativefy_cross_entropy_gt: true #
     l1_center_of_mass: true
-    window_size: 40
+    window_size: 20
     barron: false
     low_level_dtw_alg: invert
 
