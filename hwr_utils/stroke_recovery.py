@@ -901,7 +901,7 @@ def move_bad_points(reference, moving_component, reference_is_image=True, max_di
 def get_sos_args(sos, stroke_numbers=True):
     """
     Args:
-        sos (array like): A list of stroke numbers
+        sos (array like): A list of stroke numbers (1,1,1,1,1,2,2,2,2...)
     Returns:
 
     """
