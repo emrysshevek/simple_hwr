@@ -757,7 +757,8 @@ def save_model_stroke(config, bsf=False):
         'epoch': config.counter.epochs,
         'model': config["model"].state_dict(),
         'optimizer': config["optimizer"].state_dict(),
-        'global_step': config.counter.updates
+        'global_step': config.counter.updates,
+        'scheduler': config.scheduler.state_dict()
     }
 
     config["main_model_path"] = os.path.join(path, "{}_model.pt".format(config['name']))
@@ -806,6 +807,10 @@ def load_model_strokes(config, load_optimizer=True):
         config["current_epoch"] = old_state["epoch"]
     else:
         config["model"].load_state_dict(old_state)
+
+    if "scheduler" in old_state and load_optimizer:
+        print("Loading saved scheduler...")
+        config.scheduler.load_state_dict(old_state["scheduler"])
 
     # Launch visdom
     if config["use_visdom"]:
