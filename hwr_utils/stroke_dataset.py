@@ -138,7 +138,7 @@ class BasicDataset(Dataset):
             "y_func": None,
             "start_times": None,
             "x_relative": None,
-            "label_length": label_length
+            "label_length": label_length,
         }
 
 
@@ -337,7 +337,6 @@ class StrokeRecoveryDataset(Dataset):
         #         break
 
         # Stroke order
-
         item = self.data[idx]
 
         # if not "current_stroke_order" in item:
@@ -436,7 +435,8 @@ class StrokeRecoveryDataset(Dataset):
             "y_func": item["y_func"],
             "gt_format": self.gt_format,
             "start_points": start_points,
-            "kdtree": kdtree # Will force preds to get nearer to nearest GTs; really want GTs forced to nearest pred; this will finish strokes better
+            "kdtree": kdtree, # Will force preds to get nearer to nearest GTs; really want GTs forced to nearest pred; this will finish strokes better
+            "gt_idx": idx
         }
 
 def create_gts_from_raw_dict(item, interval, noise, gt_format=None):
@@ -757,7 +757,8 @@ def collate_stroke(batch, device="cpu"):
         "paths": [b["path"] for b in batch],
         "x_func": [b["x_func"] for b in batch],
         "y_func": [b["y_func"] for b in batch],
-        "kdtree": [b["kdtree"] for b in batch]
+        "kdtree": [b["kdtree"] for b in batch],
+        "gt_idx": [b["gt_idx"] for b in batch]
     }
 
     # Pass everything else through too

@@ -250,6 +250,8 @@ def build_data_loaders(folder, cnn, train_size, test_size, **kwargs):
         n_test_points += sum(i["label_lengths"])
     config.n_test_instances = len(test_dataloader.dataset)
     config.n_test_points = int(n_test_points)
+    config.training_dataset = train_dataset
+    config.test_dataset = test_dataset
     return train_dataloader, test_dataloader
 
 def main(config_path, testing=False):
@@ -319,7 +321,7 @@ def main(config_path, testing=False):
     utils.stat_prep_strokes(config)
 
     # Create loss object
-    config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device)
+    config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device, training_dataset=config.training_dataset.data)
 
     LR = config.learning_rate * batch_size/24
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)

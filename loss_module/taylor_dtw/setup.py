@@ -55,7 +55,7 @@ def extensions():
 setup(
     name="taylor_dtw",
     description='Fast Implementation of the Dynamic Time Warping',
-    version="2.0.2",
+    version="2.1",
     long_description="",
     packages=find_packages(),
     setup_requires=["numpy", 'cython'],

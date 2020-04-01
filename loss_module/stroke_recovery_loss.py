@@ -18,7 +18,18 @@ import logging
 logger = logging.getLogger("root."+__name__)
 
 class StrokeLoss:
-    def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, device="cuda", **kwargs):
+    def __init__(self, parallel=False, vocab_size=4, loss_stats=None, counter=None, device="cuda", training_dataset=None, **kwargs):
+        """
+
+        Args:
+            parallel:
+            vocab_size:
+            loss_stats:
+            counter:
+            device:
+            training_dataset: Pointer to the dataset list (in case loss needs to modify GT)
+            **kwargs:
+        """
         super(StrokeLoss, self).__init__()
         ### Relative preds and relative GTs:
             # Resample GTs to be relative
@@ -42,6 +53,7 @@ class StrokeLoss:
         self.stats = loss_stats
         self.master_loss_defintion = {} # everything in the master_loss_defition will be evaluated
         self.coefs = []
+        self.training_dataset = None
 
     def get_loss_fn(self, loss):
         """ Return the right loss function given a loss definition dictionary
@@ -64,6 +76,9 @@ class StrokeLoss:
             loss_fn = l1.lossfun
         elif loss_name.startswith("l2"):
             loss_fn = L2(**loss, device=self.device).lossfun
+        elif loss_name.startswith("dtw_adaptive"):
+            l = DTWLoss(**loss, device=self.device, training_dataset=self.training_dataset)
+            loss_fn = l.lossfun = l.dtw_adaptive
         elif loss_name == "dtw_l1_swapper": # Swap strokes based on L1 distance
             l = DTWLoss(**loss, device=self.device)
             loss_fn = l.lossfun = l.dtw_l1_swapper

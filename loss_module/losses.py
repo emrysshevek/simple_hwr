@@ -4,7 +4,7 @@ import torch
 # from sdtw import SoftDTW
 import torch.multiprocessing as multiprocessing
 import torch.nn as nn
-from pydtw import dtw
+from taylor_dtw import custom_dtw as dtw
 from scipy.spatial import KDTree
 from torch import Tensor, tensor
 from robust_loss_pytorch import AdaptiveLossFunction
@@ -158,6 +158,9 @@ class DTWLoss(CustomLoss):
         else:
             self._dtw_alg = ""
 
+        if "training_dataset" in kwargs:
+            logger.info("Training dataset provided to loss function...GT adaptation possible")
+            self.training_dataset = kwargs["training_dataset"]
 
     # not faster
     def parallel_dtw(self, preds, targs, label_lengths, **kwargs):
@@ -173,6 +176,42 @@ class DTWLoss(CustomLoss):
             for i, (a, b) in enumerate(as_and_bs):  # loop through BATCH
                 loss += abs(preds[i, a, :2] - targs[i][b, :2]).sum()
         return loss
+
+
+    def dtw_adaptive(self, preds, targs, label_lengths, item, **kwargs):
+        loss = 0
+        item = add_preds_numpy(preds, item)
+        for i in range(len(preds)):  # loop through BATCH
+            pred = item["preds_numpy"][i]
+            targ = targs[i]
+            # This can be extended to do DTW with just a small buffer
+            adjusted_targ = swap_to_minimize_l1(pred, targ.detach().numpy().astype("float64"), stroke_numbers=True, center_of_mass=self.center_of_mass)
+            a, b = self.dtw_single((item["preds_numpy"][i], adjusted_targ), dtw_mapping_basis=self.dtw_mapping_basis, window_size=self.window_size)
+            adjusted_targ = tensor(adjusted_targ)
+            # LEN X VOCAB
+            if self.method == "normal":
+                pred = preds[i][a, :][:, self.loss_indices]
+                targ = adjusted_targ[b, :][:, self.loss_indices]
+
+            else:
+                raise NotImplemented
+
+            ## !!! DELETE THIS
+            if self.barron:
+                loss += (self.barron(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+            elif True:
+                loss += (abs(pred - targ) * self.subcoef).sum()  # AVERAGE pointwise loss for 1 image
+
+            if self.cross_entropy_indices:
+                pred2 = preds[i][a, :][:, self.cross_entropy_indices]
+                targ2 = targs[i][b, :][:, self.cross_entropy_indices]
+
+                pred2 = torch.clamp(pred2, -4, 4)
+                if self.relativefy:
+                    targ2 = relativefy_torch(targ2, default_value=1)  # default=1 ensures first point is a 1 (SOS);
+                loss += BCEWithLogitsLoss(pred2, targ2).sum() * .1  # AVERAGE pointwise loss for 1 image
+        return loss  # , to_value(loss)
+
 
     def dtw_l1_swapper(self, preds, targs, label_lengths, item, **kwargs):
         loss = 0
