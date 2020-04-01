@@ -221,139 +221,143 @@ def get_worst_match(gt, preds, a, b, sos):
 # These are all GT indices
 # First ROW/COL of cost matrix are NULL!
 
-gt = np.array(range(36)).reshape(9, 4).astype(np.float64)
-gt[:, 2] = [1, 0, 0, 1, 0, 1, 1, 0, 0]
+def adaptive_dtw(preds, gt, constraint=5, buffer=0):
+    # traceback(mat, x1.shape[0], x2.shape[0])
+    # create_cost_mat_2d
+    # constrained_dtw2d
 
-# Reverse first and last
-preds = [[8, 9, 1, 3],
-        [4, 5, 0, 7],
-        [0, 1, 0, 11],
-        [12, 13, 1, 15],
-        [16, 17, 0, 19],
-        [20, 21, 1, 23],
-        [32, 33, 1, 27],
-        [28, 29, 0, 31],
-        [24, 25, 0, 35]]
-
-# Normal
-preds = [[0, 1, 1, 11],
-        [4, 5, 0, 7],
-        [8, 9, 0, 3],
-        [12, 13, 1, 15],
-        [16, 17, 0, 19],
-        [20, 21, 1, 23],
-        [24, 25, 1, 35],
-        [28, 29, 0, 31],
-        [32, 33, 0, 27]]
-
-# Normal
-preds = [[0, 1, 1, 11],
-        [4, 5, 0, 7],
-        [8, 9, 0, 3],
-        [16, 17, 1, 19],
-        [12, 13, 0, 15],
-        [20, 21, 1, 23],
-        [24, 25, 1, 35],
-        [28, 29, 0, 31],
-        [32, 33, 0, 27]]
-
-# Add a stroke and reverse last
-# preds = [[0, 1, 0, 11],
-#         [4, 5, 0, 7],
-#         [8, 9, 1, 3],
-#         [12, 13, 1, 15],
-#         [16, 17, 0, 19],
-#         [20, 21, 1, 23],
-#         [21, 21, 1, 23],
-#         [32, 33, 1, 27],
-#         [28, 29, 0, 31],
-#         [24, 25, 0, 35]]
-#
-
-# Revere last stroke
-# preds = [[0, 1, 0, 11],
-#         [4, 5, 0, 7],
-#         [8, 9, 1, 3],
-#         [12, 13, 1, 15],
-#         [16, 17, 0, 19],
-#         [20, 21, 1, 23],
-#         [32, 33, 1, 27],
-#         [28, 29, 0, 31],
-#         [24, 25, 0, 35]]
-
-preds = np.asarray(preds).astype(np.float64)
-print(gt)
-
-# traceback(mat, x1.shape[0], x2.shape[0])
-# create_cost_mat_2d
-# constrained_dtw2d
-CONSTRAINT = 5
-buffer = 0
-
-cost_mat, costr, a, b = dtw.constrained_dtw2d(np.ascontiguousarray(gt[:, :2]), np.ascontiguousarray(preds[:, :2]),
-                                              constraint=CONSTRAINT)
-print(a)
-print(b)
-print("cost", costr)
-sos = get_sos_args(gt[:, 2], stroke_numbers=False)
-
-# Consider sampling from among the worst matches
-# Consider balancing worst total/average match
-worst_match_idx = get_worst_match(gt[:, :2], preds[:, :2], a, b, sos)
-
-# Convert the stroke number to indices in GT
-start_idx = sos[worst_match_idx]
-start_idx_buffer = max(start_idx - buffer, 0)  # double check -1
-
-end_idx = gt.shape[0] if worst_match_idx + 1 >= sos.size or sos[worst_match_idx] > gt.size else sos[worst_match_idx + 1]
-end_idx_buffer = gt.shape[0] if worst_match_idx + 1 >= sos.size or end_idx + buffer >= gt.size else end_idx + buffer # too many strokes OR too many stroke points
-
-# Reverse the line
-_start_idx = start_idx if start_idx != 0 else None
-new_gt = gt[end_idx-1:_start_idx:-1, :2]
-
-# Old Cost
-if end_idx_buffer < gt.shape[0]:
-    print("not last stroke")
-    alignment_end_idx = np.argmax(a == end_idx_buffer)  # first GT point
-
-    old_cost = cost_mat[a[alignment_end_idx], b[alignment_end_idx]]  # where we will start the traceback later
-
-    # The indices in the preds that DTW with the GTs
-    pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
-    pred_end_buffer = b[np.argmax(a == end_idx_buffer)]
-
-else: # last stroke
-    old_cost = cost_mat[a[-1], b[-1]]
-    pred_end_buffer = None
-    pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
-
-# Refill - end is with buffer
-
-print(np.array(cost_mat))
-# PREDS AND GTS MUST BE SAME LENGTH TO BE CONSISTENT; need to recalculate distance to end_idx buffer
-cost_mat = refill_cost_matrix(a, b, cost_mat, start_idx, end_idx_buffer, start_idx, end_idx_buffer, constraint=CONSTRAINT, dist_func=euclidean_distance)
-print(cost_mat)
-# Truncate the cost matrix to be to the designated start and end
-cost_mat_truncated = cost_mat[start_idx_buffer:end_idx_buffer,pred_start_buffer:pred_end_buffer] # the first point in the pred]
-print(cost_mat_truncated)
-
-print("old cost: ", old_cost)
-print("cost: ", cost_mat[-1,-1])
-
-if cost_mat[-1,-1] < old_cost:
-    print("BETTER MATCH!!!")
-    # Optimize later
-    a,b,cost = traceback(cost_mat, cost_mat.shape[0], cost_mat.shape[1])
-    print("new")
+    cost_mat, costr, a, b = dtw.constrained_dtw2d(np.ascontiguousarray(gt[:, :2]), np.ascontiguousarray(preds[:, :2]),
+                                                  constraint=constraint)
     print(a)
     print(b)
-# Traceback - all the way to before the buffer
-    # Finds new path
-    # if better, replace path through window+buffer of original DTW
+    print("cost", costr)
+    sos = get_sos_args(gt[:, 2], stroke_numbers=False)
+
+    # Consider sampling from among the worst matches
+    # Consider balancing worst total/average match
+    worst_match_idx = get_worst_match(gt[:, :2], preds[:, :2], a, b, sos)
+
+    # Convert the stroke number to indices in GT
+    start_idx = sos[worst_match_idx]
+    start_idx_buffer = max(start_idx - buffer, 0)  # double check -1
+
+    end_idx = gt.shape[0] if worst_match_idx + 1 >= sos.size or sos[worst_match_idx] > gt.size else sos[worst_match_idx + 1]
+    end_idx_buffer = gt.shape[0] if worst_match_idx + 1 >= sos.size or end_idx + buffer >= gt.size else end_idx + buffer # too many strokes OR too many stroke points
+
+    # Reverse the line
+    _start_idx = start_idx if start_idx != 0 else None
+    new_gt = gt[end_idx-1:_start_idx:-1, :2]
+
+    # Old Cost
+    if end_idx_buffer < gt.shape[0]:
+        print("not last stroke")
+        alignment_end_idx = np.argmax(a == end_idx_buffer)  # first GT point
+
+        old_cost = cost_mat[a[alignment_end_idx], b[alignment_end_idx]]  # where we will start the traceback later
+
+        # The indices in the preds that DTW with the GTs
+        pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
+        pred_end_buffer = b[np.argmax(a == end_idx_buffer)]
+
+    else: # last stroke
+        old_cost = cost_mat[a[-1], b[-1]]
+        pred_end_buffer = None
+        pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
+
+    # Refill - end is with buffer
+
+    print(np.array(cost_mat))
+    # PREDS AND GTS MUST BE SAME LENGTH TO BE CONSISTENT; need to recalculate distance to end_idx buffer
+    cost_mat = refill_cost_matrix(a, b, cost_mat, start_idx, end_idx_buffer, start_idx, end_idx_buffer, constraint=constraint, dist_func=euclidean_distance)
+    print(cost_mat)
+    # Truncate the cost matrix to be to the designated start and end
+    print(start_idx_buffer,end_idx_buffer,pred_start_buffer,pred_end_buffer)
+    cost_mat_truncated = cost_mat[start_idx_buffer:end_idx_buffer,pred_start_buffer:pred_end_buffer] # the first point in the pred]
+    print(cost_mat_truncated)
+
+    print("old cost: ", old_cost)
+    print("cost: ", cost_mat_truncated[-1,-1])
+
+    if cost_mat[-1,-1] < old_cost:
+        print("BETTER MATCH!!!")
+        # Optimize later
+        a,b,cost = traceback(cost_mat, cost_mat.shape[0], cost_mat.shape[1])
+        print("new")
+        print(a)
+        print(b)
+    # Traceback - all the way to before the buffer
+        # Finds new path
+        # if better, replace path through window+buffer of original DTW
 
 
 ## Test cases:
     # last stroke
     # first stroke
     # middle stroke
+
+def test():
+    gt = np.array(range(36)).reshape(9, 4).astype(np.float64)
+    gt[:, 2] = [1, 0, 0, 1, 0, 1, 1, 0, 0]
+
+    # Reverse first and last
+    preds_first_last = [[8, 9, 1, 3],
+             [4, 5, 0, 7],
+             [0, 1, 0, 11],
+             [12, 13, 1, 15],
+             [16, 17, 0, 19],
+             [20, 21, 1, 23],
+             [32, 33, 1, 27],
+             [28, 29, 0, 31],
+             [24, 25, 0, 35]]
+
+    # Normal
+    preds = [[0, 1, 1, 11],
+            [4, 5, 0, 7],
+            [8, 9, 0, 3],
+            [12, 13, 1, 15],
+            [16, 17, 0, 19],
+            [20, 21, 1, 23],
+            [24, 25, 1, 35],
+            [28, 29, 0, 31],
+            [32, 33, 0, 27]]
+
+    # Inverted middle
+    preds_middle = [[0, 1, 1, 11],
+            [4, 5, 0, 7],
+            [8, 9, 0, 3],
+            [16, 17, 1, 19],
+            [12, 13, 0, 15],
+            [20, 21, 1, 23],
+            [24, 25, 1, 35],
+            [28, 29, 0, 31],
+            [32, 33, 0, 27]]
+
+    # Add a stroke and reverse last
+    # preds = [[0, 1, 0, 11],
+    #         [4, 5, 0, 7],
+    #         [8, 9, 1, 3],
+    #         [12, 13, 1, 15],
+    #         [16, 17, 0, 19],
+    #         [20, 21, 1, 23],
+    #         [21, 21, 1, 23],
+    #         [32, 33, 1, 27],
+    #         [28, 29, 0, 31],
+    #         [24, 25, 0, 35]]
+
+
+    # Revere last stroke
+    preds_last = [[0, 1, 0, 11],
+            [4, 5, 0, 7],
+            [8, 9, 1, 3],
+            [12, 13, 1, 15],
+            [16, 17, 0, 19],
+            [20, 21, 1, 23],
+            [32, 33, 1, 27],
+            [28, 29, 0, 31],
+            [24, 25, 0, 35]]
+
+    preds_first_last = np.asarray(preds_first_last).astype(np.float64)
+    preds_last = np.asarray(preds_last).astype(np.float64)
+    preds_middle = np.asarray(preds_middle).astype(np.float64)
+    preds = np.asarray(preds).astype(np.float64)
+    print(gt)

@@ -784,8 +784,11 @@ def save_model_stroke(config, bsf=False):
     if config["save_count"]==0:
         create_resume_training_stroke(config)
     config["save_count"] += 1
+    if "training_dataset" in config:
+        np.save(Path(config["results_dir"]) / "training_dataset.npy", config.training_dataset)
 
 def new_scheduler(optimizer, batch_size):
+    print("Building new scheduler...")
     return lr_scheduler.StepLR(optimizer, step_size=int(180000 / batch_size), gamma=.95)
 
 def load_model_strokes(config, load_optimizer=True):
@@ -806,7 +809,9 @@ def load_model_strokes(config, load_optimizer=True):
         config["model"].load_state_dict(old_state["model"])
         if "optimizer" in config.keys() and load_optimizer:
             logger.info("Loading optimizer...")
-            config["optimizer"].load_state_dict(old_state["optimizer"])
+            config.optimizer.load_state_dict(old_state["optimizer"])
+            LR = next(iter(config.optimizer.param_groups))['lr']
+            logger.info(f"LR from loaded optimizer is {LR}")
         config["global_counter"] = old_state["global_step"]
         config["starting_epoch"] = old_state["epoch"]
         config["current_epoch"] = old_state["epoch"]
@@ -816,8 +821,9 @@ def load_model_strokes(config, load_optimizer=True):
     if "scheduler" in old_state and load_optimizer:
         print("Loading saved scheduler...")
         config.scheduler.load_state_dict(old_state["scheduler"])
-    elif load_optimizer: # if there is no schedule, rebuild it
-        config.scheduler = new_scheduler(config.optimizer, config.batch_size)
+    elif load_optimizer: # if there is no saved schedule state, rebuild it
+        pass
+        #config.scheduler = new_scheduler(config.optimizer, config.batch_size)
 
     # Launch visdom
     if config["use_visdom"]:

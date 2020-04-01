@@ -142,6 +142,32 @@ cdef double[:, ::1] create_cost_mat_2d(double[:, ::1] a, double[:, ::1] b, int c
                 d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
     return cost_mat[1:, 1:]
 
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef double[:, ::1] refill_cost_matrix(double[:, ::1] a, double[:, ::1] b, double[:, ::1] cost_mat, int start_a, int end_a, int start_b, int end_b, int constraint, dist_func=euclidean_distance):
+    """ Refill end should include the buffer, since all of these distances need to be recalculated
+    
+    Args:
+        a: GT sequence
+        b: Pred sequence
+        cost_mat: previous cost matrix
+        start_a: idx of rows to start refilling
+        end_a: idx of rows to end refilling
+        start_b: 
+        end_b: 
+        constraint: 
+        dist_func: 
+
+    Returns:
+
+    """
+    cost_mat = cost_mat.base # get the original matrix back with the infs in first/last row
+    for i in range(start_a + 1, end_a + 1):
+        for j in range(max(start_b + 1, i - constraint), min(end_b + 1, i + constraint + 1)):
+            cost_mat[i, j] = dist_func(a[i - 1], b[j - 1]) + \
+                            d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
+
+    return cost_mat[1:, 1:]
 
 @cython.boundscheck(False)
 @cython.wraparound(False)

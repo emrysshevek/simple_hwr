@@ -325,6 +325,7 @@ def main(config_path, testing=False):
     config.loss_obj = StrokeLoss(loss_stats=config.stats, counter=config.counter, device=device, training_dataset=config.training_dataset.data)
 
     LR = config.learning_rate * batch_size/24
+    logger.info(f"Specified LR: {config.learning_rate}, Effective: {LR}")
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     config.scheduler = utils.new_scheduler(optimizer, batch_size)  # halves every ~10 "super" epochs
     # config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=80, verbose=False,
@@ -338,6 +339,7 @@ def main(config_path, testing=False):
     config.optimizer=optimizer
     config.trainer=trainer
     config.model = model
+    logger.info(f"LR before loading model: {next(iter(config.optimizer.param_groups))['lr']}")
     if config.load_path:
         utils.load_model_strokes(config, config.load_optimizer)  # should be load_model_strokes??????
         print(config.counter.epochs)
@@ -345,7 +347,6 @@ def main(config_path, testing=False):
     if config.reset_LR:
         logger.info("Resetting LR")
         reset_LR(optimizer, LR)
-
     logger.info(f"Starting LR is {next(iter(config.optimizer.param_groups))['lr']}")
 
     check_epoch_build_loss(config, loss_exists=False)
