@@ -787,9 +787,9 @@ def save_model_stroke(config, bsf=False):
     if "training_dataset" in config:
         np.save(Path(config["results_dir"]) / "training_dataset.npy", config.training_dataset)
 
-def new_scheduler(optimizer, batch_size):
+def new_scheduler(optimizer, batch_size, last_epoch=-1):
     print("Building new scheduler...")
-    return lr_scheduler.StepLR(optimizer, step_size=int(180000 / batch_size), gamma=.95)
+    return lr_scheduler.StepLR(optimizer, step_size=int(180000 / 16), gamma=.95, last_epoch=last_epoch)
 
 def load_model_strokes(config, load_optimizer=True):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
@@ -818,12 +818,17 @@ def load_model_strokes(config, load_optimizer=True):
     else:
         config["model"].load_state_dict(old_state)
 
+    # Load these counters -- will be overwritten if all_stats.json found
+    config.counter.updates = config["global_counter"]
+    config.counter.epochs = config["current_epoch"]
+
+    logger.info(f"Total updates from loaded model: {config.global_counter}")
+    logger.info(f"Epochs from loaded model: {config.current_epoch}")
     if "scheduler" in old_state and load_optimizer:
         print("Loading saved scheduler...")
         config.scheduler.load_state_dict(old_state["scheduler"])
     elif load_optimizer: # if there is no saved schedule state, rebuild it
-        pass
-        #config.scheduler = new_scheduler(config.optimizer, config.batch_size)
+        config.scheduler = new_scheduler(config.optimizer, config.batch_size, last_epoch=config.counter.updates)
 
     # Launch visdom
     if config["use_visdom"]:
