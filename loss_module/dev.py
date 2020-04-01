@@ -11,6 +11,8 @@ from hwr_utils.stroke_recovery import get_number_of_stroke_pts_from_gt
 from hwr_utils.stroke_recovery import *
 import json
 from matplotlib import pyplot as plt
+from taylor_dtw import custom_dtw as dtw
+np.set_printoptions(precision=1)
 
 ### POSSIBLY GO BACK TO ORIGINAL HANDLING OF COST_MAT, AND USE cost_mat.base
 
@@ -119,7 +121,7 @@ def create_cost_mat_2d(a, b, constraint, dist_func=euclidean_distance):
             cost_mat[i, j] = dist_func(a[i - 1], b[j - 1]) + \
                              d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
 
-    return cost_mat #[1:, 1:]
+    return cost_mat[1:, 1:]
 
 
 def traceback(cost_mat, ilen, jlen):
@@ -130,7 +132,7 @@ def traceback(cost_mat, ilen, jlen):
     #     a.push_back(i)
     #     b.push_back(j)
 
-    cost_mat = cost_mat[1:, 1:]
+    cost_mat = cost_mat #[1:, 1:]
     cost = cost_mat[i, j]
     a = []
     b = []
@@ -150,7 +152,7 @@ def traceback(cost_mat, ilen, jlen):
         b.push_back(j)
     return a, b, cost
 
-from pydtw import dtw
+#from pydtw import dtw
 # Original DTW
 # Look at worst match - based on average distance
 # Randomly sample among worst matches, based on how bad they are
@@ -184,7 +186,7 @@ def refill_cost_matrix(a, b, cost_mat, start_a, end_a, start_b, end_b, constrain
     #     start_b = max(start_b - 1, 0)
     #     end_a = max(end_a - 1, 0)
     #     end_b = max(end_b - 1, 0)
-    cost_mat = cost_mat.base # get the original matrix back
+    cost_mat = cost_mat.base # get the original matrix back with the infs
     for i in range(start_a + 1, end_a + 1):
         for j in range(max(start_b + 1, i - constraint), min(end_b + 1, i + constraint + 1)):
             cost_mat[i, j] = dist_func(a[i - 1], b[j - 1]) + \
@@ -222,35 +224,62 @@ def get_worst_match(gt, preds, a, b, sos):
 gt = np.array(range(36)).reshape(9, 4).astype(np.float64)
 gt[:, 2] = [1, 0, 0, 1, 0, 1, 1, 0, 0]
 
-preds = [[8, 9, 1, 3],
-         [4, 5, 0, 7],
-         [0, 1, 0, 11],
-        [12, 13, 1, 15],
-        [16, 17, 0, 19],
-        [20, 21, 1, 23],
-        [32, 33, 1, 27],
-         [28, 29, 0, 31],
-        [24, 25, 0, 35]]
+# Reverse first and last
 preds = [[8, 9, 1, 3],
         [4, 5, 0, 7],
         [0, 1, 0, 11],
         [12, 13, 1, 15],
         [16, 17, 0, 19],
         [20, 21, 1, 23],
-        [21, 21, 1, 23],
         [32, 33, 1, 27],
         [28, 29, 0, 31],
         [24, 25, 0, 35]]
-preds = [[0, 1, 0, 11],
+
+# Normal
+preds = [[0, 1, 1, 11],
         [4, 5, 0, 7],
-        [8, 9, 1, 3],
+        [8, 9, 0, 3],
         [12, 13, 1, 15],
         [16, 17, 0, 19],
         [20, 21, 1, 23],
-        [21, 21, 1, 23],
-        [32, 33, 1, 27],
+        [24, 25, 1, 35],
         [28, 29, 0, 31],
-        [24, 25, 0, 35]]
+        [32, 33, 0, 27]]
+
+# Normal
+preds = [[0, 1, 1, 11],
+        [4, 5, 0, 7],
+        [8, 9, 0, 3],
+        [16, 17, 1, 19],
+        [12, 13, 0, 15],
+        [20, 21, 1, 23],
+        [24, 25, 1, 35],
+        [28, 29, 0, 31],
+        [32, 33, 0, 27]]
+
+# Add a stroke and reverse last
+# preds = [[0, 1, 0, 11],
+#         [4, 5, 0, 7],
+#         [8, 9, 1, 3],
+#         [12, 13, 1, 15],
+#         [16, 17, 0, 19],
+#         [20, 21, 1, 23],
+#         [21, 21, 1, 23],
+#         [32, 33, 1, 27],
+#         [28, 29, 0, 31],
+#         [24, 25, 0, 35]]
+#
+
+# Revere last stroke
+# preds = [[0, 1, 0, 11],
+#         [4, 5, 0, 7],
+#         [8, 9, 1, 3],
+#         [12, 13, 1, 15],
+#         [16, 17, 0, 19],
+#         [20, 21, 1, 23],
+#         [32, 33, 1, 27],
+#         [28, 29, 0, 31],
+#         [24, 25, 0, 35]]
 
 preds = np.asarray(preds).astype(np.float64)
 print(gt)
@@ -263,30 +292,68 @@ buffer = 0
 
 cost_mat, costr, a, b = dtw.constrained_dtw2d(np.ascontiguousarray(gt[:, :2]), np.ascontiguousarray(preds[:, :2]),
                                               constraint=CONSTRAINT)
+print(a)
+print(b)
+print("cost", costr)
 sos = get_sos_args(gt[:, 2], stroke_numbers=False)
+
+# Consider sampling from among the worst matches
+# Consider balancing worst total/average match
 worst_match_idx = get_worst_match(gt[:, :2], preds[:, :2], a, b, sos)
 
 # Convert the stroke number to indices in GT
 start_idx = sos[worst_match_idx]
 start_idx_buffer = max(start_idx - buffer, 0)  # double check -1
+
 end_idx = gt.shape[0] if worst_match_idx + 1 >= sos.size or sos[worst_match_idx] > gt.size else sos[worst_match_idx + 1]
-end_idx_buffer = gt.shape[0] if worst_match_idx + 1 >= sos.size or sos[worst_match_idx] + buffer > gt.size else sos[worst_match_idx] + buffer
+end_idx_buffer = gt.shape[0] if worst_match_idx + 1 >= sos.size or end_idx + buffer >= gt.size else end_idx + buffer # too many strokes OR too many stroke points
 
 # Reverse the line
 _start_idx = start_idx if start_idx != 0 else None
 new_gt = gt[end_idx-1:_start_idx:-1, :2]
 
 # Old Cost
-if end_idx_buffer:
+if end_idx_buffer < gt.shape[0]:
+    print("not last stroke")
     alignment_end_idx = np.argmax(a == end_idx_buffer)  # first GT point
+
     old_cost = cost_mat[a[alignment_end_idx], b[alignment_end_idx]]  # where we will start the traceback later
-else:
+
+    # The indices in the preds that DTW with the GTs
+    pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
+    pred_end_buffer = b[np.argmax(a == end_idx_buffer)]
+
+else: # last stroke
     old_cost = cost_mat[a[-1], b[-1]]
+    pred_end_buffer = None
+    pred_start_buffer = b[np.argmax(a == start_idx_buffer)]
 
-# Refill
-cost_mat = refill_cost_matrix(a, b, cost_mat, start_idx, end_idx, start_idx, end_idx, constraint=CONSTRAINT, dist_func=euclidean_distance)
+# Refill - end is with buffer
+
+print(np.array(cost_mat))
+# PREDS AND GTS MUST BE SAME LENGTH TO BE CONSISTENT; need to recalculate distance to end_idx buffer
+cost_mat = refill_cost_matrix(a, b, cost_mat, start_idx, end_idx_buffer, start_idx, end_idx_buffer, constraint=CONSTRAINT, dist_func=euclidean_distance)
 print(cost_mat)
+# Truncate the cost matrix to be to the designated start and end
+cost_mat_truncated = cost_mat[start_idx_buffer:end_idx_buffer,pred_start_buffer:pred_end_buffer] # the first point in the pred]
+print(cost_mat_truncated)
 
-# Traceback
+print("old cost: ", old_cost)
+print("cost: ", cost_mat[-1,-1])
+
+if cost_mat[-1,-1] < old_cost:
+    print("BETTER MATCH!!!")
+    # Optimize later
+    a,b,cost = traceback(cost_mat, cost_mat.shape[0], cost_mat.shape[1])
+    print("new")
+    print(a)
+    print(b)
+# Traceback - all the way to before the buffer
     # Finds new path
     # if better, replace path through window+buffer of original DTW
+
+
+## Test cases:
+    # last stroke
+    # first stroke
+    # middle stroke

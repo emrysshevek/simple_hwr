@@ -39,6 +39,7 @@ def update_LR(config, training_loss=None):
     new_lr = next(iter(config.optimizer.param_groups))['lr']
     if new_lr != lr:
         logger.info(f"LR decreased from {lr} to {new_lr}")
+    config.learning_rate = new_lr
 
 def run_epoch(dataloader, report_freq=500):
     # for i in range(0, 16):
@@ -325,7 +326,7 @@ def main(config_path, testing=False):
 
     LR = config.learning_rate * batch_size/24
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
-    config.scheduler = lr_scheduler.StepLR(optimizer, step_size=int(180000/batch_size), gamma=.95) # halves every ~10 "super" epochs
+    config.scheduler = utils.new_scheduler(optimizer, batch_size)  # halves every ~10 "super" epochs
     # config.scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.7, patience=80, verbose=False,
     #                                             threshold=0.00005, threshold_mode='rel', cooldown=0, min_lr=0, eps=1e-08)
 

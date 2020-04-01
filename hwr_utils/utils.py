@@ -24,6 +24,8 @@ import traceback
 from hwr_utils import hwr_logger
 from subprocess import Popen, DEVNULL, STDOUT, check_output
 from hwr_utils.base_utils import *
+from torch.optim import lr_scheduler
+
 
 def read_config(config):
     config = Path(config)
@@ -783,6 +785,9 @@ def save_model_stroke(config, bsf=False):
         create_resume_training_stroke(config)
     config["save_count"] += 1
 
+def new_scheduler(optimizer, batch_size):
+    return lr_scheduler.StepLR(optimizer, step_size=int(180000 / batch_size), gamma=.95)
+
 def load_model_strokes(config, load_optimizer=True):
     # User can specify folder or .pt file; other files are assumed to be in the same folder
     if os.path.isfile(config["load_path"]):
@@ -811,6 +816,8 @@ def load_model_strokes(config, load_optimizer=True):
     if "scheduler" in old_state and load_optimizer:
         print("Loading saved scheduler...")
         config.scheduler.load_state_dict(old_state["scheduler"])
+    elif load_optimizer: # if there is no schedule, rebuild it
+        config.scheduler = new_scheduler(config.optimizer, config.batch_size)
 
     # Launch visdom
     if config["use_visdom"]:

@@ -17,7 +17,7 @@ data_root_fsl: ../hw_data/strokes
 data_root_local: data
 dataset_folder: online_coordinate_data/MAX_stroke_vlargeTrnSetFull
 warp: true
-learning_rate: 0.0001
+learning_rate: 0.000001
 scheduler_step: 1
 scheduler_gamma: 0.95
 test_size: null

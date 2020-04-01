@@ -91,7 +91,7 @@ cdef double[:, ::1] create_cost_mat_1d(double[::1] a, double[::1]b, int constrai
         for j in range(max(1, i-constraint), min(cost_mat.shape[1], i+constraint+1)):
             cost_mat[i, j] = fabs(a[i - 1] - b[j - 1]) +\
                 d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
-    return cost_mat #[1:, 1:]
+    return cost_mat[1:, 1:]
 
 
 @cython.boundscheck(False)
@@ -140,7 +140,7 @@ cdef double[:, ::1] create_cost_mat_2d(double[:, ::1] a, double[:, ::1] b, int c
         for j in range(max(1, i-constraint), min(cost_mat.shape[1], i+constraint+1)):
             cost_mat[i, j] = dist_func(a[i - 1], b[j - 1]) +\
                 d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
-    return cost_mat #[1:, 1:]
+    return cost_mat[1:, 1:]
 
 
 @cython.boundscheck(False)
@@ -149,7 +149,7 @@ cdef traceback(double[:, ::1] cost_mat, int ilen, int jlen):
     cdef int i, j
     i = ilen - 1
     j = jlen - 1
-    cost_mat = cost_mat[1:, 1:]
+    #cost_mat = cost_mat[1:, 1:]
     cdef double cost = cost_mat[i, j]
     cdef vector[int] a
     cdef vector[int] b
