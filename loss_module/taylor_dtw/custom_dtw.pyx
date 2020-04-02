@@ -144,7 +144,7 @@ cdef double[:, ::1] create_cost_mat_2d(double[:, ::1] a, double[:, ::1] b, int c
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cdef double[:, ::1] refill_cost_matrix(double[:, ::1] a, double[:, ::1] b, double[:, ::1] cost_mat, int start_a, int end_a, int start_b, int end_b, int constraint, dist_func=euclidean_distance):
+cdef double[:, ::1] _refill_cost_matrix(double[:, ::1] a, double[:, ::1] b, double[:, ::1] cost_mat, int start_a, int end_a, int start_b, int end_b, int constraint, str metric):
     """ Refill end should include the buffer, since all of these distances need to be recalculated
     
     Args:
@@ -156,18 +156,35 @@ cdef double[:, ::1] refill_cost_matrix(double[:, ::1] a, double[:, ::1] b, doubl
         start_b: 
         end_b: 
         constraint: 
-        dist_func: 
+        metric: 
 
     Returns:
 
     """
-    cost_mat = cost_mat.base # get the original matrix back with the infs in first/last row
+    cdef metric_ptr dist_func
+    if metric == 'euclidean':
+        dist_func = &euclidean_distance
+    else:
+        raise ValueError("unrecognized metric")
+
     for i in range(start_a + 1, end_a + 1):
         for j in range(max(start_b + 1, i - constraint), min(end_b + 1, i + constraint + 1)):
-            cost_mat[i, j] = dist_func(a[i - 1], b[j - 1]) + \
+            cost_mat[i, j] = metric(a[i - 1], b[j - 1]) + \
                             d_min(cost_mat[i - 1, j], cost_mat[i, j - 1], cost_mat[i - 1, j - 1])
 
     return cost_mat[1:, 1:]
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def refill_cost_matrix(np.ndarray[np.float64_t, ndim=2, mode="c"] a, np.ndarray[np.float64_t, ndim=2, mode="c"] b,
+                       np.ndarray[np.float64_t, ndim=2, mode="c"] cost_mat, start_a, end_a, start_b, end_b, constraint, metric='euclidean'):
+
+    #cdef np.ndarray[np.float64_t, ndim=2, mode="c"]
+    #cost_mat2 = np.ascontiguousarray(cost_mat.base) # get the original matrix back with the infs in first/last row
+    new_cost_mat = _refill_cost_matrix(a, b, cost_mat, start_a, end_a, start_b, end_b, constraint, metric=metric)
+    return new_cost_mat
+
 
 @cython.boundscheck(False)
 @cython.wraparound(False)

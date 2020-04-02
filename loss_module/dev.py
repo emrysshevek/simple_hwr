@@ -175,7 +175,7 @@ for i in range(1, cost_mat.shape[0]):
 """
 
 
-def refill_cost_matrix(a, b, cost_mat, start_a, end_a, start_b, end_b, constraint, dist_func=euclidean_distance):
+def refill_cost_matrix_dev(a, b, cost_mat, start_a, end_a, start_b, end_b, constraint, dist_func=euclidean_distance):
     # Include some buffer beyond just the strokes being flipped
     # To get improvement, compare the cost at this point before and after
     # cost_mat = np.empty((a.shape[0] + 1, b.shape[0] + 1), dtype=np.float64)
@@ -268,7 +268,7 @@ def adaptive_dtw(preds, gt, constraint=5, buffer=0):
 
     print(np.array(cost_mat))
     # PREDS AND GTS MUST BE SAME LENGTH TO BE CONSISTENT; need to recalculate distance to end_idx buffer
-    cost_mat = refill_cost_matrix(a, b, cost_mat, start_idx, end_idx_buffer, start_idx, end_idx_buffer, constraint=constraint, dist_func=euclidean_distance)
+    cost_mat = dtw.refill_cost_matrix(a, b, cost_mat.base, start_idx, end_idx_buffer, start_idx, end_idx_buffer, constraint=constraint, metric="euclidean")
     print(cost_mat)
     # Truncate the cost matrix to be to the designated start and end
     print(start_idx_buffer,end_idx_buffer,pred_start_buffer,pred_end_buffer)
@@ -285,10 +285,13 @@ def adaptive_dtw(preds, gt, constraint=5, buffer=0):
         print("new")
         print(a)
         print(b)
+
     # Traceback - all the way to before the buffer
         # Finds new path
         # if better, replace path through window+buffer of original DTW
-
+    # OVERWRITE ORIGINAL STROKE
+    # OVERWRITE CURRENT STROKE
+    # CYTHON
 
 ## Test cases:
     # last stroke
@@ -360,4 +363,9 @@ def test():
     preds_last = np.asarray(preds_last).astype(np.float64)
     preds_middle = np.asarray(preds_middle).astype(np.float64)
     preds = np.asarray(preds).astype(np.float64)
-    print(gt)
+
+    for pred in preds_first_last, preds_last, preds_middle, preds:
+        adaptive_dtw(pred, gt, constraint=5, buffer=0)
+
+if __name__=='__main__':
+    test()
